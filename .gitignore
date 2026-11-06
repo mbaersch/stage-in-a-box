@@ -10,6 +10,7 @@
 !/src/
 !/test/
 !/vorlage/
+!/res/
 
 # Erzeugte Dateien
 __pycache__/

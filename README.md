@@ -44,6 +44,8 @@ Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das 
 3. Trigger: **Consent Initialization – All Pages**.
 4. Speichern, **nicht veröffentlichen.** Das Tag wird nur im Preview gebraucht. Würde es versehentlich veröffentlicht, macht es außerhalb des Previews nichts.
 
+![Recorder-Tag im GTM: benutzerdefiniertes HTML mit Trigger Consent Initialization – All Pages](res/tag-konfiguration.png)
+
 Optional im Tag oben einstellen:
 
 - `values: 'masked'` (Vorgabe): Eingaben in Formularen werden nur mit Format und Länge aufgezeichnet, z. B. `Xxx.Xxxxxxxxxx@xxxxxxx.xx`.
@@ -111,6 +113,8 @@ TEMPO=aufzeichnung npm test               # im Tempo der Aufzeichnung
 ```
 
 Unter Windows oder dauerhaft: `TEMPO` und `TRACKING_MODUS` in `.env` setzen.
+
+![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
 Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist.
 
