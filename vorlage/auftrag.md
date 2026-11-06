@@ -44,6 +44,7 @@
 
 - **Baseline anlegen?** <!-- ja / nein. Baseline-Läufe senden echte Requests an alle Dienste. -->
 - **Testtraffic erkennbar bzw. gefiltert?** <!-- z. B. Testkonto, IP-Filter, interner Traffic-Parameter -->
+- **Mit Proxy?** <!-- ja (empfohlen: sieht auch Beacons beim Verlassen und Service Worker) / nein -->
 - **Tempo:** <!-- schnell / mittel / langsam / aufzeichnung (Pausen wie aufgezeichnet). Baseline und Vergleich laufen immer im selben Tempo. -->
 
 ## Varianten

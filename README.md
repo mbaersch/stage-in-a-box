@@ -17,6 +17,7 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
 - **Eine geplante CSP testen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
+- **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
 
 ## So läuft es ab
 
@@ -110,13 +111,14 @@ npm run test:sichtbar                     # mit sichtbarem Browser
 npm run report                            # HTML-Report öffnen
 npm run baseline:neu                      # Baselines bewusst neu erstellen
 TEMPO=aufzeichnung npm test               # im Tempo der Aufzeichnung
+PROXY=ein npm test                        # über den Proxy (siehe unten)
 ```
 
-Unter Windows oder dauerhaft: `TEMPO` und `TRACKING_MODUS` in `.env` setzen.
+Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in `.env` setzen.
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
-Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist.
+Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist.
 
 ### Baseline
 
@@ -129,7 +131,7 @@ Der erste Lauf speichert `baselines/<journey>.json`. Jeder weitere vergleicht da
 | Request fehlt, ist mehrfach da, wurde blockiert oder scheiterte | neue Requests, neue Hosts |
 | Consent-Parameter geändert (`gcs`, `gcd`, `npa`, `dma`) | neue oder geänderte Request-Parameter |
 | dataLayer-Event fehlt oder ist mehrfach da | neue Events, neue Keys |
-| Key fehlt, der in der Baseline vorhanden war | geänderte Werte außerhalb von `ecommerce` |
+| Key fehlt, der in der Baseline vorhanden war | geänderte Werte außerhalb von `ecommerce`; neue oder weggefallene Requests ohne Regel |
 | jede Abweichung in `ecommerce` (z. B. `item_id`, `item_category`) | geänderte Reihenfolge der Events |
 | Consent-Befehle geändert, CSP-Verstoß | |
 
@@ -147,6 +149,17 @@ Baseline und Vergleich laufen immer im selben **Tempo**. Am Ende verlässt der T
 | `aufzeichnung` | Pausen genau wie in der Aufzeichnung (höchstens 60 s pro Schritt) |
 
 Manche Requests hängen von der Verweildauer ab, etwa GA4 `user_engagement`, Timer- oder Scroll-Trigger. Im Tempo `schnell` fehlen sie oder sehen anders aus.
+
+### Proxy
+
+Ohne Proxy beobachtet und steuert die Testumgebung Requests über Playwright. Das reicht für die meisten Fälle und hat zwei blinde Flecken:
+
+- **Beacons beim Verlassen einer Seite** (GA4 `user_engagement`, Microsoft Ads und viele andere senden bei `pagehide`) sieht Playwright nicht und kann sie nicht abfangen. Sie werden über das Netzwerkprotokoll des Browsers nachträglich erkannt, aber ohne Inhalt. Im Modus „abfangen“ gehen sie trotzdem raus.
+- **Service Worker** müssen abgeschaltet werden, sonst entgehen deren Requests der Kontrolle. Das ist weniger realistisch als ein echter Besuch.
+
+Mit `PROXY=ein` (in `.env`) laufen alle Requests des Testbrowsers über einen lokalen Proxy. Der sieht jeden Request mit Inhalt, kann ihn abfangen, blockieren oder verzögern, auch auf Pfaden der eigenen Domain (sGTM). Service Worker laufen dann wie bei echten Besuchern.
+
+Dafür bricht der Proxy HTTPS mit eigenen Zertifikaten auf, denen nur der Testbrowser vertraut. Zwischen Browser und Proxy gilt HTTP/1.1. Für Tracking-Tests spielt das keine Rolle, bei Performance-Messungen schon. Mit Proxy entstehen eigene Baselines (`<journey>.proxy.json`). Der Proxy braucht eine zusätzliche Abhängigkeit (`node-forge`, wird mit `npm install` installiert).
 
 ### Ausprobieren ohne eigene Website
 
@@ -166,7 +179,8 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 
 - **Inhalte in fremden iframes** (Zahlungsfelder, manche Consent-Banner) kann der Recorder nicht sehen. Der Agent muss diese Schritte anders lösen oder fragt nach.
 - **Requests anderer Dienste als Google** stehen nicht im Tag-Assistant-Export, nur dass ihr Tag gefeuert hat. In den Tests werden sie trotzdem vollständig erfasst.
-- **Beacons beim Verlassen einer Seite** (z. B. `user_engagement`) laufen in Chromium am Abfangen vorbei. Im Modus „abfangen“ werden sie deshalb echt gesendet. Die Tests erkennen das und markieren sie als „entwischt“.
+- **Ohne Proxy:** Beacons beim Verlassen einer Seite (z. B. `user_engagement`) laufen in Chromium am Abfangen vorbei. Im Modus „abfangen“ werden sie deshalb echt gesendet. Die Tests erkennen das und markieren sie als „entwischt“. Mit Proxy passiert das nicht.
+- **Eigene Pfade und Formate:** Tracking über Pfade der eigenen Domain, Custom Loader oder getunnelte Requests erkennen die Standardregeln nicht. Solche Requests erscheinen als „Requests ohne Regel“. Der Agent prüft sie vor dem Bauen und legt passende Regeln an.
 - **Hover-Menüs**, die sich nur bei Mouseover öffnen, werden nicht aufgezeichnet.
 - **Bot-Schutz, Captchas und 3-D-Secure** können automatisierte Abläufe stoppen.
 - **Serverseitiges Tagging:** Geprüft wird, was der Browser an den Server-Container schickt und was dieser im Browser auslöst, nicht was er serverseitig weitersendet.
@@ -175,7 +189,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 
 - Im Modus `full` enthält der Export echte Eingaben. Nur mit Testdaten aufzeichnen.
 - `aufzeichnungen/` und `.env` sind in der Vorlage von Git ausgeschlossen. Baselines werden eingecheckt; sie enthalten Request-Parameter und damit ggf. gehashte Testdaten.
-- Tests mit festen Erwartungen senden keine Tracking-Daten (bis auf die oben genannten Beacons). Baseline-Tests senden echte Requests.
+- Tests mit festen Erwartungen senden keine Tracking-Daten (ohne Proxy bis auf die oben genannten Beacons). Baseline-Tests senden echte Requests.
 
 ## Aufbau
 
@@ -191,7 +205,7 @@ vorlage/                  Testprojekt zum Kopieren
   auftrag.md              Auftrag (vom Agent vorausgefüllt, von Dir bestätigt)
   aufzeichnungen/         Ablage für Exporte und Analysen
   werkzeuge/              Analyse-Script für Aufzeichnungen
-  lib/                    die Testumgebung: stage, baseline, tempo, netlog
+  lib/                    die Testumgebung: stage, baseline, tempo, netlog, proxy
   tests/                  Tests; enthält ein Beispiel gegen die Demo-Seite
   baselines/              gespeicherte Baselines (Beispiel: Demo-Seite)
   demo/                   Demo-Seite für das Beispiel
@@ -201,7 +215,7 @@ test/                     Smoke-Test für den Recorder
 
 ## Verwandtes Projekt
 
-[Tracking Auditor](https://github.com/mbaersch/tracking-auditor) – automatisierte Audits von Tracking-Setups in verschiedenen Consent-Zuständen. Dessen CMP-Bibliothek (Selektoren für über 120 Consent-Banner) und Dienste-Datenbank nutzt der Agent in schwierigen Fällen.
+[Tracking Auditor](https://github.com/mbaersch/tracking-auditor) – automatisierte Audits von Tracking-Setups in verschiedenen Consent-Zuständen. Der Agent nutzt ihn in schwierigen Fällen als Referenz: die CMP-Bibliothek mit Selektoren für über 120 Consent-Banner, die Dienste-Datenbank und die Erkennung von Tracking über eigene Pfade und getunnelte Formate.
 
 ## Entwicklung
 

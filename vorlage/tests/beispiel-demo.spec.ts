@@ -9,7 +9,7 @@
  * Zwei Arten von Tests:
  * - Feste Erwartungen (Modus "abfangen"): prüfen gezielt, was der Auftrag verlangt.
  * - Baseline-Vergleich (Modus "durchlassen"): vergleicht den kompletten Lauf mit einem
- *   gespeicherten Ist-Zustand (baselines/demo-lead-journey.json).
+ *   gespeicherten Ist-Zustand (baselines/demo-lead-journey.json, mit Proxy .proxy.json).
  *
  * Für eine echte Website (BASE_URL gesetzt) werden diese Tests übersprungen.
  */
@@ -120,7 +120,8 @@ test.describe('Baseline', () => {
 
   test('Abweichung wird erkannt: Conversion doppelt im dataLayer', async ({ page, stage }, testInfo) => {
     // Darf nie selbst eine Baseline schreiben, sonst würde der Fehlerzustand zum Soll.
-    const vorhanden = fs.existsSync(new URL('../baselines/demo-lead-journey.json', import.meta.url));
+    const datei = `../baselines/demo-lead-journey${stage.mitProxy ? '.proxy' : ''}.json`;
+    const vorhanden = fs.existsSync(new URL(datei, import.meta.url));
     test.skip(!vorhanden || ['all', 'changed'].includes(testInfo.config.updateSnapshots), 'nur Vergleich gegen bestehende Baseline');
     // Erwartet rot: zeigt, dass der Vergleich doppelte Events meldet.
     test.fail();

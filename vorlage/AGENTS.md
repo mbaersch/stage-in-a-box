@@ -52,6 +52,18 @@ Was der Tag-Assistant-Export enthält und was nicht:
 - Requests nur von Google-Tags (GA4, Ads, Floodlight) mit allen Parametern
 - **keine** Requests anderer Dienste (Meta, TikTok …) – nur, dass deren Tag gefeuert hat
 
+### Requests über eigene Pfade und Formate
+
+Ein Request, der zu fehlen scheint, fehlt nicht unbedingt. Er kann über einen Pfad auf der eigenen Domain und in einem ganz anderen Format rausgehen: serverseitiges Tagging mit eigenem Pfad, Custom Loader, getunnelte und kodierte Requests (z. B. bei Stape), umbenannte Parameter. Die Standardregeln in `lib/stage.ts` erkennen nur gängige Endpunkte.
+
+Deshalb zu Beginn von Phase 2, bevor Erwartungen entstehen, einmal prüfen:
+
+1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen) laufen lassen, am besten mit `PROXY=ein`.
+2. In den Anhängen `hosts.json` und `weitere-requests.json` nachsehen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
+3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten.
+
+Referenz dafür ist der [Tracking Auditor](https://github.com/mbaersch/tracking-auditor): `tracking-vendors.json` (Skripte und Endpunkte bekannter Dienste) und `lib/tracking-classify.js` mit Erkennung von First-Party-Collect-Endpunkten und Stape-Tunneln (`extractFirstPartyCollectMatches`, `extractStapeMatches`, `tryDecodeStapeTransport`). Nicht alles daraus übernehmen: Ziel ist nicht, jeden denkbaren Loader zu erkennen, sondern die Requests dieser einen Website richtig zuzuordnen.
+
 Recorder-Einträge (Key `__rec`) haben diese wichtigsten Felder:
 
 | Feld | Bedeutung |
@@ -164,8 +176,9 @@ test.describe('Baseline', () => {
 ```
 
 - **Immer Modus `durchlassen`.** Abgefangene Requests bekommen keine echte Antwort: Weiterleitungsketten (z. B. Google-Ads-Conversions) und von einem sGTM ausgelöste Folge-Requests fehlen dann. `vergleicheMitBaseline` bricht in anderen Modi ab.
+- **Mit oder ohne Proxy** wie im Auftrag; mit Proxy entsteht eine eigene Datei `baselines/<name>.proxy.json`.
 - **Gleiches Tempo** für Baseline und Vergleich; sonst bricht der Vergleich ab. Welches Tempo, steht im Auftrag oder wird mit dem Menschen geklärt (`aufzeichnung` kommt echtem Verhalten am nächsten, dauert aber so lange wie die Aufzeichnung).
-- Vor der Momentaufnahme verlässt `vergleicheMitBaseline` die letzte Seite, damit Requests beim Verlassen (z. B. `user_engagement`) enthalten sind. Solche Beacons sieht Playwright nicht; die Stage holt sie aus dem NetLog des Browsers (Quelle `netlog`, ohne Body).
+- Vor der Momentaufnahme verlässt `vergleicheMitBaseline` die letzte Seite, damit Requests beim Verlassen (z. B. `user_engagement`) enthalten sind. Ohne Proxy sieht Playwright solche Beacons nicht; die Stage holt sie aus dem NetLog des Browsers (Quelle `netlog`, ohne Body). Mit Proxy kommen sie vollständig (Quelle `proxy`).
 - Der erste Lauf speichert `baselines/<name>.json`, jeder weitere vergleicht dagegen. Der Bericht steht als `baseline-vergleich.md` im Report und in `test-results/`.
 - **Rot** (Test schlägt fehl): Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; CSP-Verstoß.
 - **Info** (nur Bericht): neue Requests, Hosts, Parameter; geänderte Parameterwerte; neue Events oder Keys außerhalb von `ecommerce`; geänderte Reihenfolge.
@@ -193,7 +206,17 @@ test.use({ stageOptionen: { csp: "default-src 'self'; script-src 'self' https://
 
 Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
 
-**Grenze des Modus `abfangen`:** Beacons, die eine Seite beim Verlassen sendet, laufen in Chromium am Routing vorbei und gehen trotzdem raus. Die Stage erkennt das über das NetLog, markiert sie in `tracking-treffer.json` mit `entwischt: true` und setzt am Test die Anmerkung „Achtung“. Im Bericht erwähnen, wenn das vorkommt.
+### Proxy
+
+Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Requests des Testbrowsers über einen lokalen Proxy (`lib/proxy.ts`). Der Proxy sieht und steuert alles im Netzwerk:
+
+- Beacons beim Verlassen einer Seite (GA4 `user_engagement`, Microsoft Ads u. a.) werden erfasst, mit Body, und im Modus `abfangen` wirklich abgefangen.
+- Service Worker sind erlaubt wie bei echten Besuchern; ihre Requests sind sichtbar.
+- Regeln greifen auch für Pfade auf der eigenen Domain (sGTM).
+
+Die Testumgebung ist ohne Proxy einfacher, mit Proxy vollständiger. Was der Auftrag sagt, gilt. Bei Staging-Servern mit ungültigem Zertifikat `stageOptionen: { zertifikatFehlerIgnorieren: true }` setzen.
+
+**Grenze ohne Proxy:** Beacons, die eine Seite beim Verlassen sendet, laufen in Chromium am Routing vorbei und gehen im Modus `abfangen` trotzdem raus. Die Stage erkennt das über das NetLog, markiert sie in `tracking-treffer.json` mit `entwischt: true` und setzt am Test die Anmerkung „Achtung“. Im Bericht erwähnen, wenn das vorkommt, und den Proxy empfehlen.
 
 Weitere Möglichkeiten:
 
@@ -222,7 +245,8 @@ npm test               # alle Tests
 npx playwright test tests/kauf.spec.ts --headed   # sichtbar
 ```
 
-- Bei Fehlern zuerst die Anhänge (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `csp-verstoesse.json`, `baseline-vergleich.md`), Trace und Screenshot im Report ansehen.
+- Bei Fehlern zuerst die Anhänge (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`), Trace und Screenshot im Report ansehen.
+- Fehlt ein erwarteter Request, zuerst in `weitere-requests.json` nachsehen, ob er über einen eigenen Pfad oder ein anderes Format rausging (siehe „Requests über eigene Pfade und Formate“).
 - Neue Tests zuerst mit `TEMPO=schnell` stabil bekommen, dann im gewünschten Tempo laufen lassen.
 - Testfehler (Locator, Timing) beheben. Website- oder Tracking-Fehler **nicht wegtesten**: Erwartungen nicht aufweichen, damit es grün wird, sondern melden.
 - Tests mit festen Erwartungen mindestens dreimal hintereinander grün laufen lassen (`--repeat-each=3`). Baseline-Tests senden echte Requests: dort reichen zwei Läufe.
@@ -240,7 +264,8 @@ Kurz und konkret:
 
 1. Welche Tests es gibt und wie man sie startet.
 2. Welche Erwartungen aus dem Auftrag stammen und welche Du aus dem Ist-Zustand übernommen hast (zur Bestätigung).
-3. Baseline: angelegt ja/nein, mit welchem Tempo, welche Werte als flüchtig markiert sind und warum.
-4. Auffälligkeiten im Tracking (mögliche Fehler der Website).
-5. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
-6. Offene Fragen und noch fehlende Einträge in `.env`.
+3. Baseline: angelegt ja/nein, mit welchem Tempo, mit oder ohne Proxy, welche Werte als flüchtig markiert sind und warum.
+4. Eigene Regeln für Requests über eigene Pfade oder Formate, falls nötig.
+5. Auffälligkeiten im Tracking (mögliche Fehler der Website).
+6. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
+7. Offene Fragen und noch fehlende Einträge in `.env`.

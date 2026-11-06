@@ -1,9 +1,10 @@
 {
   "version": 1,
   "journey": "Demo Lead-Journey",
-  "erstellt": "2026-11-06T21:07:36.830Z",
+  "erstellt": "2026-11-06T23:11:15.260Z",
   "modus": "durchlassen",
   "tempo": "schnell",
+  "proxy": false,
   "baseUrl": "http://localhost:4173",
   "events": [
     {
@@ -31,7 +32,7 @@
       "name": "generate_lead",
       "quelle": "push",
       "daten": {
-        "lead_id": "L-1793999255275",
+        "lead_id": "L-1794006673699",
         "lead_typ": "angebot",
         "value": 50,
         "currency": "EUR"
@@ -129,7 +130,6 @@
       "methode": "POST",
       "host": "localhost:4173",
       "pfad": "/g/collect",
-      "status": 204,
       "umleitung": false,
       "parameter": {
         "v": "2",
@@ -144,5 +144,6 @@
   "hosts": [
     "localhost:4173"
   ],
+  "weitere": [],
   "cspVerstoesse": []
 }

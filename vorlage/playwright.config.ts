@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import { SLOW_MO, tempoAusUmgebung } from './lib/tempo';
 import { netlogArgumente } from './lib/netlog';
+import { proxyArgumente } from './lib/proxy';
 
 // Liest BASE_URL, TRACKING_MODUS, Testdaten usw. aus .env, falls vorhanden.
 try {
@@ -27,8 +28,9 @@ export default defineConfig({
     serviceWorkers: 'block',
     trace: 'retain-on-failure',
     // TEMPO verlangsamt jede Aktion etwas (siehe lib/tempo.ts)
-    // NetLog erfasst Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts)
-    launchOptions: { slowMo: SLOW_MO[tempoAusUmgebung()], args: netlogArgumente() },
+    // NetLog erfasst Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts);
+    // proxyArgumente lässt den Browser den Zertifikaten des optionalen Proxys vertrauen (lib/proxy.ts)
+    launchOptions: { slowMo: SLOW_MO[tempoAusUmgebung()], args: [...netlogArgumente(), ...proxyArgumente()] },
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

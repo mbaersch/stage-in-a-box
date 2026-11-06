@@ -21,10 +21,12 @@
  *     - neue Requests, neue Hosts, neue oder geänderte Request-Parameter
  *     - neue dataLayer-Events, neue Keys, geänderte Werte außerhalb von "ecommerce"
  *     - geänderte Reihenfolge der Events
+ *     - neue oder weggefallene Requests ohne Regel (Fetch/XHR/Beacon, z. B. Tracking über eigene Pfade)
  *
- * Verglichen wird nur bei gleichem Modus und gleichem Tempo (siehe lib/tempo.ts). Vor der
+ * Verglichen wird nur bei gleichem Modus, gleichem Tempo, mit bzw. ohne Proxy (siehe lib/tempo.ts). Vor der
  * Momentaufnahme wird die letzte Seite verlassen, damit Requests beim Verlassen enthalten sind.
  *
+ * Ablage: baselines/<journey>.json, mit Proxy baselines/<journey>.proxy.json.
  * Neue Baseline: Datei löschen oder `npx playwright test --update-snapshots`.
  */
 import fs from 'node:fs';
@@ -90,11 +92,15 @@ export interface Baseline {
   erstellt: string;
   modus: Modus;
   tempo: Tempo;
+  /** Lauf über den Stage-Proxy (sieht mehr Requests als Playwright allein) */
+  proxy?: boolean;
   baseUrl?: string;
   events: BaselineEvent[];
   consent: string[];
   anfragen: BaselineAnfrage[];
   hosts: string[];
+  /** Requests ohne Regel (Fetch/XHR/Beacon), als „METHODE host/pfad“ mit # für Ziffernfolgen */
+  weitere?: string[];
   cspVerstoesse: string[];
 }
 
@@ -166,11 +172,13 @@ export function momentaufnahme(stage: Stage, journey: string): Baseline {
     erstellt: new Date().toISOString(),
     modus: stage.modus,
     tempo: stage.tempo,
+    proxy: stage.mitProxy,
     baseUrl: stage.testInfo.project.use.baseURL,
     events,
     consent,
     anfragen: anfragenAus(stage.tracking.treffer),
     hosts: [...stage.tracking.hosts].sort(),
+    weitere: stage.tracking.weitere.map((w) => `${w.methode} ${w.host}${w.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#')}`),
     cspVerstoesse: [...new Set(stage.cspVerstoesse.map((v) => `${v.direktive}: ${v.blockiert}`))],
   };
 }
@@ -313,6 +321,16 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   for (const h of hostsJetzt) if (!hostsVorher.has(h)) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Neuer Host: ${h}` });
   for (const h of hostsVorher) if (!hostsJetzt.has(h)) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Host nicht mehr angefragt: ${h}` });
 
+  // Requests ohne Regel: nur Hinweise, aber ein Grund, über eine neue Regel nachzudenken
+  const weitereVorher = gruppiere(basis.weitere ?? [], (w) => w);
+  const weitereJetzt = gruppiere(lauf.weitere ?? [], (w) => w);
+  for (const [k, liste] of weitereJetzt) {
+    if (!weitereVorher.has(k)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `Neuer Request ohne Regel: ${k} (${liste.length}×)` });
+  }
+  for (const [k] of weitereVorher) {
+    if (!weitereJetzt.has(k)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `Request ohne Regel nicht mehr vorhanden: ${k}` });
+  }
+
   // CSP
   for (const v of lauf.cspVerstoesse) befunde.push({ stufe: 'rot', bereich: 'CSP', text: `CSP-Verstoß: ${v}` });
 
@@ -330,7 +348,7 @@ export function bericht(basis: Baseline, lauf: Baseline, befunde: Befund[]): str
   return [
     `# Baseline-Vergleich: ${basis.journey}`,
     '',
-    `Baseline vom ${basis.erstellt} · Lauf vom ${lauf.erstellt} · Modus ${lauf.modus} · Tempo ${lauf.tempo}`,
+    `Baseline vom ${basis.erstellt} · Lauf vom ${lauf.erstellt} · Modus ${lauf.modus} · Tempo ${lauf.tempo} · ${lauf.proxy ? 'mit' : 'ohne'} Proxy`,
     '',
     `**Ergebnis:** ${rot.length ? `${rot.length} kritische Abweichung(en)` : 'keine kritischen Abweichungen'}, ${info.length} Hinweis(e)`,
     '',
@@ -349,14 +367,16 @@ export function bericht(basis: Baseline, lauf: Baseline, befunde: Befund[]): str
 /* Ablauf im Test                                                     */
 /* ------------------------------------------------------------------ */
 
-function dateiname(journey: string) {
-  return journey.toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '') + '.json';
+/** Läufe mit Proxy sehen mehr Requests und bekommen deshalb eine eigene Baseline-Datei. */
+function dateiname(journey: string, mitProxy: boolean) {
+  const basis = journey.toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+  return `${basis}${mitProxy ? '.proxy' : ''}.json`;
 }
 
 export async function vergleicheMitBaseline(stage: Stage, journey: string, optionen: BaselineOptionen = {}) {
   const { testInfo } = stage;
   const projekt = path.dirname(testInfo.config.configFile ?? testInfo.config.rootDir);
-  const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey));
+  const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey, stage.mitProxy));
   const lauf = momentaufnahme(stage, journey);
   const neu = !fs.existsSync(datei)
     || testInfo.config.updateSnapshots === 'all'
@@ -385,6 +405,12 @@ export async function vergleicheMitBaseline(stage: Stage, journey: string, optio
   const basis = JSON.parse(fs.readFileSync(datei, 'utf8')) as Baseline;
   if (basis.modus !== lauf.modus) {
     throw new Error(`Baseline "${journey}" wurde im Modus "${basis.modus}" erstellt, dieser Lauf nutzt "${lauf.modus}". Vergleich nur im selben Modus möglich.`);
+  }
+  if (!!basis.proxy !== !!lauf.proxy) {
+    throw new Error(
+      `Baseline "${journey}" wurde ${basis.proxy ? 'mit' : 'ohne'} Proxy erstellt, dieser Lauf ${lauf.proxy ? 'mit' : 'ohne'}. `
+      + 'Mit Proxy werden mehr Requests sichtbar (Beacons beim Verlassen, Service Worker). PROXY anpassen oder Baseline neu erstellen.',
+    );
   }
   // Ältere Baselines ohne Tempo gelten als "schnell".
   const basisTempo = basis.tempo ?? 'schnell';

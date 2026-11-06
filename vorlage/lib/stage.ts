@@ -11,6 +11,8 @@
  * - Baseline: Ist-Zustand speichern und spätere Läufe dagegen vergleichen (lib/baseline.ts)
  * - Tempo: Pausen zwischen den Schritten wie ein Mensch bzw. wie aufgezeichnet (lib/tempo.ts)
  * - NetLog-Abgleich: Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts)
+ * - Optional Proxy (PROXY=ein): alle Requests im Netzwerk sehen und steuern, auch Beacons beim
+ *   Verlassen einer Seite und Service Worker (lib/proxy.ts)
  *
  * Verwendung in Tests:
  *   import { test, expect } from '../lib/stage';
@@ -23,6 +25,7 @@ import { test as base, expect, type BrowserContext, type Page, type Route, type 
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
+import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
 
 export type { Tempo } from './tempo';
 
@@ -66,6 +69,10 @@ export interface StageOptionen {
   cspNurBerichten?: boolean;
   /** Pausen zwischen den Schritten. Vorgabe: Umgebungsvariable TEMPO oder 'schnell'. */
   tempo?: Tempo;
+  /** Requests über den Stage-Proxy führen. Vorgabe: Umgebungsvariable PROXY. */
+  proxy?: boolean;
+  /** Ungültige Zertifikate der Website akzeptieren (z. B. Staging mit selbst signiertem Zertifikat). */
+  zertifikatFehlerIgnorieren?: boolean;
 }
 
 export interface DataLayerEintrag {
@@ -100,8 +107,11 @@ export interface Treffer {
   umleitungVon?: string;
   /** false, solange der Request noch läuft. */
   abgeschlossen: boolean;
-  /** browser: von Playwright erfasst; netlog: nur im Netzwerkprotokoll (z. B. Beacon beim Verlassen). */
-  quelle: 'browser' | 'netlog';
+  /**
+   * browser: von Playwright erfasst; netlog: nur im Netzwerkprotokoll (z. B. Beacon beim
+   * Verlassen); proxy: vom Stage-Proxy erfasst (sieht alles, auch Service Worker).
+   */
+  quelle: 'browser' | 'netlog' | 'proxy';
   /** true: im Modus abfangen/blockieren trotzdem echt gesendet (am Routing vorbei). */
   entwischt?: boolean;
 }
@@ -114,6 +124,16 @@ export interface Ga4Ereignis {
   en: string;
   treffer: Treffer;
   [parameter: string]: any;
+}
+
+/** Fetch-, XHR- und Beacon-Requests, die keiner Regel zugeordnet sind (Kandidaten für eigene Formate). */
+export interface WeitererRequest {
+  zeit: number;
+  methode: string;
+  url: string;
+  host: string;
+  pfad: string;
+  status?: number;
 }
 
 export interface CspVerstoss {
@@ -198,6 +218,11 @@ export class TrackingProtokoll {
   readonly treffer: Treffer[] = [];
   /** Alle Hosts, die während des Tests angefragt wurden (nicht nur Tracking). */
   readonly hosts = new Set<string>();
+  /**
+   * Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking über eigene Pfade oder
+   * Formate (Custom Loader, getunnelte Requests) taucht hier auf, solange keine Regel passt.
+   */
+  readonly weitere: WeitererRequest[] = [];
 
   von(dienst: string): Treffer[] {
     return this.treffer.filter((t) => t.dienst === dienst);
@@ -258,6 +283,8 @@ export class Stage {
     readonly testInfo: TestInfo,
     private readonly context: BrowserContext,
     private readonly regelFuer: (url: string) => Regel | undefined,
+    /** true: Requests laufen über den Stage-Proxy */
+    readonly mitProxy = false,
   ) {}
 
   /**
@@ -265,6 +292,7 @@ export class Stage {
    * (Beacons beim Verlassen einer Seite). Kann mehrfach aufgerufen werden.
    */
   netzwerkAbgleich() {
+    if (this.mitProxy) return; // der Proxy sieht ohnehin alles
     const imNetz = new Map<string, number>();
     for (const r of leseNetlog(this.start, Date.now())) {
       const regel = this.regelFuer(r.url);
@@ -420,13 +448,15 @@ function zerlege(url: string): { host: string; pfad: string; parameter: Record<s
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function richteStageEin(context: BrowserContext, testInfo: TestInfo, optionen: StageOptionen = {}): Promise<Stage> {
+export async function richteStageEin(
+  context: BrowserContext, testInfo: TestInfo, optionen: StageOptionen = {}, proxy?: StageProxy,
+): Promise<Stage> {
   const modus: Modus = optionen.trackingModus
     ?? (process.env.TRACKING_MODUS as Modus | undefined)
     ?? 'abfangen';
   const regeln = [...(optionen.regeln ?? []), ...STANDARD_DIENSTE];
   const regelFuer = (url: string) => regeln.find((r) => r.muster.test(url));
-  const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer);
+  const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
 
   await context.exposeFunction('__stageDataLayer', (daten: string, url: string) => {
     stage.dataLayer.eintraege.push({ nr: stage.dataLayer.eintraege.length, zeit: Date.now(), seitenUrl: url, daten: JSON.parse(daten) });
@@ -436,6 +466,11 @@ export async function richteStageEin(context: BrowserContext, testInfo: TestInfo
   });
   await context.addInitScript(browserSetup, optionen.dataLayerName ?? 'dataLayer');
 
+  if (proxy) {
+    verbindeProxy(stage, proxy, regelFuer, modus, optionen);
+    return stage;
+  }
+
   // Protokoll über Events statt im Routing: so werden auch Weiterleitungsketten erfasst,
   // die das Routing nicht sieht, und Status bzw. Fehler jedes Requests.
   const offen = new Map<Request, Treffer>();
@@ -444,6 +479,9 @@ export async function richteStageEin(context: BrowserContext, testInfo: TestInfo
     const teile = zerlege(url);
     if (teile.host) stage.tracking.hosts.add(teile.host);
     const regel = regelFuer(url);
+    if (!regel && ['fetch', 'xhr', 'ping'].includes(request.resourceType())) {
+      stage.tracking.weitere.push({ zeit: Date.now(), methode: request.method(), url, host: teile.host, pfad: teile.pfad });
+    }
     if (!regel || regel.nichtProtokollieren) return;
     const treffer: Treffer = {
       nr: stage.tracking.treffer.length,
@@ -535,14 +573,93 @@ export async function richteStageEin(context: BrowserContext, testInfo: TestInfo
   return stage;
 }
 
+/** Verbindet die Stage mit dem Proxy: Regeln, CSP und Protokoll laufen dann dort. */
+function verbindeProxy(
+  stage: Stage, proxy: StageProxy, regelFuer: (url: string) => Regel | undefined, modus: Modus, optionen: StageOptionen,
+) {
+  proxy.verbinde({
+    entscheide(url) {
+      const regel = regelFuer(url);
+      if (!regel) return undefined;
+      return { aktion: regel.modus ?? modus, verzoegerungMs: regel.verzoegerungMs };
+    },
+    melde(r: ProxyRequest) {
+      const teile = zerlege(r.url);
+      if (teile.host) stage.tracking.hosts.add(teile.host);
+      const regel = regelFuer(r.url);
+      if (!regel) {
+        if (r.ziel === 'empty' || r.ziel === '') {
+          const weiterer: WeitererRequest = { zeit: r.zeit, methode: r.methode, url: r.url, host: teile.host, pfad: teile.pfad };
+          stage.tracking.weitere.push(weiterer);
+          Object.defineProperty(weiterer, 'status', { enumerable: true, get: () => r.status });
+        }
+        return;
+      }
+      if (regel.nichtProtokollieren) return;
+      // Weiterleitungsziel des vorherigen Requests: dieser Request ist der Folge-Hop
+      const vorher = [...stage.tracking.treffer].reverse().find((t) => t.quelle === 'proxy' && (t as any).__weiter === r.url);
+      const treffer: Treffer = {
+        nr: stage.tracking.treffer.length,
+        zeit: r.zeit,
+        dienst: regel.name,
+        modus: r.aktion,
+        methode: r.methode,
+        url: r.url,
+        ...teile,
+        ressourcentyp: r.ziel || 'unbekannt',
+        body: r.body,
+        umleitungVon: vorher?.url,
+        abgeschlossen: false,
+        quelle: 'proxy',
+      };
+      // Status, Fehler und Abschluss live aus dem Proxy-Eintrag lesen
+      Object.defineProperties(treffer, {
+        status: { enumerable: true, get: () => r.status },
+        fehler: { enumerable: true, get: () => r.fehler },
+        abgeschlossen: { enumerable: true, get: () => r.abgeschlossen },
+        __weiter: { enumerable: false, get: () => r.weiterleitungZu },
+      });
+      stage.tracking.treffer.push(treffer);
+    },
+    csp: optionen.csp
+      ? { wert: optionen.csp, nurBerichten: optionen.cspNurBerichten, ersetzen: (optionen.cspModus ?? 'ersetzen') === 'ersetzen' }
+      : undefined,
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Fixture                                                            */
 /* ------------------------------------------------------------------ */
 
-export const test = base.extend<{ stageOptionen: StageOptionen; stage: Stage }>({
+export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: StageProxy | undefined; stage: Stage }>({
   stageOptionen: [{}, { option: true }],
-  stage: async ({ context, stageOptionen }, use, testInfo) => {
-    const stage = await richteStageEin(context, testInfo, stageOptionen);
+
+  // Proxy pro Test, nur wenn eingeschaltet (stageOptionen.proxy oder PROXY=ein)
+  stageProxy: async ({ stageOptionen }, use) => {
+    if (!(stageOptionen.proxy ?? proxyAusUmgebung())) {
+      await use(undefined);
+      return;
+    }
+    const proxy = await new StageProxy(!!stageOptionen.zertifikatFehlerIgnorieren).start();
+    await use(proxy);
+    await proxy.stop();
+  },
+  // Browser-Kontext über den Proxy führen; '<-loopback>' schickt auch localhost durch den Proxy
+  proxy: async ({ proxy, stageProxy }, use) => {
+    await use(stageProxy ? { server: stageProxy.url, bypass: '<-loopback>' } : proxy);
+  },
+  // Den Zertifikaten des Proxys vertraut der Browser über seine Startargumente (lib/proxy.ts),
+  // ignoreHTTPSErrors ist dafür nicht nötig.
+  ignoreHTTPSErrors: async ({ ignoreHTTPSErrors, stageOptionen }, use) => {
+    await use(ignoreHTTPSErrors || !!stageOptionen.zertifikatFehlerIgnorieren);
+  },
+  // Mit Proxy sind Service Worker kein blinder Fleck mehr und dürfen laufen wie bei echten Besuchern
+  serviceWorkers: async ({ serviceWorkers, stageProxy }, use) => {
+    await use(stageProxy ? 'allow' : serviceWorkers);
+  },
+
+  stage: async ({ context, stageOptionen, stageProxy }, use, testInfo) => {
+    const stage = await richteStageEin(context, testInfo, stageOptionen, stageProxy);
     await use(stage);
     stage.netzwerkAbgleich();
     const entwischt = stage.tracking.treffer.filter((t) => t.entwischt);
@@ -557,6 +674,9 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stage: Stage }>(
     await testInfo.attach('dataLayer.json', { body: json(stage.dataLayer.eintraege), contentType: 'application/json' });
     await testInfo.attach('tracking-treffer.json', { body: json(stage.tracking.treffer), contentType: 'application/json' });
     await testInfo.attach('hosts.json', { body: json([...stage.tracking.hosts].sort()), contentType: 'application/json' });
+    if (stage.tracking.weitere.length) {
+      await testInfo.attach('weitere-requests.json', { body: json(stage.tracking.weitere), contentType: 'application/json' });
+    }
     if (stage.cspVerstoesse.length) {
       await testInfo.attach('csp-verstoesse.json', { body: json(stage.cspVerstoesse), contentType: 'application/json' });
     }
