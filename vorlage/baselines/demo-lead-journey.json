@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "journey": "Demo Lead-Journey",
+  "erstellt": "2026-11-06T21:07:36.830Z",
+  "modus": "durchlassen",
+  "tempo": "schnell",
+  "baseUrl": "http://localhost:4173",
+  "events": [
+    {
+      "name": "seite_geladen",
+      "quelle": "push",
+      "daten": {
+        "seitentyp": "start"
+      }
+    },
+    {
+      "name": "cmp_entscheidung",
+      "quelle": "push",
+      "daten": {
+        "cmp_status": "akzeptiert"
+      }
+    },
+    {
+      "name": "seite_geladen",
+      "quelle": "push",
+      "daten": {
+        "seitentyp": "angebot"
+      }
+    },
+    {
+      "name": "generate_lead",
+      "quelle": "push",
+      "daten": {
+        "lead_id": "L-1793999255275",
+        "lead_typ": "angebot",
+        "value": 50,
+        "currency": "EUR"
+      }
+    }
+  ],
+  "consent": [
+    "default {\"ad_personalization\":\"denied\",\"ad_storage\":\"denied\",\"ad_user_data\":\"denied\",\"analytics_storage\":\"denied\"}",
+    "update {\"ad_personalization\":\"granted\",\"ad_storage\":\"granted\",\"ad_user_data\":\"granted\",\"analytics_storage\":\"granted\"}",
+    "default {\"ad_personalization\":\"denied\",\"ad_storage\":\"denied\",\"ad_user_data\":\"denied\",\"analytics_storage\":\"denied\"}",
+    "update {\"ad_personalization\":\"granted\",\"ad_storage\":\"granted\",\"ad_user_data\":\"granted\",\"analytics_storage\":\"granted\"}"
+  ],
+  "anfragen": [
+    {
+      "dienst": "GA4",
+      "methode": "POST",
+      "host": "localhost:4173",
+      "pfad": "/g/collect",
+      "status": 204,
+      "umleitung": false,
+      "parameter": {
+        "v": "2",
+        "tid": "G-DEMO123",
+        "en": "page_view",
+        "gcs": "G100",
+        "dl": "http://localhost:4173/"
+      },
+      "schluessel": "GA4 · page_view"
+    },
+    {
+      "dienst": "GA4",
+      "methode": "POST",
+      "host": "localhost:4173",
+      "pfad": "/g/collect",
+      "status": 204,
+      "umleitung": false,
+      "parameter": {
+        "v": "2",
+        "tid": "G-DEMO123",
+        "en": "page_view",
+        "gcs": "G111",
+        "dl": "http://localhost:4173/angebot.html"
+      },
+      "schluessel": "GA4 · page_view"
+    },
+    {
+      "dienst": "GA4",
+      "methode": "POST",
+      "host": "localhost:4173",
+      "pfad": "/g/collect",
+      "status": 302,
+      "umleitung": false,
+      "parameter": {
+        "v": "2",
+        "tid": "G-DEMO123",
+        "en": "generate_lead",
+        "gcs": "G111",
+        "dl": "http://localhost:4173/angebot.html",
+        "ep.lead_typ": "angebot",
+        "ep.value": "50",
+        "ep.currency": "EUR"
+      },
+      "schluessel": "GA4 · generate_lead"
+    },
+    {
+      "dienst": "sGTM-Pixel",
+      "methode": "GET",
+      "host": "localhost:4173",
+      "pfad": "/sgtm-pixel",
+      "status": 204,
+      "umleitung": true,
+      "parameter": {
+        "quelle": "generate_lead"
+      },
+      "schluessel": "sGTM-Pixel · /sgtm-pixel"
+    },
+    {
+      "dienst": "GA4",
+      "methode": "POST",
+      "host": "localhost:4173",
+      "pfad": "/g/collect",
+      "status": 204,
+      "umleitung": false,
+      "parameter": {
+        "v": "2",
+        "tid": "G-DEMO123",
+        "en": "user_engagement",
+        "gcs": "G111",
+        "dl": "http://localhost:4173/"
+      },
+      "schluessel": "GA4 · user_engagement"
+    },
+    {
+      "dienst": "GA4",
+      "methode": "POST",
+      "host": "localhost:4173",
+      "pfad": "/g/collect",
+      "status": 204,
+      "umleitung": false,
+      "parameter": {
+        "v": "2",
+        "tid": "G-DEMO123",
+        "en": "user_engagement",
+        "gcs": "G111",
+        "dl": "http://localhost:4173/angebot.html"
+      },
+      "schluessel": "GA4 · user_engagement"
+    }
+  ],
+  "hosts": [
+    "localhost:4173"
+  ],
+  "cspVerstoesse": []
+}

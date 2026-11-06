@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="de">
+<head><meta charset="utf-8"><title>Recorder Testseite</title></head>
+<body>
+  <nav>
+    <a href="#produkte" data-testid="nav-products">Produkte</a>
+    <a href="https://example.com/agb" target="_blank">AGB</a>
+  </nav>
+  <button id="btn-123456789" class="cta"><span>In den Warenkorb</span><svg width="10" height="10"></svg></button>
+  <div role="button" aria-label="Menü öffnen" tabindex="0">☰</div>
+  <button id="spa">Zur Kasse (SPA)</button>
+
+  <form id="checkout" action="/order" method="post">
+    <label for="email">E-Mail</label>
+    <input id="email" name="email" type="email" autocomplete="email">
+    <label>Telefon <input name="phone" type="tel"></label>
+    <input name="pw" type="password">
+    <input name="cc" autocomplete="cc-number">
+    <select name="shipping"><option value="std">Standard</option><option value="exp">Express</option></select>
+    <input type="checkbox" name="newsletter" value="yes" id="nl"><label for="nl">Newsletter</label>
+    <button type="submit">Jetzt kaufen</button>
+  </form>
+
+  <div id="cmp-host"></div>
+  <script>
+    var host = document.getElementById('cmp-host');
+    var root = host.attachShadow({ mode: 'open' });
+    root.innerHTML = '<div class="banner"><button data-testid="accept-all">Alle akzeptieren</button></div>';
+    document.getElementById('spa').addEventListener('click', function () { history.pushState({}, '', '/checkout'); });
+    document.getElementById('checkout').addEventListener('submit', function (e) { e.preventDefault(); });
+  </script>
+</body>
+</html>

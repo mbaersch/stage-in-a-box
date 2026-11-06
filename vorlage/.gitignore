@@ -1,0 +1,7 @@
+node_modules/
+test-results/
+playwright-report/
+.env
+# Exporte können personenbezogene Daten enthalten (Modus "full"), deshalb nicht einchecken.
+aufzeichnungen/*
+!aufzeichnungen/LIESMICH.md

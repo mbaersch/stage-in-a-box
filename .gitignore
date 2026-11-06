@@ -1,0 +1,16 @@
+# Allowlist: Nur die hier freigegebenen Dateien und Ordner gehören ins Repo.
+# Eigene Testprojekte (Kopien von vorlage/) im Repo-Ordner werden so nie eingecheckt.
+# Neue Dateien oder Ordner auf oberster Ebene hier freigeben.
+/*
+!/.gitignore
+!/README.md
+!/LICENSE
+!/build.sh
+!/dist/
+!/src/
+!/test/
+!/vorlage/
+
+# Erzeugte Dateien
+__pycache__/
+test/beispielausgabe.json
