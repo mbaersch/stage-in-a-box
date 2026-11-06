@@ -225,6 +225,8 @@ python3 test/run_test.py    # Smoke-Test des Recorders (Python, Playwright)
 cd vorlage && npm test      # Beispieltests der Vorlage gegen die Demo-Seite
 ```
 
+Die Versionen der Vorlage sind über `vorlage/package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
+
 Eigene Testprojekte am besten außerhalb dieses Repos anlegen. Liegen sie doch darin, verhindert die `.gitignore` im Hauptverzeichnis, dass sie eingecheckt werden: Sie lässt nur die bekannten Ordner und Dateien zu. So gelangen keine Aufzeichnungen oder Baselines aus eigenen Tests ins öffentliche Repo.
 
 ## Lizenz
