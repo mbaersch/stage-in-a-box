@@ -47,10 +47,17 @@ ladeEnv(path.join(PROJEKT, 'testdaten.aufzeichnung.env'));
 // Häufiger Fehler: Wert eingetragen, aber "#" davor stehen gelassen. Nur Namen ausgeben, nie Werte.
 if (fs.existsSync(envDatei) && !process.env.STAGE_ENV_GEWARNT) {
   process.env.STAGE_ENV_GEWARNT = '1';
-  const auskommentiert = [...fs.readFileSync(envDatei, 'utf8').matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=\s*\S/gm)]
+  const inhalt = fs.readFileSync(envDatei, 'utf8');
+  const auskommentiert = [...inhalt.matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=\s*\S/gm)]
     .map((m) => m[1]).filter((name) => process.env[name] === undefined);
   if (auskommentiert.length) {
     console.warn(`Achtung: In .env sind Variablen mit Wert auskommentiert und damit nicht gesetzt: ${auskommentiert.join(', ')}`);
+  }
+  // loadEnvFile schneidet Werte ohne Anführungszeichen am "#" ab (z. B. Vorschau-Links von GTM).
+  const abgeschnitten = [...inhalt.matchAll(/^[ \t]*([A-Z][A-Z0-9_]*)[ \t]*=[ \t]*([^"'`\s][^\r\n]*)\r?$/gm)]
+    .filter((m) => m[2].includes('#')).map((m) => m[1]);
+  if (abgeschnitten.length) {
+    console.warn(`Achtung: In .env enthalten Werte ein "#" ohne Anführungszeichen und werden dort abgeschnitten: ${abgeschnitten.join(', ')}. Wert in "…" setzen.`);
   }
 }
 
