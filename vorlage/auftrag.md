@@ -12,7 +12,7 @@
 > Aufzeichnung im Modus `full` kann das Analyse-Script auf Wunsch in `testdaten.aufzeichnung.env`
 > übernehmen; `.env` hat Vorrang.
 
-**Art:** <!-- Journey (aus einer Aufzeichnung) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / beides -->
+**Art:** <!-- Journey (aus einer Aufzeichnung) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / beides. Für reines Staging im Browser ist dieser Auftrag nicht nötig: siehe tests/sitzung.spec.ts -->
 
 ## Website
 

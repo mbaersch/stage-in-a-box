@@ -1,30 +1,89 @@
 # Stage in a Box
 
-**Tracking-Tests für Websites, ohne eigene Testumgebung und ohne selbst Tests zu programmieren: Du zeichnest einen Ablauf einmal auf, ein Coding-Agent baut daraus eine Testsuite.**
+**Ein Staging für Tracking, ohne Staging-Server: Du öffnest eine Website im Testbrowser, verändert so, wie sie erst noch werden soll, und baust und prüfst im GTM schon dagegen. Auf Wunsch macht ein Coding-Agent daraus automatisierte Tests.**
 
-CMP, Consent Mode, GTM, serverseitiges Tagging, CSP – moderne Tracking-Setups bestehen aus vielen Teilen, die sauber zusammenspielen müssen. Nach jedem Deployment, jeder CMP-Änderung oder jedem neuen Tag per Hand durch den Kaufprozess zu klicken, reicht dafür nicht mehr. Automatisierte Tests scheitern bisher meist daran, dass sie jemand schreiben muss, der sowohl Tracking als auch Testautomatisierung versteht.
+CMP, Consent Mode, GTM, serverseitiges Tagging, CSP – moderne Tracking-Setups bestehen aus vielen Teilen, die sauber zusammenspielen müssen. Oft hängt die Arbeit im GTM an einer Änderung der Website: ein neuer Key im dataLayer, ein anderer Loader, eine reparierte CMP-Anbindung. Bis der Dienstleister sie ausrollt, lässt sich nichts bauen und nichts prüfen. Und nach jedem Deployment per Hand durch den Kaufprozess zu klicken, reicht nicht mehr.
 
-Dieses Repo verkürzt den Weg: Ein GTM-Tag zeichnet beim Durchklicken alles auf, was ein Agent für den Nachbau braucht. Ein Analyse-Script macht daraus eine lesbare Zeitleiste und einen Auftragsentwurf. Das Repo liefert die fertige Testumgebung, eine Anleitung sagt dem Agent, wie aus allem Tests werden. Jede Website wird darin ein eigenes Projekt; Umgebung, Anleitung und alles, was der Agent dabei lernt, teilen sich alle Projekte.
+Dieses Repo liefert dafür eine fertige Umgebung auf Basis von Playwright:
+
+- **Staging im Browser:** Die Website öffnet sich in einem eigenen Browser, auf Wunsch mit GTM-Vorschau und Extensions wie dem [Tracking Auditor](https://chromewebstore.google.com/detail/cngpoecoknpgfjfaafnekjoaeohaejpb). Was dort anders sein soll – dataLayer-Pushes, HTML, Skripte, blockierte Dienste, eine CSP –, sagst Du dem Agent in einem Satz. Dann klickst Du selbst.
+- **Tracking-Tests:** Ein GTM-Tag zeichnet beim Durchklicken alles auf, was ein Agent für den Nachbau braucht. Ein Analyse-Script macht daraus eine lesbare Zeitleiste und einen Auftragsentwurf, der Agent baut die Tests.
+
+Jede Website wird ein eigenes Projekt; Umgebung, Anleitung und alles, was der Agent dabei lernt, teilen sich alle Projekte.
 
 ## Was Du davon hast
 
-Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du kannst sie unter beliebigen Bedingungen laufen lassen:
+### Im Browser verändern und selbst ausprobieren
+
+- **Im GTM vorbauen, was die Website noch nicht kann:** dataLayer-Pushes ergänzen (z. B. einen neuen Consent-Key der CMP) und im Tag Assistant mit dem Workspace ausprobieren.
+- **Änderungen an der Website vorwegnehmen:** etwa einen neuen GTM- oder Stape-Loader ins HTML setzen oder einen Fehler in einem Skript der Seite korrigieren, bevor der Dienstleister es ausrollt.
+- **Dienste blockieren**, wie es ein Adblocker täte, oder **eine geplante CSP** durchsetzen und sehen, was dann noch funktioniert.
+- **Mit Deinen Werkzeugen:** Extensions aus dem Chrome Web Store laufen im Testbrowser mit, DevTools sowieso.
+- Die Website selbst bleibt dabei unverändert; alles passiert nur in diesem einen Browser.
+
+### Automatisiert prüfen
+
+Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Bedingungen laufen lassen:
 
 - **Gegen eine Baseline vergleichen:** Der erste Lauf speichert den Ist-Zustand – dataLayer, Consent, alle Requests an Tracking-Dienste inklusive Weiterleitungen. Jeder weitere Lauf meldet Abweichungen, etwa nach einem Deployment.
 - **Requests prüfen, ohne dass sie gesendet werden.** Requests an GA4, Google Ads, Meta & Co. werden abgefangen und protokolliert. Das funktioniert auch auf Live-Seiten ohne Staging.
 - **Dienste gezielt blockieren**, wie es ein Adblocker täte, und prüfen, ob Seite und Conversion-Tracking trotzdem funktionieren.
 - **Consent-Varianten durchspielen**, ohne die CMP umzukonfigurieren.
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
-- **Eine geplante CSP testen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert. Jeder Lauf liefert dazu ein Inventar aller Ressourcen je CSP-Direktive und einen Vorschlag für die Policy.
-- **Änderungen an der Website vorwegnehmen:** etwa einen neuen GTM- oder Stape-Loader ins HTML setzen oder einen Fehler in einem Skript der Seite korrigieren, nur im Testbrowser, bevor der Dienstleister es ausrollt.
+- **Eine geplante CSP prüfen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert. Jeder Lauf liefert dazu ein Inventar aller Ressourcen je CSP-Direktive und einen Vorschlag für die Policy.
 - **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laden dann die GTM-Vorschau statt des Live-Containers.
-- **Im GTM vorbauen, was die Website noch nicht kann:** dataLayer-Pushes im Testbrowser ergänzen (z. B. einen neuen Consent-Key der CMP) und im Tag Assistant selbst ausprobieren, mit allen Anpassungen der Testumgebung.
 - **Einen Container-Umbau absichern** (z. B. mit der GTM CLI): Vorher den Ist-Zustand je Consent-Szenario als Baseline speichern, nachher gegen die Vorschau des Workspaces vergleichen. Klicks auf tel-, mailto- oder PDF-Links und dataLayer-Events lassen sich dafür auch ohne passende Elemente auf der Seite auslösen.
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
 
-## So läuft es ab
+## Voraussetzungen
+
+- [Node.js](https://nodejs.org/) ab Version 20.12
+- Ein Coding-Agent, z. B. [Claude Code](https://claude.com/claude-code)
+- Für die GTM-Vorschau und für Aufzeichnungen: Zugriff auf den GTM-Container der Website (Preview reicht; ohne GTM siehe [Ohne GTM](#ohne-gtm))
+
+## Schnellstart: Staging im Browser
+
+Einmalig im Hauptordner des Repos:
+
+```sh
+npm install
+npx playwright install chromium
+npm run erweiterung -- cngpoecoknpgfjfaafnekjoaeohaejpb   # optional: Tracking Auditor als Extension
+```
+
+Pro Website ein Projekt anlegen und `BASE_URL` in `projects/mein-shop/.env` eintragen:
+
+```sh
+npm run neu -- mein-shop
+npm run sitzung -- projects/mein-shop
+```
+
+Der Browser öffnet die Website, und Du bedienst sie selbst; schließt Du ihn, endet die Sitzung. Jede Sitzung startet mit frischem Profil, ohne Cookies, der Consent-Banner erscheint also wieder. Requests gehen wie bei einem echten Besuch raus.
+
+**Mit GTM-Vorschau:** Link aus GTM *Vorschau teilen* als `SITZUNG_VORSCHAU_LINK` in `.env`, in Anführungszeichen. Dann verbindet sich zuerst der Tag Assistant mit Deinem Workspace und öffnet die Website in einem neuen Tab. Den Tab des Tag Assistant offen lassen.
+
+**Mit Extensions:** `npm run erweiterung -- <ID aus dem Chrome Web Store>` (oder eine ZIP-Datei bzw. ein entpackter Ordner) legt die Extension in `erweiterungen/` ab; jede Sitzung lädt alle Extensions von dort. Rechte wie den Zugriff auf Websites erteilst Du in der Sitzung wie gewohnt. Die ID steht in der Adresse der Extension im Web Store.
+
+**Anpassungen bestellen:** Starte den Agent im Hauptordner und beschreib, was anders sein soll, zum Beispiel:
+
+> Projekt mein-shop: In der Sitzung soll der Push `consent_ready` zusätzlich `youtube: true/false` enthalten, gekoppelt an `statistics`.
+
+Der Agent setzt das in `projects/mein-shop/tests/sitzung.spec.ts` um, prüft es kurz und startet die Sitzung. Für dieses Beispiel sieht das so aus:
+
+```ts
+sitzung.use({ stageOptionen: {
+  trackingModus: 'durchlassen',
+  dataLayerAnpassen: (e) => {
+    if (e?.event === 'consent_ready' && e.consentInfo) e.consentInfo.youtube = e.consentInfo.statistics === true;
+  },
+} });
+```
+
+Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Trigger und Tags im Workspace lassen sich damit bauen und prüfen, bevor die Website geändert ist. Ebenso möglich: HTML oder Skripte der Website ändern, Dienste blockieren oder verzögern, eine CSP durchsetzen (siehe [`AGENTS.md`](AGENTS.md), „Varianten“).
+
+## Tracking-Tests aus einer Aufzeichnung
 
 ```
  1. Recorder-Tag im GTM anlegen         (einmalig, 5 Minuten)
@@ -40,12 +99,6 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 Für einen **Container-Umbau** ist keine Aufzeichnung nötig: Im Auftrag stehen dann Art „Container-Umbau“, die Seiten, die Auslöser (oder der Agent leitet sie aus dem Container-Export ab) und die Consent-Szenarien. Schritt 6 läuft vor dem Umbau gegen den Live-Container, der Vergleich danach gegen die Vorschau des Workspaces, bevor er veröffentlicht wird.
 
 Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das Eintragen der Testdaten. Den Rest erledigt der Agent. Ab Schritt 6 meldet der Baseline-Vergleich jede Änderung am Setup, auch solche, an die beim Schreiben der festen Erwartungen niemand gedacht hat.
-
-## Voraussetzungen
-
-- Zugriff auf den GTM-Container der Website (Preview reicht; ohne GTM siehe [Ohne GTM](#ohne-gtm))
-- [Node.js](https://nodejs.org/) ab Version 20.12
-- Ein Coding-Agent, z. B. [Claude Code](https://claude.com/claude-code)
 
 ## 1. Recorder-Tag einrichten
 
@@ -73,26 +126,19 @@ Das Tag schreibt seine Einträge als Messages ohne Event in den dataLayer. Der T
 4. Bei einem Kauf: nur mit Testkonto, Testprodukt, Gutschein oder Testzahlart, und nur wenn das abgesprochen ist.
 5. Im Tag Assistant die Aufzeichnung **exportieren**.
 
-**Wenn GTM erst nach der Zustimmung lädt:** Dann läuft auch der Recorder erst danach, und der Klick auf den Consent-Banner fehlt in der Aufzeichnung. Trag in diesem Fall im Auftrag unter „Consent-Banner“ ein, wie der Banner bedient wird: entweder den Namen der CMP (der Agent sucht die Selektoren dann in der CMP-Bibliothek des [Tracking Auditor](https://github.com/mbaersch/tracking-auditor)) oder die Selektoren selbst, z. B. `a.consentlink` für Zustimmen und `a.noconsentlink` für Ablehnen. Nenne auch Schritte, ohne die der Banner nicht erscheint, etwa „erst nach Scrollen sichtbar“. Dasselbe gilt für Banner in einem iframe oder geschlossenen Shadow DOM, in die der Recorder nicht hineinsieht. Die Analyse weist auf solche Fälle hin.
+**Wenn GTM erst nach der Zustimmung lädt:** Dann läuft auch der Recorder erst danach, und der Klick auf den Consent-Banner fehlt in der Aufzeichnung. Trag in diesem Fall im Auftrag unter „Consent-Banner“ ein, wie der Banner bedient wird: entweder den Namen der CMP (der Agent sucht die Selektoren dann in der CMP-Bibliothek des [Tracking Auditor](https://github.com/mbaersch/tracking-auditor)) oder die Selektoren selbst, z. B. `#cmp-accept` für Zustimmen und `#cmp-reject` für Ablehnen. Nenne auch Schritte, ohne die der Banner nicht erscheint, etwa „erst nach Scrollen sichtbar“. Dasselbe gilt für Banner in einem iframe oder geschlossenen Shadow DOM, in die der Recorder nicht hineinsieht. Die Analyse weist auf solche Fälle hin.
 
 Tipp: Lieber mehrere kurze Aufzeichnungen (z. B. „Consent akzeptieren + Kauf“ und „Consent ablehnen + Kauf“) als eine lange mit allem.
 
 ## 3. Projekt anlegen und Analyse starten
 
-Einmalig im Hauptordner des Repos:
-
-```sh
-npm install
-npx playwright install chromium
-```
-
-Dann pro Website ein Projekt:
+Installation wie im [Schnellstart](#schnellstart-staging-im-browser), dann pro Website ein Projekt:
 
 ```sh
 npm run neu -- mein-shop
 ```
 
-Das legt `projects/mein-shop/` mit Auftrag, `projekt.md`, `.env` und leeren Ordnern an. Abhängigkeiten werden dort nicht noch einmal installiert. `projects/` ist von Git ausgeschlossen. Trag `BASE_URL` in `projects/mein-shop/.env` ein, leg den Export nach `projects/mein-shop/aufzeichnungen/` und starte den Agent **im Hauptordner**, zum Beispiel mit:
+Das legt `projects/mein-shop/` mit Auftrag, `projekt.md`, `.env`, dem Gerüst für Sitzungen und leeren Ordnern an. Abhängigkeiten werden dort nicht noch einmal installiert. `projects/` ist von Git ausgeschlossen. Trag `BASE_URL` in `projects/mein-shop/.env` ein, leg den Export nach `projects/mein-shop/aufzeichnungen/` und starte den Agent **im Hauptordner**, zum Beispiel mit:
 
 > Projekt mein-shop: Analysiere die Aufzeichnung und fülle den Auftrag vor.
 
@@ -121,7 +167,7 @@ Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht ge
 **Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er in `.env`, in Anführungszeichen (er enthält oft ein `#`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Es gibt zwei Variablen dafür:
 
 - `GTM_VORSCHAU_LINK`: **alle** Tests des Projekts laufen gegen die Vorschau, z. B. um einen Umbau vor dem Veröffentlichen mit der Live-Baseline zu vergleichen.
-- `SITZUNG_VORSCHAU_LINK`: nur die [offene Sitzung](#offene-sitzung-selbst-ausprobieren) startet damit den Tag Assistant; alle übrigen Tests bleiben beim Live-Container.
+- `SITZUNG_VORSCHAU_LINK`: nur die [Sitzung im Browser](#schnellstart-staging-im-browser) startet damit den Tag Assistant; alle übrigen Tests bleiben beim Live-Container.
 
 Nicht denselben Link in beide eintragen.
 
@@ -163,30 +209,7 @@ Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regu
 
 Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über den Tag Assistant fehlen dort dessen eigener dataLayer und seine GA4-Requests: Die Anhänge zeigen nur die Website.
 
-### Offene Sitzung: selbst ausprobieren
-
-Nicht alles muss ein automatisierter Test sein. Eine offene Sitzung startet den sichtbaren Browser mit allen Regeln und Anpassungen des Projekts und übergibt ihn dann Dir. Mit `SITZUNG_VORSCHAU_LINK` verbindet sich vorher der Tag Assistant mit Deinem GTM-Workspace.
-
-```sh
-npm run sitzung -- projects/mein-shop    # nur Tests mit @sitzung im Titel; bei npm test laufen sie nie
-```
-
-**Beispiel: im GTM mit einem dataLayer-Key bauen, den die Website noch nicht hat.** Die CMP soll künftig zusätzlich `youtube: true/false` pushen, gekoppelt an die Zustimmung zu Statistik. Bis das umgesetzt ist, ergänzt die Testumgebung den Key in jedem passenden Push, bevor GTM ihn sieht:
-
-```ts
-test.use({ stageOptionen: {
-  dataLayerAnpassen: (e) => {
-    if (e?.event === 'consent_ready' && e.consentInfo) e.consentInfo.youtube = e.consentInfo.statistics === true;
-  },
-} });
-
-test('Neuer Consent-Key in der Vorschau @sitzung', async ({ page, stage }) => {
-  const website = await stage.vorschauStarten(page);   // Tag Assistant mit SITZUNG_VORSCHAU_LINK
-  await stage.offenHalten(website);                     // ab hier bedienst Du die Seite, bis Du den Browser schließt
-});
-```
-
-Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Trigger und Tags im Workspace lassen sich damit bauen und prüfen, bevor die Website geändert ist. Die Anpassung wirkt nur im Testbrowser; die Website selbst bleibt unverändert. Den Test schreibt Dir der Agent, wenn Du ihm sagst, was simuliert werden soll.
+Sitzungen (`npm run sitzung`, siehe [Schnellstart](#schnellstart-staging-im-browser)) laufen bei `npm test` nie mit.
 
 **Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören.
 
@@ -265,7 +288,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 
 - Im Modus `full` enthält der Export echte Eingaben. Nur mit Testdaten aufzeichnen.
 - `projects/` ist komplett von Git ausgeschlossen. Bekommt ein Projekt ein eigenes Repo, schließt dessen `.gitignore` Aufzeichnungen, `.env` und `testdaten.aufzeichnung.env` aus. Baselines enthalten Request-Parameter und damit ggf. gehashte Testdaten.
-- Tests mit festen Erwartungen senden keine Tracking-Daten (ohne Proxy bis auf die oben genannten Beacons). Baseline-Tests senden echte Requests.
+- Tests mit festen Erwartungen senden keine Tracking-Daten (ohne Proxy bis auf die oben genannten Beacons). Baseline-Tests und Sitzungen senden echte Requests (in Sitzungen umstellbar auf `trackingModus: 'abfangen'`).
 
 ## Aufbau
 
@@ -277,6 +300,7 @@ werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/                     Aufzeichnungsformat
 beispiel/                 Demo-Seite mit Beispieltests und Baselines
 vorlage/                  Gerüst für neue Projekte (npm run neu)
+erweiterungen/            entpackte Browser-Extensions für Sitzungen (npm run erweiterung), nicht in Git
 projects/                 Deine Projekte, nicht in Git
   <name>/
     projekt.md            Anweisungen und Erkenntnisse nur für dieses Projekt
@@ -284,6 +308,7 @@ projects/                 Deine Projekte, nicht in Git
     .env                  Zugangs- und Testdaten (nur Du)
     testdaten.aufzeichnung.env   optional: Eingaben aus der Aufzeichnung
     aufzeichnungen/       Exporte und Analysen
+    tests/sitzung.spec.ts Sitzung im Browser mit den Anpassungen dieses Projekts
     tests/ baselines/     Tests und Baselines
 dist/
   gtm-recorder-tag.html   Inhalt für das GTM-Tag

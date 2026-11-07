@@ -1,6 +1,11 @@
-# Anweisungen für Agents: Tracking-Tests aus einer Aufzeichnung bauen
+# Anweisungen für Agents: Staging im Browser und Tracking-Tests
 
-Du baust aus einer Aufzeichnung einer Website-Journey eine Playwright-Testsuite, die das Tracking-Setup prüft (dataLayer, Consent, Requests an Dienste). Die Testumgebung („Stage in a Box“) ist in `lib/` fertig vorhanden, Scripts in `werkzeuge/`. Deine Aufgabe ist die Übersetzung von Aufzeichnung und Auftrag in Tests – nicht der Bau neuer Infrastruktur.
+Die Umgebung („Stage in a Box“) in `lib/` verändert eine Website im Testbrowser (dataLayer, HTML, Skripte, Requests, CSP, GTM-Vorschau) und prüft das Tracking-Setup (dataLayer, Consent, Requests an Dienste). Scripts liegen in `werkzeuge/`. Es gibt zwei Arten von Arbeit:
+
+- **Staging im Browser** (siehe [unten](#staging-im-browser-offene-sitzung)): Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Keine Aufzeichnung, kein Auftrag, keine Phasen.
+- **Tracking-Tests:** Du baust aus einer Aufzeichnung (oder für einen Container-Umbau) eine Playwright-Testsuite. Dafür gelten die Phasen unten.
+
+In beiden Fällen ist Deine Aufgabe die Übersetzung des Wunsches in Projektdateien – nicht der Bau neuer Infrastruktur.
 
 ## Aufbau: gemeinsame Umgebung, ein Ordner pro Projekt
 
@@ -20,6 +25,20 @@ Die Session läuft immer im Hauptordner. Testumgebung, Abhängigkeiten (`node_mo
 - `projects/` ist nicht im Git des Repos. Nichts aus einem Projekt in Dateien außerhalb von `projects/` übernehmen (keine Domains, Selektoren, Testdaten).
 
 **Erkenntnisse festhalten:** Was nur diese Website betrifft (CMP-Eigenheiten, eigene Request-Formate, Bot-Schutz, Stolperstellen), trägst Du in `projekt.md` ein. Was für alle Projekte gilt (Fehler in `lib/` oder im Analyse-Script, fehlende Anweisung hier), schlägst Du dem Menschen als Änderung an `AGENTS.md`, `lib/` oder `werkzeuge/` vor – allgemein formuliert, ohne Projektdaten.
+
+## Staging im Browser (offene Sitzung)
+
+Jedes neue Projekt hat `tests/sitzung.spec.ts`. `npm run sitzung -- projects/<name>` öffnet damit die Website (`BASE_URL`) im sichtbaren Browser, mit den `stageOptionen` dieser Datei und allen Extensions aus `erweiterungen/`; mit `SITZUNG_VORSCHAU_LINK` in `.env` verbindet sich vorher der Tag Assistant. Die Sitzung endet, wenn der Mensch den Browser schließt.
+
+- Wünsche des Menschen („in der Sitzung soll der CMP-Push zusätzlich … enthalten“, „Dienst X blockieren“, „neuen Loader einsetzen“) setzt Du als `stageOptionen` in `tests/sitzung.spec.ts` um: `dataLayerAnpassen`, `anpassungen`, `regeln`, `csp` (Details unter „Varianten“). Längere Logik in `tests/hilfen.ts`.
+- Kein `auftrag.md`, keine Phasen. Bei Unklarheit (welcher Push, welcher Wert, welche Seite) kurz nachfragen.
+- Prüfe eine Anpassung vor der Übergabe ohne Sitzung: kurzer Test im Modus `abfangen` bis zu der Stelle, an der sie wirkt (z. B. `consent_ready` im dataLayer bzw. im GTM-Datenmodell `google_tag_manager[<ID>].dataLayer.get(…)`), danach löschen. Echte Formulare nicht absenden.
+- Die Sitzung startest Du für den Menschen im Hintergrund (`npm run sitzung -- projects/<name>`); der Browser erscheint auf seinem Bildschirm.
+- Mehrere Sitzungen in einem Projekt: weitere `sitzung(…)`-Tests mit `@sitzung` im Titel, dann mit `-g` auswählen.
+- `trackingModus` ist in Sitzungen `durchlassen` (wie ein echter Besuch). `abfangen` nur auf Wunsch.
+- Extensions: `npm run erweiterung -- <Web-Store-ID | zip | ordner>` legt sie entpackt in `erweiterungen/` (nicht in Git). Benötigte Rechte (z. B. Host-Zugriff) erteilt der Mensch in der Sitzung selbst; das Profil ist bei jeder Sitzung frisch.
+
+## Tracking-Tests
 
 Die Arbeit hat **zwei Phasen**. Zwischen beiden bestätigt der Mensch den Auftrag.
 
@@ -264,7 +283,7 @@ test.use({ stageOptionen: { anpassungen: [
 - **CSP-Inventar:** Jeder Test legt `csp-inventar.json` ab: alle Ressourcen nach Direktive, Herkunft und Kontext (Seite, iframe, Service Worker) und einen Vorschlag für die Policy der Seite (`vorschlag`). Grundlage für eine neue CSP: einen vollständigen Lauf mit allen Consent-Zuständen und Zahlarten machen, dann den Vorschlag prüfen und die Policy als Variante `csp` testen. iframes und Service Worker fallen nicht unter die CSP der Seite.
 - **Anpassungen:** Ändert eine Anpassung nichts (Muster passt nicht mehr, z. B. nach einem Update der Website), bekommt der Test die Anmerkung „Achtung“, und die URL steht in `stage.anpassungenOhneWirkung`. Mit Proxy setzt die Stage `ignoreHTTPSErrors`, weil Playwright die Antwort dann über den Proxy holt; Zertifikatsfehler der Website fallen in diesen Tests nicht auf.
 - **dataLayer-Pushes ändern** (geplante Änderung an CMP oder Website, z. B. ein neuer Consent-Key): `stageOptionen: { dataLayerAnpassen: (e) => { if (e?.event === 'consent_ready') e.consentInfo.youtube = e.consentInfo.statistics === true; } }`. Greift vor GTM, auch nachdem GTM `push` ersetzt hat; das Protokoll zeigt den geänderten Push. Die Funktion läuft im Browser und darf keine Variablen aus der Testdatei verwenden. Die konkrete Regel gehört in den Projektordner, nicht nach `lib/`.
-- **Offene Sitzung zum Ausprobieren:** Ein Test mit `@sitzung` im Titel endet mit `await stage.offenHalten(seite)`; der Mensch bedient dann den sichtbaren Browser selbst, mit allen Regeln und Anpassungen der Stage. Solche Tests laufen nur mit `npm run sitzung -- projects/<name>`, nie bei `npm test`. Mit Tag Assistant: `const website = await stage.vorschauStarten(page)` nimmt in `@sitzung`-Tests `SITZUNG_VORSCHAU_LINK`, sonst `GTM_VORSCHAU_LINK`. Nie `GTM_VORSCHAU_LINK` für eine Sitzung empfehlen: Der schaltet die Vorschau für alle Tests des Projekts ein, auch für Baseline-Vergleiche.
+- **Offene Sitzung zum Ausprobieren** (siehe „Staging im Browser“): Ein Test mit `sitzung(…)` statt `test(…)` (aus `lib/stage`) und `@sitzung` im Titel endet mit `await stage.offenHalten(seite)`; der Mensch bedient dann den sichtbaren Browser selbst, mit allen Regeln und Anpassungen der Stage. Solche Tests laufen nur mit `npm run sitzung -- projects/<name>`, nie bei `npm test`. Mit Tag Assistant: `const website = await stage.vorschauStarten(page)` nimmt in `@sitzung`-Tests `SITZUNG_VORSCHAU_LINK`, sonst `GTM_VORSCHAU_LINK`. Nie `GTM_VORSCHAU_LINK` für eine Sitzung empfehlen: Der schaltet die Vorschau für alle Tests des Projekts ein, auch für Baseline-Vergleiche.
 
 Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
 

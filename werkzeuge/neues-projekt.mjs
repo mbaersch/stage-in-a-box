@@ -27,7 +27,12 @@ fs.copyFileSync(path.join(ziel, '.env.example'), path.join(ziel, '.env'));
 const projektMd = path.join(ziel, 'projekt.md');
 fs.writeFileSync(projektMd, fs.readFileSync(projektMd, 'utf8').replace(/^# Projekt$/m, `# Projekt: ${name}`));
 
-console.log(`projects/${name} angelegt. Als Nächstes:`);
-console.log(`  1. BASE_URL in projects/${name}/.env eintragen`);
-console.log(`  2. Tag-Assistant-Export nach projects/${name}/aufzeichnungen/ legen`);
-console.log(`  3. Agent im Hauptordner starten: „Neues Projekt ${name}: Analysiere die Aufzeichnung und fülle den Auftrag vor.“`);
+console.log(`projects/${name} angelegt. Zuerst BASE_URL in projects/${name}/.env eintragen, dann:`);
+console.log('');
+console.log('  Staging im Browser:');
+console.log(`    npm run sitzung -- projects/${name}`);
+console.log(`    Anpassungen beim Agent im Hauptordner bestellen, z. B. „Projekt ${name}: In der Sitzung soll …“`);
+console.log('');
+console.log('  Tracking-Tests aus einer Aufzeichnung:');
+console.log(`    Tag-Assistant-Export nach projects/${name}/aufzeichnungen/ legen, dann den Agent starten:`);
+console.log(`    „Projekt ${name}: Analysiere die Aufzeichnung und fülle den Auftrag vor.“`);
