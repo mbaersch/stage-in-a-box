@@ -72,6 +72,8 @@ export default defineConfig({
   // Großzügig, weil Tempo "langsam" bzw. "aufzeichnung" echte Wartezeiten enthält
   timeout: 5 * 60_000,
   retries: process.env.CI ? 1 : 0,
+  // Offene Sitzungen (stage.offenHalten) warten auf den Menschen; nur mit -g @sitzung (npm run sitzung).
+  grepInvert: process.argv.some((a) => a.includes('@sitzung')) ? undefined : /@sitzung/,
   reporter: [['list'], ['html', { open: 'never', outputFolder: path.join(PROJEKT, 'playwright-report') }]],
   use: {
     baseURL: process.env.BASE_URL ?? `http://localhost:${DEMO_PORT}`,

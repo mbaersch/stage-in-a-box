@@ -10,7 +10,8 @@
     "baseline:neu": "playwright test --update-snapshots=all",
     "report": "playwright show-report",
     "pruefen": "tsc -p .",
-    "test:recorder": "node test/recorder-smoke.mjs"
+    "test:recorder": "node test/recorder-smoke.mjs",
+    "sitzung": "playwright test --headed --workers=1 -g @sitzung"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

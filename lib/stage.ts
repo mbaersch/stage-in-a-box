@@ -95,6 +95,12 @@ export interface StageOptionen {
    * stage.anpassungenOhneWirkung (meist: Muster im Text passt nicht mehr).
    */
   anpassungen?: { muster: RegExp; anpassen: (text: string, url: string) => string }[];
+  /**
+   * Jeden dataLayer-Push verändern, bevor GTM ihn sieht (z. B. einen Key im Push der CMP ergänzen).
+   * Ändert den Eintrag direkt oder gibt einen Ersatz zurück. Läuft im Browser: nur eigener Code,
+   * keine Variablen aus dem Test.
+   */
+  dataLayerAnpassen?: (eintrag: any) => any;
 }
 
 /** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
@@ -443,6 +449,15 @@ export class Stage {
   }
 
   /**
+   * Hält den Browser zum eigenen Ausprobieren offen (Playwright Inspector), mit allen Regeln und
+   * Anpassungen der Stage. Ohne Zeitlimit; nur mit --headed sinnvoll.
+   */
+  async offenHalten(seite: Page) {
+    this.testInfo.setTimeout(0);
+    await seite.pause();
+  }
+
+  /**
    * Verlässt die aktuelle Seite wie ein Mensch, der den Tab schließt oder weitersurft.
    * Erst dabei senden viele Tags ihre letzten Requests (z. B. GA4 user_engagement).
    */
@@ -583,15 +598,52 @@ function browserSetup({ dlName, werkzeugSeiten }: { dlName: string; werkzeugSeit
     && Object.getPrototypeOf(wert) !== Object.prototype && Object.keys(wert).length === 1
     && wert.value && typeof wert.value === 'object' ? wert.value : wert;
 
+  const anpassen = (window as any).__stageDlAnpassen as ((e: any) => any) | undefined;
+  const passeAn = (wert: any) => {
+    if (!anpassen) return wert;
+    const ziel = entpacke(wert);
+    const ersatz = anpassen(ziel);
+    if (ersatz === undefined || ersatz === ziel) return wert;
+    if (ziel !== wert) { wert.value = ersatz; return wert; }
+    return ersatz;
+  };
+
   const instrumentiere = (arr: any) => {
     if (!Array.isArray(arr) || (arr as any).__stage) return;
     Object.defineProperty(arr, '__stage', { value: true });
-    for (const vorhanden of arr) melde(serialisiere(entpacke(vorhanden)), location.href);
-    const vorher = arr.push;
-    arr.push = function () {
-      for (let i = 0; i < arguments.length; i++) melde(serialisiere(entpacke(arguments[i])), location.href);
-      return vorher.apply(arr, arguments as any);
+    for (let i = 0; i < arr.length; i++) {
+      arr[i] = passeAn(arr[i]);
+      melde(serialisiere(entpacke(arr[i])), location.href);
+    }
+    if (!anpassen) {
+      const vorher = arr.push;
+      arr.push = function () {
+        for (let i = 0; i < arguments.length; i++) melde(serialisiere(entpacke(arguments[i])), location.href);
+        return vorher.apply(arr, arguments as any);
+      };
+      return;
+    }
+    // Mit Anpassung muss sie vor GTM greifen, auch nachdem GTM push() ersetzt hat: Wer push setzt,
+    // landet in der Kette; ruft er die vorherige Funktion (= aussen) auf, geht es dort ein Glied tiefer.
+    const kette: Function[] = [arr.push];
+    let tiefe = 0;
+    const aussen = function (this: any) {
+      const args = Array.from(arguments);
+      if (tiefe === 0) {
+        for (let i = 0; i < args.length; i++) {
+          args[i] = passeAn(args[i]);
+          melde(serialisiere(entpacke(args[i])), location.href);
+        }
+      }
+      const fn = kette[Math.max(kette.length - 1 - tiefe, 0)];
+      tiefe++;
+      try { return fn.apply(arr, args); } finally { tiefe--; }
     };
+    Object.defineProperty(arr, 'push', {
+      configurable: true,
+      get: () => aussen,
+      set: (fn) => { if (fn !== aussen) kette.push(fn); },
+    });
   };
 
   // Auch "dataLayer = [...]" (Neuzuweisung) wird abgedeckt.
@@ -699,6 +751,13 @@ export async function richteStageEin(
   await context.exposeFunction('__stageCsp', (v: string) => {
     stage.cspVerstoesse.push({ zeit: Date.now(), ...JSON.parse(v) });
   });
+  if (optionen.dataLayerAnpassen) {
+    // Als Quelltext statt per eval: Init-Skripte laufen unabhängig von der CSP der Seite.
+    let quelle = optionen.dataLayerAnpassen.toString();
+    // Methoden-Kurzschreibweise (dataLayerAnpassen(e) { … }) ist allein kein gültiger Ausdruck.
+    if (/^(async\s+)?[\w$]+\s*\(/.test(quelle) && !/^(async\s+)?function\b/.test(quelle)) quelle = 'function ' + quelle.replace(/^async\s+/, '');
+    await context.addInitScript({ content: `window.__stageDlAnpassen = (${quelle});` });
+  }
   await context.addInitScript(browserSetup, {
     dlName: optionen.dataLayerName ?? 'dataLayer',
     werkzeugSeiten: WERKZEUG_SEITEN.map((m) => m.source),
