@@ -134,11 +134,15 @@ TEMPO=aufzeichnung npm test -- projects/mein-shop         # im Tempo der Aufzeic
 PROXY=ein npm test -- projects/mein-shop                  # über den Proxy (siehe unten)
 ```
 
+Solange Tests eingerichtet werden, laufen sie mit `CONVERSION=aus` (in `.env` oder vor dem Befehl) nur bis direkt vor den Kauf bzw. das Absenden und gelten dann als übersprungen. So wird beim Ausprobieren nichts Echtes ausgelöst; die Conversion selbst prüft erst der vollständige Lauf.
+
 Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
-Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
+Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`.
+
+**Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
 
 ### Baseline
 

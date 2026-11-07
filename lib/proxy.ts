@@ -49,8 +49,8 @@ export interface ProxyRequest {
 }
 
 export interface ProxyVerbindung {
-  /** Entscheidet pro URL; ohne Rückgabe wird durchgelassen. */
-  entscheide(url: string): { aktion: ProxyAktion; verzoegerungMs?: number } | undefined;
+  /** Entscheidet pro URL, sec-fetch-dest (empty = fetch/XHR/Beacon) und Referer/Origin; ohne Rückgabe wird durchgelassen. */
+  entscheide(url: string, ziel: string, herkunft?: string): { aktion: ProxyAktion; verzoegerungMs?: number } | undefined;
   /** Wird für jeden Request aufgerufen, bevor er bearbeitet wird; das Objekt wird danach weiter aktualisiert. */
   melde(r: ProxyRequest): void;
   /** CSP für Dokumente setzen */
@@ -235,12 +235,13 @@ export class StageProxy {
     const teile: Buffer[] = [];
     for await (const t of req) teile.push(t as Buffer);
     const body = Buffer.concat(teile);
-    const entscheidung = this.verbindung.entscheide(url);
+    const ziel = String(req.headers['sec-fetch-dest'] ?? '');
+    const entscheidung = this.verbindung.entscheide(url, ziel, String(req.headers.referer ?? req.headers.origin ?? '') || undefined);
     const eintrag: ProxyRequest = {
       zeit: Date.now(),
       methode: req.method ?? 'GET',
       url,
-      ziel: String(req.headers['sec-fetch-dest'] ?? ''),
+      ziel,
       body: body.length ? (body.length <= MAX_BODY_TEXT ? body.toString('utf8') : `[${body.length} Bytes]`) : undefined,
       herkunft: String(req.headers.referer ?? req.headers.origin ?? '') || undefined,
       aktion: entscheidung?.aktion ?? 'durchlassen',

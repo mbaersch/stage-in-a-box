@@ -73,8 +73,8 @@ Ein Request, der zu fehlen scheint, fehlt nicht unbedingt. Er kann über einen P
 
 Deshalb zu Beginn von Phase 2, bevor Erwartungen entstehen, einmal prüfen:
 
-1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen) laufen lassen, am besten mit `PROXY=ein`.
-2. In den Anhängen `hosts.json` und `weitere-requests.json` nachsehen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
+1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen, mit `stage.conversionPunkt()`) mit `CONVERSION=aus` laufen lassen, am besten mit `PROXY=ein`.
+2. In `projects/<name>/test-results/<test>/` die Dateien `hosts.json`, `tracking-treffer.json` und `weitere-requests.json` ansehen. Requests ohne Regel werden nie abgefangen, auch nicht im Modus `abfangen`; ein Tracking-Endpunkt ohne Regel geht also echt raus. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören. Weitere Requests prüfen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
 3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten.
 
 Typisches Muster eines Stape-Custom-Loaders: Script- und Tracking-Requests gehen an eine eigene Subdomain mit verschleiertem Pfad und einem einzigen Parameter, dessen Wert der Base64-kodierte Originalpfad ist, z. B. `https://stp.example.de/abcdef/239?0355ae1a=L2d0YWcvanM…` → `/gtag/js?id=G-…`. Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel darauf fängt im Modus `abfangen` auch die Scripts ab. Deshalb dekodieren und nur passende Pfade (z. B. `/g/collect`) als Tracking werten. Dekodier-Logik gehört in den Test des jeweiligen Projekts, nicht nach `lib/`.
@@ -124,6 +124,8 @@ Beende Phase 1 mit einer kurzen Nachricht: was Du vorausgefüllt hast, welche Fe
 ## Phase 2: Tests bauen
 
 ### Aktionen ableiten
+
+**Conversion-Punkt:** Direkt vor der Aktion, die die Conversion auslöst (Kauf, Absenden), steht `await stage.conversionPunkt();`. Alles, was ohne Conversion feststeht (Consent, Requests bis dahin), wird davor geprüft. Mit `CONVERSION=aus` endet der Test dort und gilt als übersprungen. Beim Einrichten und Stabilisieren immer mit `CONVERSION=aus` arbeiten; vollständige Läufe nur gezielt und nur, wenn der Auftrag echte Conversions erlaubt. Im Bericht nennen, wie viele vollständige Läufe es gab.
 
 **Ausgangspunkt** sind die „Vorgeschlagenen Playwright-Schritte“ aus der Zeitleiste. Sie sind schon bereinigt (Fokus-Klicks, Script-Klicks, doppelte Submits entfernt) und enthalten die aufgezeichneten Pausen. Prüfe sie, ergänze Warte-Bedingungen nach Navigationen (`toHaveURL`) und gliedere sie in `test.step`s.
 
@@ -285,7 +287,7 @@ npm test                                            # ohne Projekt: das Beispiel
 
 Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`. Report und `test-results/` liegen im Projektordner.
 
-- Bei Fehlern zuerst die Anhänge (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`), Trace und Screenshot im Report ansehen.
+- Bei Fehlern zuerst die Protokolle (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`) in `projects/<name>/test-results/<test>/` ansehen, dann Trace und Screenshot. Die Dateien liegen auch bei grünen Tests dort; für eine Auswertung ist kein neuer Lauf nötig.
 - Fehlt ein erwarteter Request, zuerst in `weitere-requests.json` nachsehen, ob er über einen eigenen Pfad oder ein anderes Format rausging (siehe „Requests über eigene Pfade und Formate“).
 - Pushes aus GTM-Custom-Templates liegen im dataLayer der Seite teils als Hüllen-Objekt `{ value: { event: … } }`. Die Stage packt sie aus; im Protokoll stehen sie wie normale Events. Wer `window.dataLayer` direkt liest, sieht die Hülle.
 - Neue Tests zuerst mit `TEMPO=schnell` stabil bekommen, dann im gewünschten Tempo laufen lassen.

@@ -22,6 +22,7 @@
  *   test.use({ stageOptionen: { regeln: [{ name: 'Meta', muster: /facebook\.com\/tr/, modus: 'blockieren' }] } });
  */
 import { test as base, expect, type BrowserContext, type Page, type Route, type Request, type TestInfo } from '@playwright/test';
+import fs from 'node:fs';
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
@@ -73,6 +74,26 @@ export interface StageOptionen {
   proxy?: boolean;
   /** Ungültige Zertifikate der Website akzeptieren (z. B. Staging mit selbst signiertem Zertifikat). */
   zertifikatFehlerIgnorieren?: boolean;
+  /**
+   * Fetch-, XHR- und Beacon-Requests ohne Regel an fremde Domains wie Tracking behandeln
+   * (Dienst "Unbekannt", Tracking-Modus). Sicherheitsnetz gegen Endpunkte, die keine Regel kennt;
+   * kann Funktionen der Website stören. Vorgabe: Umgebungsvariable UNBEKANNTE=abfangen.
+   */
+  unbekannteAbfangen?: boolean;
+}
+
+/** CONVERSION=aus: Tests enden an stage.conversionPunkt(), z. B. solange sie eingerichtet werden. */
+export function conversionAus(): boolean {
+  return /^(aus|nein|0|false|off|no)$/i.test(process.env.CONVERSION ?? '');
+}
+
+function unbekannteAusUmgebung(): boolean {
+  return /^(abfangen|ein|an|ja|1|true|on|yes)$/i.test(process.env.UNBEKANNTE ?? '');
+}
+
+/** Grobe Näherung an die registrierbare Domain (letzte zwei Labels); für co.uk & Co. zu grob. */
+function basisDomain(host: string): string {
+  return host.split(':')[0].split('.').slice(-2).join('.');
 }
 
 export interface DataLayerEintrag {
@@ -397,6 +418,16 @@ export class Stage {
   }
 
   /**
+   * Direkt vor der Aktion aufrufen, die die Conversion auslöst (Kauf, Absenden). Mit CONVERSION=aus
+   * endet der Test hier und gilt als übersprungen; alles davor ist geprüft, nichts wurde abgeschickt.
+   */
+  async conversionPunkt() {
+    if (!conversionAus()) return;
+    await this.warteAufRuhe();
+    this.testInfo.skip(true, 'CONVERSION=aus: Lauf endet vor der Conversion');
+  }
+
+  /**
    * Speichert beim ersten Lauf (oder mit --update-snapshots) eine Baseline unter
    * baselines/<name>.json und vergleicht spätere Läufe dagegen. Siehe lib/baseline.ts.
    */
@@ -504,6 +535,19 @@ export async function richteStageEin(
   const regelFuer = (url: string) => regeln.find((r) => r.muster.test(url));
   const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
 
+  // Sicherheitsnetz: unbekannte Requests an fremde Domains wie Tracking behandeln
+  const unbekannteAktiv = (optionen.unbekannteAbfangen ?? unbekannteAusUmgebung()) && modus !== 'durchlassen';
+  const websiteBasis = basisDomain(zerlege(String(testInfo.project.use.baseURL ?? '')).host);
+  const UNBEKANNT: Regel = { name: 'Unbekannt', muster: /$^/ };
+  const istFremd = (url: string) => {
+    const host = zerlege(url).host;
+    return !!host && basisDomain(host) !== websiteBasis;
+  };
+  /** typ: Playwright-resourceType bzw. sec-fetch-dest des Proxys ("empty" = fetch/XHR/Beacon) */
+  const regelMitTyp = (url: string, typ: string, herkunft?: string) => regelFuer(url)
+    ?? (unbekannteAktiv && ['fetch', 'xhr', 'ping', 'empty'].includes(typ) && istFremd(url)
+      && !istWerkzeug(herkunft) && !istWerkzeug(url) ? UNBEKANNT : undefined);
+
   await context.exposeFunction('__stageDataLayer', (daten: string, url: string) => {
     stage.dataLayer.eintraege.push({ nr: stage.dataLayer.eintraege.length, zeit: Date.now(), seitenUrl: url, daten: JSON.parse(daten) });
   });
@@ -516,7 +560,7 @@ export async function richteStageEin(
   });
 
   if (proxy) {
-    verbindeProxy(stage, proxy, regelFuer, modus, optionen);
+    verbindeProxy(stage, proxy, regelMitTyp, modus, optionen);
     return stage;
   }
 
@@ -531,7 +575,7 @@ export async function richteStageEin(
     }
     const teile = zerlege(url);
     if (teile.host) stage.tracking.hosts.add(teile.host);
-    const regel = regelFuer(url);
+    const regel = regelMitTyp(url, request.resourceType());
     if (!regel && ['fetch', 'xhr', 'ping'].includes(request.resourceType())) {
       stage.tracking.weitere.push({ zeit: Date.now(), methode: request.method(), url, host: teile.host, pfad: teile.pfad });
     }
@@ -584,14 +628,21 @@ export async function richteStageEin(
   // Folge-Requests. Ein reiner Lauf im Modus "durchlassen" (Baseline) bleibt deshalb
   // ohne Routing. Verzögerungen und CSP-Simulation brauchen Routing und können solche
   // Ketten verändern.
+  // Der Typ des Requests ist erst im Handler bekannt; fremde Hosts deshalb erst dort entscheiden.
   const mussSteuern = (url: URL) => {
     const regel = regelFuer(url.href);
-    return !!regel && ((regel.modus ?? modus) !== 'durchlassen' || !!regel.verzoegerungMs);
+    if (!regel) return unbekannteAktiv && istFremd(url.href);
+    return (regel.modus ?? modus) !== 'durchlassen' || !!regel.verzoegerungMs;
   };
   const steuerungNoetig = modus !== 'durchlassen'
     || (optionen.regeln ?? []).some((r) => (r.modus && r.modus !== 'durchlassen') || r.verzoegerungMs);
   if (steuerungNoetig) await context.route(mussSteuern, async (route: Route, request: Request) => {
-    const regel = regelFuer(request.url())!;
+    const regel = regelFuer(request.url())
+      ?? (vonWerkzeug(request) ? undefined : regelMitTyp(request.url(), request.resourceType()));
+    if (!regel) {
+      await route.fallback().catch(() => { /* Seite schon geschlossen */ });
+      return;
+    }
     if (regel.verzoegerungMs) await pause(regel.verzoegerungMs);
     try {
       const m = regel.modus ?? modus;
@@ -628,11 +679,12 @@ export async function richteStageEin(
 
 /** Verbindet die Stage mit dem Proxy: Regeln, CSP und Protokoll laufen dann dort. */
 function verbindeProxy(
-  stage: Stage, proxy: StageProxy, regelFuer: (url: string) => Regel | undefined, modus: Modus, optionen: StageOptionen,
+  stage: Stage, proxy: StageProxy, regelFuer: (url: string, typ: string, herkunft?: string) => Regel | undefined,
+  modus: Modus, optionen: StageOptionen,
 ) {
   proxy.verbinde({
-    entscheide(url) {
-      const regel = regelFuer(url);
+    entscheide(url, ziel, herkunft) {
+      const regel = regelFuer(url, ziel, herkunft);
       if (!regel) return undefined;
       return { aktion: regel.modus ?? modus, verzoegerungMs: regel.verzoegerungMs };
     },
@@ -640,7 +692,7 @@ function verbindeProxy(
       if (istWerkzeug(r.herkunft) || istWerkzeug(r.url)) return;
       const teile = zerlege(r.url);
       if (teile.host) stage.tracking.hosts.add(teile.host);
-      const regel = regelFuer(r.url);
+      const regel = regelFuer(r.url, r.ziel, r.herkunft);
       if (!regel) {
         if (r.ziel === 'empty' || r.ziel === '') {
           const weiterer: WeitererRequest = { zeit: r.zeit, methode: r.methode, url: r.url, host: teile.host, pfad: teile.pfad };
@@ -723,17 +775,18 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
         description: `${entwischt.length} Tracking-Request(s) beim Verlassen einer Seite echt gesendet, obwohl Modus "${stage.modus}" (siehe tracking-treffer.json, entwischt: true)`,
       });
     }
-    // Protokolle hängen am Test-Report und helfen bei der Analyse fehlgeschlagener Tests.
-    const json = (v: unknown) => JSON.stringify(v, null, 2);
-    await testInfo.attach('dataLayer.json', { body: json(stage.dataLayer.eintraege), contentType: 'application/json' });
-    await testInfo.attach('tracking-treffer.json', { body: json(stage.tracking.treffer), contentType: 'application/json' });
-    await testInfo.attach('hosts.json', { body: json([...stage.tracking.hosts].sort()), contentType: 'application/json' });
-    if (stage.tracking.weitere.length) {
-      await testInfo.attach('weitere-requests.json', { body: json(stage.tracking.weitere), contentType: 'application/json' });
-    }
-    if (stage.cspVerstoesse.length) {
-      await testInfo.attach('csp-verstoesse.json', { body: json(stage.cspVerstoesse), contentType: 'application/json' });
-    }
+    // Protokolle als Dateien in test-results/<test>/ (auch bei grünen Tests auswertbar, ohne
+    // neuen Lauf) und als Anhang im Report.
+    const ablegen = async (name: string, daten: unknown) => {
+      const datei = testInfo.outputPath(name);
+      fs.writeFileSync(datei, JSON.stringify(daten, null, 2));
+      await testInfo.attach(name, { path: datei, contentType: 'application/json' });
+    };
+    await ablegen('dataLayer.json', stage.dataLayer.eintraege);
+    await ablegen('tracking-treffer.json', stage.tracking.treffer);
+    await ablegen('hosts.json', [...stage.tracking.hosts].sort());
+    if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
+    if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
   },
 });
 
