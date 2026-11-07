@@ -87,6 +87,7 @@
 <!-- Laufen im Test der Journey mit, keine eigenen Tests. Ankreuzen und ergänzen. -->
 
 - [ ] Durchgängigkeit der Conversion-Werte: <!-- welche Events (Vorgabe: purchase)? Bewusste Unterschiede, z. B. „Google Ads bekommt den Nettowert“ -->
+- [ ] UTM-Parameter kommen an: <!-- bei welchen Diensten muss der erste Request nach der Landung die UTMs tragen (z. B. GA4)? Welche UTMs? -->
 - [ ] Cookies: <!-- welche Cookies wann gesetzt werden, vor oder nach der Consent-Entscheidung; in der Baseline ist ein neues Cookie vor der Entscheidung rot -->
 
 ## Bedingungen

@@ -104,6 +104,45 @@ export async function klickIdBefunde(
   });
 }
 
+export interface UtmBefund {
+  dienst: string;
+  /** Erster Request des Dienstes nach der Landung */
+  ersterRequest: { nr: number; ereignis: string };
+  /** UTM-Paare, die im ersten Request fehlen (leer = alles angekommen) */
+  fehlend: string[];
+  /** Spätere Requests des Dienstes, die alle UTM-Paare enthalten */
+  spaeterEnthalten: number[];
+}
+
+/**
+ * UTMs werden nicht gespeichert, sondern aus der URL des ersten Requests gelesen (z. B. GA4 über dl).
+ * Geprüft wird deshalb je Dienst, ob sein erster Request nach der Landung alle UTM-Paare enthält –
+ * in der URL, in einem Parameter wie dl oder im Body.
+ */
+export function utmBefunde(werte: Record<string, string>, treffer: TrefferLike[], ab: number): UtmBefund[] {
+  const paare = Object.entries(werte).filter(([k]) => k.startsWith('utm_')).map(([k, v]) => `${k}=${v}`);
+  if (!paare.length) return [];
+  const text = (t: TrefferLike) => {
+    const roh = `${t.url}\n${t.body ?? ''}`;
+    return `${dekodiert(roh)}\n${dekodiert(dekodiert(roh))}`;
+  };
+  const fehlt = (t: TrefferLike) => paare.filter((p) => !text(t).includes(p));
+  const nachDienst = new Map<string, TrefferLike[]>();
+  for (const t of treffer.filter((x) => x.zeit >= ab).sort((a, b) => a.zeit - b.zeit)) {
+    if (!nachDienst.has(t.dienst)) nachDienst.set(t.dienst, []);
+    nachDienst.get(t.dienst)!.push(t);
+  }
+  return [...nachDienst].map(([dienst, liste]) => {
+    const erster = liste[0];
+    return {
+      dienst,
+      ersterRequest: { nr: erster.nr, ereignis: erster.parameter.en ?? erster.parameter.ev ?? erster.parameter.event ?? erster.pfad },
+      fehlend: fehlt(erster),
+      spaeterEnthalten: liste.slice(1).filter((t) => !fehlt(t).length).map((t) => t.nr),
+    };
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Netz und CPU                                                       */
 /* ------------------------------------------------------------------ */

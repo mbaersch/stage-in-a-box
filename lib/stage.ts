@@ -35,8 +35,8 @@ import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
 import {
-  clientHintsAnpassen, drossele, geraetAus, hatClientHints as hatClientHintsUa, klickIdBefunde, landungsParameter, userAgentAus,
-  type KlickIdBefund, type Landung, type Netz,
+  clientHintsAnpassen, drossele, geraetAus, hatClientHints as hatClientHintsUa, klickIdBefunde, utmBefunde, landungsParameter, userAgentAus,
+  type KlickIdBefund, type Landung, type Netz, type UtmBefund,
 } from './bedingungen';
 import {
   cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeDurchgaengigkeit,
@@ -641,16 +641,39 @@ export class Stage {
     const url = new URL(pfad, String(this.testInfo.project.use.baseURL ?? 'http://localhost'));
     for (const [k, v] of Object.entries(werte)) url.searchParams.set(k, v);
     this.landungsWerte = { ...this.landungsWerte, ...werte };
+    this.landungsZeit = Date.now();
     await seite.goto(url.href);
     return werte;
   }
 
   /** Landung, wie sie in stageOptionen steht (von richteStageEin gesetzt). */
   landung?: Landung;
+  /** Zeitpunkt von stage.landen() */
+  landungsZeit = 0;
+
+  /**
+   * Je Dienst: Enthält sein erster Request nach der Landung alle UTM-Paare? UTMs werden nicht
+   * gespeichert, sondern aus der URL des ersten Requests gelesen (z. B. GA4 über dl).
+   */
+  utm(): UtmBefund[] {
+    return utmBefunde(this.landungsWerte, this.tracking.treffer, this.landungsZeit);
+  }
+
+  /** Erwartet, dass der erste Request des Dienstes nach der Landung alle UTM-Paare enthält. */
+  async erwarteUtm(optionen: { dienst: string; timeout?: number }) {
+    const { dienst, timeout = 10_000 } = optionen;
+    let befund: UtmBefund | undefined;
+    await expect.poll(() => {
+      befund = this.utm().find((b) => b.dienst === dienst);
+      if (!befund) return `kein Request an ${dienst} nach der Landung`;
+      return befund.fehlend.length ? `erster Request (nr ${befund.ersterRequest.nr}, ${befund.ersterRequest.ereignis}) ohne ${befund.fehlend.join(', ')}` : 'ok';
+    }, { message: `UTM-Parameter bei ${dienst}`, timeout }).toBe('ok');
+    return befund!;
+  }
 
   /**
    * Wo die Klick-IDs der Landung gelandet sind: gespeichert (Cookies, localStorage) und in welchen
-   * Tracking-Requests. Wird am Testende zusätzlich als klick-ids.json abgelegt.
+   * Tracking-Requests. Wird am Testende zusätzlich in landung.json abgelegt.
    */
   async klickIds(): Promise<KlickIdBefund[]> {
     return klickIdBefunde(this.context, this.landungsWerte, this.tracking.treffer, this.dienstProfile);
@@ -1373,7 +1396,19 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
     await ablegen('csp-inventar.json', stage.cspInventar());
-    if (Object.keys(stage.landungsWerte).length) await ablegen('klick-ids.json', await stage.klickIds().catch(() => []));
+    if (Object.keys(stage.landungsWerte).length) {
+      await ablegen('landung.json', { werte: stage.landungsWerte, klickIds: await stage.klickIds().catch(() => []), utm: stage.utm() });
+    }
+    // UTM-Prüfung (stageOptionen.pruefungen.utm): erster Request der genannten Dienste nach der Landung
+    if (stageOptionen.pruefungen?.utm?.length && testInfo.status === 'passed' && stage.landungsZeit) {
+      const utm = stage.utm();
+      const rot = stageOptionen.pruefungen.utm.flatMap((d) => {
+        const b = utm.find((x) => x.dienst === d);
+        if (!b) return [`${d}: kein Request nach der Landung`];
+        return b.fehlend.length ? [`${d}: erster Request (${b.ersterRequest.ereignis}) ohne ${b.fehlend.join(', ')}`] : [];
+      });
+      expect(rot, 'UTM-Parameter im ersten Request nach der Landung (Details: landung.json)').toEqual([]);
+    }
     if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
     if (stage.cookieProtokollAktiv) await ablegen('cookies.json', await stage.cookies().catch(() => []));
     // Durchgängigkeit: nur wenn der Test bis zum Ende lief (nicht bei CONVERSION=aus übersprungen)

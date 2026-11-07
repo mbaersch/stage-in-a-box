@@ -24,6 +24,25 @@ test.describe('Landung über eine Anzeige', () => {
   });
 });
 
+test.describe('UTM-Parameter', () => {
+  // Separate Prüfung: Der erste Request von GA4 nach der Landung muss alle UTM-Paare tragen.
+  test.use({ stageOptionen: { landung: { utm: { source: 'newsletter', medium: 'email', campaign: 'herbst' } }, pruefungen: { utm: ['GA4'] } } });
+
+  test('kommen im ersten GA4-Request an', async ({ page, stage }) => {
+    await stage.landen(page);
+    const befund = await stage.erwarteUtm({ dienst: 'GA4' });
+    expect(befund.ersterRequest.ereignis).toBe('page_view');
+  });
+
+  test('Abweichung wird erkannt: Seite entfernt die Parameter vor dem page_view', async ({ page, stage }) => {
+    test.fail();
+    // Simuliert eine Seite, die ihre URL "aufräumt", bevor das Tracking feuert
+    await page.addInitScript(() => history.replaceState(null, '', location.pathname));
+    await stage.landen(page);
+    await stage.warteAufRuhe();
+  });
+});
+
 test.describe.serial('Wiederkehrender Besucher', () => {
   test('erster Besuch: zustimmen und Zustand speichern', async ({ page, stage }) => {
     await page.goto('/');

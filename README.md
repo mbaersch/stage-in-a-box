@@ -36,7 +36,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
-- **Mitlaufende Prüfungen** im Testkauf: Kommen Wert, Währung, Transaktions-ID und Artikel aus dem dataLayer unverändert bei GA4, Google Ads, Meta und Microsoft Ads an? Weitere Dienste bekommen ein Profil im Projekt; ohne Profil zeigt die Prüfung, wo die Werte stehen. Welche Cookies werden wann gesetzt, vor oder nach der Consent-Entscheidung, mit welcher Laufzeit?
+- **Mitlaufende Prüfungen** im Testkauf: Kommen Wert, Währung, Transaktions-ID und Artikel aus dem dataLayer unverändert bei GA4, Google Ads, Meta und Microsoft Ads an? Weitere Dienste bekommen ein Profil im Projekt; ohne Profil zeigt die Prüfung, wo die Werte stehen. Kommen die UTM-Parameter einer Landung im ersten Request von GA4 & Co. an? Welche Cookies werden wann gesetzt, vor oder nach der Consent-Entscheidung, mit welcher Laufzeit?
 - **Unter weiteren Bedingungen**, als Zusatz zu einer bestehenden Journey: Landung über eine Anzeige (kommt die Klick-ID in der Conversion an?), wiederkehrender Besucher, Uhr vorspulen für Timer und Sitzungsende, langsames Netz und schwaches Gerät, Mobilgerät, andere Browser-Kennung, Zurück-Navigation aus dem bfcache. Im Auftrag sind das Kreuzchen.
 
 ## Voraussetzungen

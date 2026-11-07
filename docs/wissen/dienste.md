@@ -6,6 +6,7 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 - `stage.tracking.erwarteGa4(en)` liefert alle Parameter eines Ereignisses (`en`, `gcs`, `ep.*`, `epn.*`, `pr1` …); mehrere Ereignisse in einem Request (Batching im Body) sind aufgelöst.
 - `gcs`: `G100` = kein Consent, `G111` = voller Consent.
+- UTM-Parameter speichert GA4 nicht im Browser; die Kampagne wird aus `dl` (und `dr`) des ersten Requests einer Sitzung ermittelt. Fehlen die UTMs dort, ist die Zuordnung verloren.
 - `user_engagement` geht beim Verlassen einer Seite raus (Beacon bei `pagehide`), seine Anzahl hängt an der Verweildauer und am Tempo: im Baseline-Vergleich „(Timing)“. Ohne Proxy sieht Playwright diese Beacons nicht.
 
 ## Google Ads
@@ -33,7 +34,7 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstprofile.ts`: Klick-ID (URL-Parameter, Ablage, Parameter im Request) und Conversion (Erkennung des Events, Felder für Wert, Währung, Transaktion, Artikel). Die Tabellen hier geben den Stand der zentralen Profile wieder.
 
-**Nur Belegtes eintragen.** Ein Dienst bekommt ein zentrales Profil erst, wenn Parameter, Ablage und Felder an einer echten Website bestätigt sind. Bis dahin: Profil im Projekt (`stageOptionen.dienstProfile`), und die Suche nach den Werten zeigt in `durchgaengigkeit.json` bzw. `klick-ids.json`, in welchem Feld sie stehen. Sobald ein Profil sich bewährt hat, mit Tabelle hier und Profil in `lib/` übernehmen.
+**Nur Belegtes eintragen.** Ein Dienst bekommt ein zentrales Profil erst, wenn Parameter, Ablage und Felder an einer echten Website bestätigt sind. Bis dahin: Profil im Projekt (`stageOptionen.dienstProfile`), und die Suche nach den Werten zeigt in `durchgaengigkeit.json` bzw. `landung.json`, in welchem Feld sie stehen. Sobald ein Profil sich bewährt hat, mit Tabelle hier und Profil in `lib/` übernehmen.
 
 ### Conversion-Werte
 

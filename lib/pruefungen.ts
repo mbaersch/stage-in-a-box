@@ -21,6 +21,11 @@ export interface Pruefungen {
   durchgaengigkeit?: boolean | string[] | { ereignisse?: string[]; ausnahmen?: string[] };
   /** Cookies mit Zeitpunkt, Herkunft, Domain und Laufzeit protokollieren (cookies.json, Baseline). */
   cookies?: boolean;
+  /**
+   * Diese Dienste müssen in ihrem ersten Request nach stage.landen() alle UTM-Paare der Landung
+   * tragen (z. B. ['GA4']). Braucht stageOptionen.landung mit utm.
+   */
+  utm?: string[];
 }
 
 /* ------------------------------------------------------------------ */

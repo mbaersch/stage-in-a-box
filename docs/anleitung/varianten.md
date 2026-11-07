@@ -47,7 +47,7 @@ Bedingungen sind keine eigenen Tests, sondern Zusätze für eine bestehende Jour
 | Browser-Kennung | `userAgent: 'safari-ios' \| 'safari-mac' \| 'firefox' \| '<eigener String>'` | Geht vor `geraet`. |
 | Zurück-Navigation | `bfcache: true` | `const r = await stage.zurueck(page)`; `r.ausBfcache` sagt, ob die Seite aus dem Cache kam. Danach prüfen, ob ein `page_view` kam bzw. kommen sollte. |
 
-- **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests und wertet die Dienstprofile aus: Ist die Ablage aus dem Profil vorhanden bzw. der Klick-ID-Parameter im Request des Dienstes, zählt das auch dann, wenn der Dienst den Wert in eigenem Format speichert. Ergebnis am Testende in `klick-ids.json`. Stand der Profile: [`../wissen/dienste.md`](../wissen/dienste.md).
+- **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests und wertet die Dienstprofile aus: Ist die Ablage aus dem Profil vorhanden bzw. der Klick-ID-Parameter im Request des Dienstes, zählt das auch dann, wenn der Dienst den Wert in eigenem Format speichert. Ergebnis am Testende in `landung.json`. Stand der Profile: [`../wissen/dienste.md`](../wissen/dienste.md).
 - **Uhr:** Betrifft die Uhr der Seite (Timer, `Date`). Cookie-Laufzeiten verwaltet der Browser selbst; deren Ablauf lässt sich so nicht testen. Sitzungsende bei GA4 funktioniert, weil es auf Zeitstempeln in Cookie-Werten beruht.
 - **Gerät und Kennung:** Die Engine bleibt Chromium. Die Client Hints (`Sec-CH-UA`, `navigator.userAgentData`) passt die Stage immer an die Kennung an: Bei Chrome-Kennungen stehen dort Marken und Plattform wie bei Google Chrome statt „HeadlessChrome“ (sonst ein Bot-Signal; abschaltbar mit `automationVerbergen: false`). Für Safari und Firefox werden die Client Hints entfernt (Marken leer, `navigator.userAgentData` undefiniert). Der Header `Sec-CH-UA` kommt dann leer statt gar nicht – Skripte, die exakt darauf prüfen, sehen den Unterschied. Mobile Layouts brauchen ein `<meta name="viewport">` der Seite, sonst rendert sie 980 px breit.
 - **bfcache:** Startet einen eigenen Browser (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet. Nach `zurueck` nicht auf `load` warten: Aus dem bfcache kommt keiner.
@@ -60,6 +60,7 @@ Ebenfalls keine eigenen Tests: `stageOptionen.pruefungen` schaltet zusätzliche 
 test.use({ stageOptionen: { pruefungen: {
   durchgaengigkeit: ['purchase'],   // oder true (= purchase), oder { ereignisse, ausnahmen: ['Google Ads:value'] }
   cookies: true,
+  utm: ['GA4'],                     // braucht landung mit utm und stage.landen()
 } } });
 ```
 
@@ -95,6 +96,8 @@ dienstProfile: [
 Ein Identifier ohne Angaben (`wbraid: {}`) gehört zum Dienst, Ablage und Parameter sind aber unbekannt; dann zählt nur die Suche nach dem Wert. Bewährt sich ein Profil, als Vorschlag für `lib/dienstprofile.ts` und `docs/wissen/dienste.md` melden – nur mit belegten Fakten.
 - Bewusste Unterschiede (z. B. Ads bekommt den Nettowert) als `ausnahmen: ['Google Ads:value']` eintragen und im Bericht begründen.
 - Läuft nur, wenn der Test bis zum Ende kommt – mit `CONVERSION=aus` also nicht. Ergebnis in `durchgaengigkeit.json`; `stage.pruefeDurchgaengigkeit(event)` auch für eigene Aufrufe.
+
+**UTM-Parameter:** UTMs werden nicht gespeichert, sondern aus der URL des ersten Requests gelesen (GA4 über `dl`). Geprüft wird deshalb, ob der erste Request jedes genannten Dienstes nach `stage.landen()` alle UTM-Paare enthält – rot, wenn nicht. Typische Ursachen: Weiterleitung schneidet Parameter ab, SPA räumt die URL per `replaceState` auf, Reload nach der Consent-Entscheidung, `page_view` erst nach Zustimmung auf veränderter URL. Einzeln: `await stage.erwarteUtm({ dienst: 'GA4' })`. Ergebnis für alle Dienste in `landung.json` (dort auch die Klick-IDs). Was eine Website selbst mit UTMs macht (eigene Cookies, Formularfelder fürs CRM), ist Sache des Projekts.
 
 **Cookies:** Protokolliert jedes Setzen (per Skript oder `Set-Cookie`), nie die Werte. `stage.cookies()` bzw. `cookies.json` liefern je Cookie-Muster (`_ga_<ID>` statt Kennung): zuerst gesetzt vor oder nach der Consent-Entscheidung (erster `consent update` im dataLayer), Quelle, Domain, Laufzeit am Ende.
 
