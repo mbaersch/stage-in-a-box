@@ -81,10 +81,14 @@ export const FLUECHTIGE_MUSTER = [/^t_[a-z]{2}$/];
 export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
 
 /**
- * Begleit-Requests (Cookie-Abgleich, Kopien über ccm, Weiterleitungs-Hops): Google sendet sie
- * nicht bei jedem Lauf gleich oft. Abweichende Anzahl nur als Hinweis; Consent-Parameter bleiben rot.
+ * Begleit-Requests, geprüft gegen host + pfad: Cookie-Abgleich, Kopien über ccm und Weiterleitungs-Hops
+ * bei Google, Uploads von Sitzungsaufzeichnungen (Clarity), deren Anzahl von der Verweildauer abhängt.
+ * Abweichende Anzahl nur als Hinweis; Consent-Parameter bleiben rot.
  */
-export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/];
+export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/, /clarity\.ms\/collect/];
+
+/** Begleit-Requests, erkennbar an Parametern: Heartbeats von Matomo/Piwik PRO (ping=1). */
+const istHeartbeat = (p: Record<string, string>) => p.ping === '1';
 
 interface BaselineEvent { name: string; quelle: 'push' | 'gtag'; daten: Record<string, unknown> }
 
@@ -148,16 +152,17 @@ function bodyParameter(body?: string): Record<string, string> {
 
 /** Name des Ereignisses in einem Request, unabhängig vom Dienst. */
 function ereignisname(p: Record<string, string>, pfad: string): string {
-  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.label ?? pfad;
+  // e_a: Event-Aktion bei Matomo/Piwik PRO
+  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.e_a ?? p.label ?? pfad;
 }
 
 const BEGLEIT = '(Begleit) ';
 
 /** Vergleichsschlüssel: Dienst, Ereignis und Pfad (Konto-IDs u. ä. als #). Wird beim Vergleich neu
  * berechnet, damit ältere Baselines mit anderem Schlüssel vergleichbar bleiben. */
-function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'pfad' | 'umleitung'>): string {
+function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'host' | 'pfad' | 'umleitung'>): string {
   const pfad = a.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#');
-  const begleit = a.umleitung || BEGLEIT_PFADE.some((m) => m.test(a.pfad));
+  const begleit = a.umleitung || istHeartbeat(a.parameter) || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad));
   return `${begleit ? BEGLEIT : ''}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}`;
 }
 

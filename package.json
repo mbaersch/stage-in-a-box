@@ -7,7 +7,7 @@
     "test:sichtbar": "playwright test --headed",
     "neu": "node werkzeuge/neues-projekt.mjs",
     "analyse": "node --max-old-space-size=4096 werkzeuge/analysiere-aufzeichnung.mjs",
-    "baseline:neu": "playwright test --update-snapshots",
+    "baseline:neu": "playwright test --update-snapshots=all",
     "report": "playwright show-report",
     "pruefen": "tsc -p .",
     "test:recorder": "node test/recorder-smoke.mjs"

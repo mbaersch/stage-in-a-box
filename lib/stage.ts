@@ -434,6 +434,9 @@ export class Stage {
    * baselines/<name>.json und vergleicht spätere Läufe dagegen. Siehe lib/baseline.ts.
    */
   async vergleicheMitBaseline(name: string, optionen: BaselineOptionen = {}) {
+    // Erst die letzte Seite zu Ende arbeiten lassen: Tags auf einer Danke-Seite brauchen oft Sekunden,
+    // sonst fehlen sie in manchen Läufen und der Vergleich schwankt.
+    await this.warteAufRuhe(3000, 30_000);
     if (optionen.seiteVerlassen !== false) await this.seiteVerlassen();
     await this.warteAufRuhe();
     return vergleicheMitBaseline(this, name, optionen);
