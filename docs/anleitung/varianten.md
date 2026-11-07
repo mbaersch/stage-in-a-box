@@ -47,7 +47,7 @@ Bedingungen sind keine eigenen Tests, sondern Zusätze für eine bestehende Jour
 | Browser-Kennung | `userAgent: 'safari-ios' \| 'safari-mac' \| 'firefox' \| '<eigener String>'` | Geht vor `geraet`. |
 | Zurück-Navigation | `bfcache: true` | `const r = await stage.zurueck(page)`; `r.ausBfcache` sagt, ob die Seite aus dem Cache kam. Danach prüfen, ob ein `page_view` kam bzw. kommen sollte. |
 
-- **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests; am Testende liegt das Ergebnis als `klick-ids.json` bei. Wo die Dienste sie üblicherweise speichern: [`../wissen/dienste.md`](../wissen/dienste.md).
+- **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests und wertet die Dienstprofile aus: Ist die Ablage aus dem Profil vorhanden bzw. der Klick-ID-Parameter im Request des Dienstes, zählt das auch dann, wenn der Dienst den Wert in eigenem Format speichert. Ergebnis am Testende in `klick-ids.json`. Stand der Profile: [`../wissen/dienste.md`](../wissen/dienste.md).
 - **Uhr:** Betrifft die Uhr der Seite (Timer, `Date`). Cookie-Laufzeiten verwaltet der Browser selbst; deren Ablauf lässt sich so nicht testen. Sitzungsende bei GA4 funktioniert, weil es auf Zeitstempeln in Cookie-Werten beruht.
 - **Gerät und Kennung:** Die Engine bleibt Chromium. Die Client Hints (`Sec-CH-UA`, `navigator.userAgentData`) passt die Stage immer an die Kennung an: Bei Chrome-Kennungen stehen dort Marken und Plattform wie bei Google Chrome statt „HeadlessChrome“ (sonst ein Bot-Signal; abschaltbar mit `automationVerbergen: false`). Für Safari und Firefox werden die Client Hints entfernt (Marken leer, `navigator.userAgentData` undefiniert). Der Header `Sec-CH-UA` kommt dann leer statt gar nicht – Skripte, die exakt darauf prüfen, sehen den Unterschied. Mobile Layouts brauchen ein `<meta name="viewport">` der Seite, sonst rendert sie 980 px breit.
 - **bfcache:** Startet einen eigenen Browser (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet. Nach `zurueck` nicht auf `load` warten: Aus dem bfcache kommt keiner.
@@ -63,10 +63,24 @@ test.use({ stageOptionen: { pruefungen: {
 } } });
 ```
 
-**Durchgängigkeit:** Am Testende wird für jedes genannte Event geprüft, ob Wert, Währung, Transaktions-ID und Artikel-IDs aus dem dataLayer-Push in den Requests nach dem Push ankommen: GA4 (`epn.value`, `cu`, `ep.transaction_id`, `pr1…`), Google Ads (`value`, `currency_code`, `oid`), Meta (`cd[value]`, `cd[currency]`, `cd[content_ids]`), Microsoft Ads (`gv`, `gc`).
+**Durchgängigkeit:** Am Testende wird für jedes genannte Event geprüft, ob Wert, Währung, Transaktions-ID und Artikel-IDs aus dem dataLayer-Push in den Requests nach dem Push ankommen. Wo die Werte stehen, sagen die Dienstprofile (`lib/dienstprofile.ts`, zentral für GA4, Google Ads, Meta, Microsoft Ads).
 
-- Rot: Wert, Währung oder Transaktions-ID weichen ab oder fehlen; Artikel-IDs bei GA4.
-- Hinweis: Artikel-IDs bei Werbediensten (oft bewusst anderes ID-Schema, z. B. Feed-IDs); Dienst ohne passenden Request.
+- Rot (nur Dienste mit Profil): Wert, Währung oder Transaktions-ID weichen ab oder fehlen; Artikel-IDs, außer das Profil sagt `itemsNurHinweis` (Werbedienste mit Feed-IDs).
+- Hinweis: Dienst mit Profil ohne passenden Request nach dem Push.
+- **Dienste ohne Profil** (z. B. TikTok, eigene sGTM-Formate): Die Prüfung sucht Wert und Transaktions-ID in allen Feldern ihrer Requests, auch in JSON-Bodies, und meldet als Hinweis, wo sie stehen („gefunden in: properties.order_id“) oder dass sie fehlen. Daraus ein Profil fürs Projekt ableiten:
+
+```ts
+test.use({ stageOptionen: {
+  pruefungen: { durchgaengigkeit: ['purchase'] },
+  dienstProfile: [{ name: 'TikTok', conversion: {        // Name wie in der Regel des Dienstes
+    ereignis: { parameter: 'event', werte: { purchase: 'CompletePayment' } },
+    value: 'properties.value', currency: 'properties.currency', transaction_id: 'properties.order_id',
+    items: { parameter: 'properties.contents', format: 'json', schluessel: 'content_id' },
+  } }],
+} });
+```
+
+Felder sind Parameternamen; JSON-Bodies werden flach gemacht (`properties.value`). Gleiche Namen wie zentral überschreiben einzelne Felder. Bewährt sich ein Profil, als Vorschlag für `lib/dienstprofile.ts` und `docs/wissen/dienste.md` melden – nur mit belegten Fakten.
 - Bewusste Unterschiede (z. B. Ads bekommt den Nettowert) als `ausnahmen: ['Google Ads:value']` eintragen und im Bericht begründen.
 - Läuft nur, wenn der Test bis zum Ende kommt – mit `CONVERSION=aus` also nicht. Ergebnis in `durchgaengigkeit.json`; `stage.pruefeDurchgaengigkeit(event)` auch für eigene Aufrufe.
 

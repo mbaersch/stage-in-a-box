@@ -29,9 +29,13 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 - Uploads mit schwankender Anzahl: im Baseline-Vergleich „(Begleit)“ oder als Rauschen mit `nichtProtokollieren: true`.
 
-## Parameter für Conversion-Werte
+## Dienstprofile
 
-Woran die Durchgängigkeitsprüfung (`lib/pruefungen.ts`) Werte in Requests erkennt:
+Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstprofile.ts`: Klick-ID (URL-Parameter, Ablage, Parameter im Request) und Conversion (Erkennung des Events, Felder für Wert, Währung, Transaktion, Artikel). Die Tabellen hier geben den Stand der zentralen Profile wieder.
+
+**Nur Belegtes eintragen.** Ein Dienst bekommt ein zentrales Profil erst, wenn Parameter, Ablage und Felder an einer echten Website bestätigt sind. Bis dahin: Profil im Projekt (`stageOptionen.dienstProfile`), und die Suche nach den Werten zeigt in `durchgaengigkeit.json` bzw. `klick-ids.json`, in welchem Feld sie stehen. Sobald ein Profil sich bewährt hat, mit Tabelle hier und Profil in `lib/` übernehmen.
+
+### Conversion-Werte
 
 | Dienst | Event | Wert | Währung | Transaktion | Artikel |
 |---|---|---|---|---|---|
@@ -40,16 +44,17 @@ Woran die Durchgängigkeitsprüfung (`lib/pruefungen.ts`) Werte in Requests erke
 | Meta | `ev` (z. B. `Purchase`) | `cd[value]` | `cd[currency]` | – | `cd[content_ids]` |
 | Microsoft Ads | Request mit `gv` | `gv` | `gc` | – | – |
 
-## Klick-IDs
+### Klick-IDs
 
-Wo Dienste die Klick-ID aus der Landungs-URL üblicherweise speichern (`stage.klickIds()` sucht ohnehin überall):
+Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request steckt oder die Ablage bzw. der Parameter aus dem Profil vorhanden ist (das Format ist Sache des Dienstes):
 
-| Parameter | Dienst | übliche Ablage |
-|---|---|---|
-| `gclid`, `gbraid`, `wbraid`, `dclid` | Google Ads, Floodlight (Conversion Linker) | Cookies `_gcl_aw`, `_gcl_gb`, `_gcl_dc` |
-| `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) |
-| `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` |
-| `ttclid` | TikTok | Cookie `ttclid` (je nach Pixel-Version, nicht verifiziert) |
+| Parameter | Dienst | Ablage | Parameter im Request |
+|---|---|---|---|
+| `gclid`, `gbraid`, `wbraid` | Google Ads (Conversion Linker) | Cookies `_gcl_aw`, `_gcl_gb` | `gclaw`, `gclgb` |
+| `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
+| `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` |
+
+Noch ohne zentrales Profil, weil nicht an einer Website bestätigt: Floodlight (`dclid`), LinkedIn (`li_fat_id`), TikTok (`ttclid`), X (`twclid`), Pinterest (`epik`).
 
 Gespeichert wird meist erst mit Consent. Fehlt die ID in der Conversion, ist das ein Befund: Conversion Linker fehlt, feuert zu spät oder ohne Consent, oder die Landungsseite leitet um und verliert den Parameter.
 

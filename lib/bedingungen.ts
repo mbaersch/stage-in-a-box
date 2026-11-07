@@ -4,6 +4,7 @@
  * Eingeschaltet über stageOptionen, ausgewertet in lib/stage.ts. Anleitung: docs/anleitung/varianten.md.
  */
 import { devices, type BrowserContext, type Page } from '@playwright/test';
+import { DIENST_PROFILE, felder, type DienstProfil } from './dienstprofile';
 
 /* ------------------------------------------------------------------ */
 /* Landung über eine Anzeige                                          */
@@ -34,10 +35,15 @@ export function landungsParameter(landung: Landung, zeit = Date.now()): Record<s
 export interface KlickIdBefund {
   id: string;
   wert: string;
-  /** Wo der Wert im Browser gespeichert ist, z. B. "Cookie _gcl_aw (.example.de)". */
+  /** Dienste, deren Profil diese Klick-ID kennt (lib/dienstprofile.ts) */
+  dienste: string[];
+  /**
+   * Wo die Klick-ID gespeichert ist: Cookies bzw. localStorage, die den Wert enthalten, sowie die
+   * Ablagen aus dem Profil, die vorhanden sind (Format des Dienstes egal).
+   */
   gespeichert: string[];
-  /** Tracking-Requests, die den Wert enthalten (URL oder Body). */
-  requests: { nr: number; dienst: string; ereignis: string; zeit: number }[];
+  /** Tracking-Requests, die den Wert enthalten oder einen Klick-ID-Parameter aus dem Profil des Dienstes. */
+  requests: { nr: number; dienst: string; ereignis: string; zeit: number; wie: string }[];
 }
 
 interface TrefferLike {
@@ -46,9 +52,9 @@ interface TrefferLike {
 
 const dekodiert = (s: string) => { try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch { return s; } };
 
-/** Sucht jeden Klick-ID-Wert in Cookies, localStorage der offenen Seiten und allen Tracking-Requests. */
+/** Sucht jede Klick-ID in Cookies, localStorage der offenen Seiten und Tracking-Requests, dazu nach Profil. */
 export async function klickIdBefunde(
-  context: BrowserContext, werte: Record<string, string>, treffer: TrefferLike[],
+  context: BrowserContext, werte: Record<string, string>, treffer: TrefferLike[], profile: DienstProfil[] = DIENST_PROFILE,
 ): Promise<KlickIdBefund[]> {
   const cookies = await context.cookies();
   const speicher: { key: string; wert: string; herkunft: string }[] = [];
@@ -60,17 +66,37 @@ export async function klickIdBefunde(
     for (const [key, wert] of eintraege) speicher.push({ key, wert, herkunft });
   }
   return Object.entries(werte).filter(([id]) => (KLICK_IDS as readonly string[]).includes(id)).map(([id, wert]) => {
+    const passendeProfile = profile.filter((p) => p.klickId?.parameter.includes(id));
     const gespeichert = [
       ...cookies.filter((c) => dekodiert(c.value).includes(wert)).map((c) => `Cookie ${c.name} (${c.domain})`),
       ...speicher.filter((s) => dekodiert(s.wert).includes(wert)).map((s) => `localStorage ${s.key} (${s.herkunft})`),
     ];
-    const requests = treffer
-      .filter((t) => dekodiert(t.url).includes(wert) || (t.body ? dekodiert(t.body).includes(wert) : false))
-      .map((t) => ({
-        nr: t.nr, dienst: t.dienst, zeit: t.zeit,
-        ereignis: t.parameter.en ?? t.parameter.ev ?? t.parameter.event ?? t.parameter.label ?? t.pfad,
-      }));
-    return { id, wert, gespeichert: [...new Set(gespeichert)], requests };
+    for (const p of passendeProfile) {
+      for (const ablage of p.klickId!.speicher ?? []) {
+        if (ablage.startsWith('localStorage:')) {
+          const key = ablage.slice('localStorage:'.length);
+          for (const s of speicher.filter((x) => x.key === key)) gespeichert.push(`localStorage ${s.key} (${s.herkunft}, laut Profil ${p.name})`);
+        } else {
+          for (const c of cookies.filter((x) => x.name === ablage)) gespeichert.push(`Cookie ${c.name} (${c.domain}, laut Profil ${p.name})`);
+        }
+      }
+    }
+    const requests: KlickIdBefund['requests'] = [];
+    for (const t of treffer) {
+      const ereignis = t.parameter.en ?? t.parameter.ev ?? t.parameter.event ?? t.parameter.label ?? t.pfad;
+      if (dekodiert(t.url).includes(wert) || (t.body ? dekodiert(t.body).includes(wert) : false)) {
+        requests.push({ nr: t.nr, dienst: t.dienst, zeit: t.zeit, ereignis, wie: 'Wert enthalten' });
+        continue;
+      }
+      const profil = passendeProfile.find((p) => p.name === t.dienst);
+      const f = profil ? felder(t.parameter, t.body) : {};
+      const param = profil?.klickId!.request?.find((r) => f[r]);
+      if (param) requests.push({ nr: t.nr, dienst: t.dienst, zeit: t.zeit, ereignis, wie: `Parameter ${param} (Profil)` });
+    }
+    // Ohne Duplikate: gleiche Ablage kann über Wert und Profil gefunden werden
+    const ohneProfilZusatz = (g: string) => g.replace(/, laut Profil [^)]+\)$/, ')');
+    const eindeutig = gespeichert.filter((g, i) => gespeichert.findIndex((x) => ohneProfilZusatz(x) === ohneProfilZusatz(g)) === i);
+    return { id, wert, dienste: passendeProfile.map((p) => p.name), gespeichert: eindeutig, requests };
   });
 }
 

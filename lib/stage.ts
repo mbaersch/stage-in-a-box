@@ -42,6 +42,7 @@ import {
   cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeDurchgaengigkeit,
   type CookieEintrag, type CookieEreignis, type DurchgaengigkeitsBefund, type Pruefungen,
 } from './pruefungen';
+import { profileZusammenfuehren, type DienstProfil } from './dienstprofile';
 
 export type { Tempo } from './tempo';
 
@@ -141,6 +142,11 @@ export interface StageOptionen {
 
   /** Prüfungen, die in der Journey mitlaufen (lib/pruefungen.ts): durchgaengigkeit, cookies. */
   pruefungen?: Pruefungen;
+  /**
+   * Dienstprofile des Projekts (Klick-ID: Parameter, Ablage, Request-Parameter; Conversion: Felder).
+   * Ergänzen bzw. überschreiben die zentralen in lib/dienstprofile.ts; gleicher Name = zusammenführen.
+   */
+  dienstProfile?: DienstProfil[];
 }
 
 /** Ordner des Projekts (bzw. des Beispiels), in dem der Test liegt. */
@@ -420,6 +426,8 @@ export class Stage {
   /** true, wenn der Browser dieses Tests den bfcache erlaubt (stageOptionen.bfcache). */
   bfcacheAktiv = false;
   uhrAktiv = false;
+  /** Zentrale Dienstprofile, ergänzt um die des Projekts */
+  dienstProfile: DienstProfil[] = profileZusammenfuehren();
   /** Gesetzte Cookies (ohne Werte), wenn stageOptionen.pruefungen.cookies an ist. */
   readonly cookieEreignisse: CookieEreignis[] = [];
   cookieProtokollAktiv = false;
@@ -645,7 +653,7 @@ export class Stage {
    * Tracking-Requests. Wird am Testende zusätzlich als klick-ids.json abgelegt.
    */
   async klickIds(): Promise<KlickIdBefund[]> {
-    return klickIdBefunde(this.context, this.landungsWerte, this.tracking.treffer);
+    return klickIdBefunde(this.context, this.landungsWerte, this.tracking.treffer, this.dienstProfile);
   }
 
   /**
@@ -675,7 +683,7 @@ export class Stage {
     const pushes = this.dataLayer.eintraege
       .filter((e) => (e.daten?.event === ereignis) || (Array.isArray(e.daten) && e.daten[0] === 'event' && e.daten[1] === ereignis))
       .map((e) => ({ zeit: e.zeit, daten: Array.isArray(e.daten) ? e.daten[2] : e.daten }));
-    return pruefeDurchgaengigkeit(pushes, this.tracking.treffer, ereignis, ausnahmen);
+    return pruefeDurchgaengigkeit(pushes, this.tracking.treffer, ereignis, ausnahmen, this.dienstProfile);
   }
 
   /**
@@ -914,6 +922,7 @@ export async function richteStageEin(
   const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
   stage.dataLayerName = optionen.dataLayerName ?? 'dataLayer';
   stage.landung = optionen.landung;
+  stage.dienstProfile = profileZusammenfuehren(optionen.dienstProfile);
   stage.bfcacheAktiv = !!optionen.bfcache;
   await erfasseAusloeser(context, stage);
 

@@ -65,7 +65,7 @@ Damit das, was ein Projekt lehrt, beim nächsten zur Verfügung steht:
 | Was | Wohin |
 |---|---|
 | Betrifft nur diese Website (CMP-Konfiguration, Selektoren, eigene Request-Formate, Bot-Schutz, Stolperstellen) | `projects/<name>/projekt.md` |
-| Fakt über eine CMP, einen Dienst, einen Loader, GTM, ein Werkzeug – gilt für jede Website damit | `docs/wissen/` (passende Datei oder neue Datei, dann im Wegweiser eintragen) |
+| Fakt über eine CMP, einen Dienst, einen Loader, GTM, ein Werkzeug – gilt für jede Website damit | `docs/wissen/` (passende Datei oder neue Datei, dann im Wegweiser eintragen); bei Diensten zusätzlich das Profil in `lib/dienstprofile.ts`, nur mit belegten Fakten |
 | Ablauf oder Vorgehen bei einer Aufgabe | `docs/anleitung/` |
 | Fehler oder fehlende Fähigkeit in Code | `lib/`, `werkzeuge/` |
 

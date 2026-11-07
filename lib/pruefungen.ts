@@ -2,7 +2,8 @@
  * Prüfungen, die in einer bestehenden Journey mitlaufen (stageOptionen.pruefungen):
  *
  * - Durchgängigkeit: Kommen Wert, Währung, Transaktions-ID und Artikel eines dataLayer-Events
- *   unverändert bei den Diensten an (GA4, Google Ads, Meta, Microsoft Ads)?
+ *   unverändert bei den Diensten an? Wo die Werte stehen, sagen die Dienstprofile (lib/dienstprofile.ts);
+ *   für Dienste ohne Profil werden die Werte nur gesucht (Hinweise).
  * - Cookies: Welche Cookies werden wann gesetzt (vor oder nach der Consent-Entscheidung), von
  *   wem (Skript oder HTTP), mit welcher Domain und Laufzeit? Werte werden nie protokolliert.
  *
@@ -10,6 +11,7 @@
  * docs/anleitung/varianten.md, „Prüfungen“.
  */
 import type { BrowserContext } from '@playwright/test';
+import { DIENST_PROFILE, feldWert, felder, type ConversionProfil, type DienstProfil } from './dienstprofile';
 
 export interface Pruefungen {
   /**
@@ -42,12 +44,6 @@ export interface DurchgaengigkeitsBefund {
 interface Push { zeit: number; daten: any }
 interface Anfrage { zeit: number; dienst: string; pfad: string; parameter: Record<string, string>; body?: string }
 
-/** Meta-Standard-Events zu GA4-Namen */
-const META_EVENTS: Record<string, string> = {
-  purchase: 'Purchase', add_to_cart: 'AddToCart', begin_checkout: 'InitiateCheckout', generate_lead: 'Lead',
-  view_item: 'ViewContent', add_payment_info: 'AddPaymentInfo', sign_up: 'CompleteRegistration', add_to_wishlist: 'AddToWishlist',
-};
-
 const zahl = (v: unknown) => (v === undefined || v === null || v === '' ? undefined : Number(v));
 
 function werteAusPush(daten: any): Werte {
@@ -61,92 +57,100 @@ function werteAusPush(daten: any): Werte {
   };
 }
 
-function bodyParameter(body?: string): Record<string, string> {
-  if (!body || /^\s*[[{]/.test(body) || !body.includes('=')) return {};
-  try { return Object.fromEntries(new URLSearchParams(body)); } catch { return {}; }
+/** Artikel-IDs aus einem Request je nach Format des Dienstes. */
+function items(f: Record<string, string>, def: NonNullable<ConversionProfil['items']>): string[] | undefined {
+  if (def.format === 'ga4') {
+    // pr1=id123~nmName~… (GA4); ohne id-Segment kein Eintrag
+    const re = new RegExp(`^${def.parameter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)$`);
+    const ids = Object.keys(f).filter((k) => re.test(k)).sort((a, b) => Number(a.match(re)![1]) - Number(b.match(re)![1]))
+      .map((k) => f[k].split('~').find((s) => s.startsWith('id'))?.slice(2)).filter((x): x is string => !!x);
+    return ids.length ? ids : undefined;
+  }
+  if (def.format === 'json') {
+    const id = (x: any) => String(def.schluessel && x && typeof x === 'object' ? x[def.schluessel] : x);
+    const roh = f[def.parameter];
+    if (roh !== undefined) {
+      try { const a = JSON.parse(roh); return (Array.isArray(a) ? a : [a]).map(id); } catch { return roh.split(',').map((x) => x.trim()); }
+    }
+    // Schon flach gemachtes JSON-Array im Body: parameter.0(.schluessel), parameter.1(.schluessel) …
+    const muster = new RegExp(`^${def.parameter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.(\\d+)${def.schluessel ? `\\.${def.schluessel}` : ''}$`);
+    const ids = Object.keys(f).filter((k) => muster.test(k))
+      .sort((a, b) => Number(a.match(muster)![1]) - Number(b.match(muster)![1])).map((k) => f[k]);
+    return ids.length ? ids : undefined;
+  }
+  const roh = f[def.parameter];
+  return roh ? roh.split(',').map((x) => x.trim()).filter(Boolean) : undefined;
 }
 
-/** GA4-Artikel: pr1=id123~nmName~… */
-function ga4Items(p: Record<string, string>): string[] | undefined {
-  const ids = Object.keys(p).filter((k) => /^pr\d+$/.test(k)).sort((a, b) => Number(a.slice(2)) - Number(b.slice(2)))
-    .map((k) => p[k].split('~').find((s) => s.startsWith('id'))?.slice(2))
-    .filter((x): x is string => !!x);
-  return ids.length ? ids : undefined;
+/** Werte, die ein Request für das Ereignis trägt; undefined = Request gehört nicht zu diesem Ereignis. */
+function werteAusRequest(ereignis: string, a: Anfrage, f: Record<string, string>, c: ConversionProfil): Werte | undefined {
+  if (c.pfad && !c.pfad.test(a.pfad)) return undefined;
+  if (c.pflicht?.some((p) => f[p] === undefined)) return undefined;
+  if (c.ereignis && f[c.ereignis.parameter] !== (c.ereignis.werte?.[ereignis] ?? ereignis)) return undefined;
+  return {
+    value: zahl(feldWert(f, c.value)),
+    currency: feldWert(f, c.currency),
+    transaction_id: feldWert(f, c.transaction_id),
+    items: c.items ? items(f, c.items) : undefined,
+  };
 }
 
-function metaItems(p: Record<string, string>): string[] | undefined {
-  const roh = p['cd[content_ids]'];
-  if (!roh) return undefined;
-  try { const a = JSON.parse(roh); return Array.isArray(a) ? a.map(String) : [String(a)]; } catch { return roh.split(',').map((s) => s.trim()); }
+/** Darstellungen einer Zahl, wie sie in Requests vorkommen: 119.9, 119.90, 11990 (Cent) */
+function zahlFormen(v: number) {
+  return new Set([String(v), v.toFixed(2), String(Math.round(v * 100))]);
 }
 
-/** Werte, die ein Request eines Dienstes für dieses Ereignis trägt; undefined = Request gehört nicht dazu. */
-function werteAusRequest(ereignis: string, a: Anfrage, p: Record<string, string>): Werte | undefined {
-  if (a.dienst === 'GA4') {
-    if (p.en !== ereignis) return undefined;
-    return { value: zahl(p['epn.value'] ?? p['ep.value']), currency: p.cu ?? p['ep.currency'], transaction_id: p['ep.transaction_id'], items: ga4Items(p) };
-  }
-  if (a.dienst === 'Google Ads') {
-    if (!/\/(pagead\/)?(1p-)?conversion\//.test(a.pfad) || !p.label) return undefined;
-    return { value: zahl(p.value), currency: p.currency_code, transaction_id: p.oid };
-  }
-  if (a.dienst === 'Meta') {
-    if (p.ev !== (META_EVENTS[ereignis] ?? ereignis)) return undefined;
-    return { value: zahl(p['cd[value]']), currency: p['cd[currency]'], transaction_id: p['cd[order_id]'], items: metaItems(p) };
-  }
-  if (a.dienst === 'Microsoft Ads') {
-    if (p.gv === undefined && p.gc === undefined) return undefined;
-    return { value: zahl(p.gv), currency: p.gc };
-  }
-  return undefined;
+/** Ohne Profil: Wo tauchen die Werte des Pushes in den Requests eines Dienstes auf? Nur Hinweise. */
+function suche(soll: Werte, anfragen: Anfrage[]): { feld: keyof Werte; gefunden: string[] }[] {
+  const out: { feld: keyof Werte; gefunden: string[] }[] = [];
+  const pruefe = (feld: keyof Werte, passt: (wert: string) => boolean) => {
+    const gefunden = new Set<string>();
+    for (const a of anfragen) for (const [k, w] of Object.entries(felder(a.parameter, a.body))) if (passt(w)) gefunden.add(k);
+    out.push({ feld, gefunden: [...gefunden] });
+  };
+  if (soll.transaction_id) pruefe('transaction_id', (w) => w === soll.transaction_id || w.includes(soll.transaction_id!));
+  if (soll.value !== undefined) { const formen = zahlFormen(soll.value); pruefe('value', (w) => formen.has(w.trim())); }
+  return out;
 }
-
-/** Felder, die im Request fehlen dürfen, ohne dass es ein Fehler ist (Dienst kennt sie nicht). */
-const NICHT_UEBERTRAGEN: Record<string, (keyof Werte)[]> = {
-  'Google Ads': ['items'],
-  'Microsoft Ads': ['items', 'transaction_id'],
-  Meta: ['transaction_id'],
-};
-
-/** Artikel-IDs: bei GA4 rot, bei Werbediensten nur Hinweis (oft bewusst anderes ID-Schema, z. B. Feed-IDs). */
-const ITEMS_NUR_HINWEIS = new Set(['Google Ads', 'Meta', 'Microsoft Ads']);
 
 export function pruefeDurchgaengigkeit(
-  pushes: Push[], anfragen: Anfrage[], ereignis: string, ausnahmen: string[] = [],
+  pushes: Push[], anfragen: Anfrage[], ereignis: string, ausnahmen: string[] = [], profile: DienstProfil[] = DIENST_PROFILE,
 ): DurchgaengigkeitsBefund[] {
   const befunde: DurchgaengigkeitsBefund[] = [];
-  const dienste = new Set(anfragen.map((a) => a.dienst));
+  const conversion = new Map(profile.filter((p) => p.conversion).map((p) => [p.name, p.conversion!]));
   pushes.forEach((push, i) => {
     const soll = werteAusPush(push.daten);
     const bis = pushes[i + 1]?.zeit ?? Infinity;
     const nr = pushes.length > 1 ? ` #${i + 1}` : '';
+    const danach = anfragen.filter((a) => a.zeit >= push.zeit - 500 && a.zeit < bis);
     const gefunden = new Set<string>();
-    for (const a of anfragen) {
-      if (a.zeit < push.zeit - 500 || a.zeit >= bis) continue;
-      const zeilen = a.dienst === 'GA4' && a.body ? a.body.split(/\r?\n/).filter(Boolean) : [null];
+    for (const a of danach) {
+      const c = conversion.get(a.dienst);
+      if (!c) continue;
+      const zeilen = c.zeilenweise && a.body ? a.body.split(/\r?\n/).filter(Boolean) : [a.body];
       for (const zeile of zeilen) {
-        const p = { ...a.parameter, ...(zeile === null ? bodyParameter(a.body) : bodyParameter(zeile)) };
-        const ist = werteAusRequest(ereignis, a, p);
+        const f = felder(a.parameter, zeile);
+        const ist = werteAusRequest(ereignis, a, f, c);
         if (!ist) continue;
         gefunden.add(a.dienst);
         const melde = (feld: keyof Werte, stufe: 'rot' | 'info', text: string) => {
           if (ausnahmen.includes(`${a.dienst}:${feld}`)) return;
           befunde.push({ stufe, ereignis: ereignis + nr, dienst: a.dienst, text });
         };
-        if (soll.value !== undefined) {
+        if (soll.value !== undefined && c.value) {
           if (ist.value === undefined) melde('value', 'rot', `value fehlt (dataLayer: ${soll.value})`);
           else if (Math.abs(ist.value - soll.value) > 0.005) melde('value', 'rot', `value ${ist.value} statt ${soll.value}`);
         }
-        if (soll.currency !== undefined) {
+        if (soll.currency !== undefined && c.currency) {
           if (ist.currency === undefined) melde('currency', 'rot', `currency fehlt (dataLayer: ${soll.currency})`);
           else if (ist.currency.toUpperCase() !== soll.currency.toUpperCase()) melde('currency', 'rot', `currency ${ist.currency} statt ${soll.currency}`);
         }
-        if (soll.transaction_id !== undefined && !(NICHT_UEBERTRAGEN[a.dienst] ?? []).includes('transaction_id')) {
+        if (soll.transaction_id !== undefined && c.transaction_id) {
           if (ist.transaction_id === undefined) melde('transaction_id', 'rot', `transaction_id fehlt (dataLayer: ${soll.transaction_id})`);
           else if (ist.transaction_id !== soll.transaction_id) melde('transaction_id', 'rot', `transaction_id ${ist.transaction_id} statt ${soll.transaction_id}`);
         }
-        if (soll.items && !(NICHT_UEBERTRAGEN[a.dienst] ?? []).includes('items')) {
-          const stufe = ITEMS_NUR_HINWEIS.has(a.dienst) ? 'info' : 'rot';
+        if (soll.items && c.items) {
+          const stufe = c.itemsNurHinweis ? 'info' : 'rot';
           if (!ist.items) melde('items', stufe, `Artikel fehlen (dataLayer: ${soll.items.join(', ')})`);
           else if ([...ist.items].sort().join('|') !== [...soll.items].sort().join('|')) {
             melde('items', stufe, `Artikel ${ist.items.join(', ')} statt ${soll.items.join(', ')}`);
@@ -154,12 +158,22 @@ export function pruefeDurchgaengigkeit(
         }
       }
     }
-    for (const d of dienste) {
-      if (!gefunden.has(d) && ['GA4', 'Google Ads', 'Meta', 'Microsoft Ads'].includes(d)) {
-        befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'kein passender Request nach dem Push gefunden' });
+    // Dienste mit Profil, die nach dem Push gesendet, aber das Ereignis nicht erkennbar übertragen haben
+    for (const d of new Set(danach.map((a) => a.dienst))) {
+      if (conversion.has(d) && !gefunden.has(d)) {
+        befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'kein Request mit diesem Ereignis nach dem Push' });
       }
     }
-    if (!gefunden.size) befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: '–', text: 'kein Dienst hat das Ereignis gesendet' });
+    // Dienste ohne Profil: Werte suchen, nur Hinweise (Grundlage für ein neues Profil)
+    for (const d of new Set(danach.map((a) => a.dienst).filter((x) => !conversion.has(x)))) {
+      for (const { feld, gefunden: wo } of suche(soll, danach.filter((a) => a.dienst === d))) {
+        befunde.push({
+          stufe: 'info', ereignis: ereignis + nr, dienst: d,
+          text: wo.length ? `${feld} (${feld === 'value' ? soll.value : soll.transaction_id}) gefunden in: ${wo.join(', ')} – kein Profil, nicht geprüft`
+            : `${feld} in keinem Request gefunden – kein Profil`,
+        });
+      }
+    }
   });
   // Mehrfachkopien (z. B. 1p-conversion) erzeugen gleiche Befunde: einmal reicht
   const gesehen = new Set<string>();
