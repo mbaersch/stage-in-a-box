@@ -256,8 +256,8 @@ test.use({ stageOptionen: { csp: "default-src 'self'; script-src 'self' https://
 
 // Geplante Änderung an der Website vorwegnehmen: neuer Loader im HTML, Bugfix in einem Skript der Seite
 test.use({ stageOptionen: { anpassungen: [
-  { muster: /^https:\/\/www\.example\.de\/[^.]*$/, anpassen: (html) => html.replace(/<script>[^<]*aGTM[\s\S]*?<\/script>/, NEUER_LOADER) },
-  { muster: /\/ConsentGate\.js/, anpassen: (js) => js.replace('var services = uc.getServicesBaseInfo() || [];', '…') },
+  { muster: /^https:\/\/www\.example\.de\/[^.]*$/, anpassen: (html) => html.replace(/<script>[^<]*googletagmanager\.com\/gtm\.js[^<]*<\/script>/, NEUER_LOADER) },
+  { muster: /\/consent-bridge\.js/, anpassen: (js) => js.replace(FEHLERHAFTE_ZEILE, KORRIGIERTE_ZEILE) },
 ] } });
 ```
 

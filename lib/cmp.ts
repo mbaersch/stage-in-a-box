@@ -7,8 +7,8 @@ import type { Page } from '@playwright/test';
 export interface UcDienst { id: string; name: string; kategorie: string; zugestimmt: boolean }
 
 /**
- * Usercentrics v4. UC_UI.acceptService() speichert in v4 nichts; dauerhaft wirkt nur
- * __ucCmp.updateServicesConsents() mit anschließendem saveConsents(). getServicesBaseInfo() liefert ein Promise.
+ * Usercentrics v4: __ucCmp.updateServicesConsents() mit anschließendem saveConsents().
+ * getServicesBaseInfo() liefert ein Promise.
  */
 export const usercentrics = {
   async bereit(seite: Page, timeout = 20_000) {
