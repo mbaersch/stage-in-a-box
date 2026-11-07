@@ -104,12 +104,12 @@ export interface StageOptionen {
 }
 
 /** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
-export function vorschauParameter(link?: string) {
+export function vorschauParameter(link?: string, variable = 'GTM_VORSCHAU_LINK') {
   if (!link) return undefined;
   const wert = (name: string) => link.match(new RegExp(`[?&#/]${name}=([^&#]+)`))?.[1];
   const id = wert('id'), auth = wert('gtm_auth'), env = wert('gtm_preview');
   if (!id || !auth || !env) {
-    throw new Error('GTM_VORSCHAU_LINK braucht id, gtm_auth und gtm_preview (Link aus GTM „Vorschau teilen“). '
+    throw new Error(`${variable} braucht id, gtm_auth und gtm_preview (Link aus GTM „Vorschau teilen“). `
       + 'Enthält der Link ein #, muss er in .env in Anführungszeichen stehen, sonst wird er dort abgeschnitten.');
   }
   return { id: decodeURIComponent(id), auth: decodeURIComponent(auth), env: decodeURIComponent(env) };
@@ -438,7 +438,8 @@ export class Stage {
    * Der Tab mit dem Tag Assistant muss offen bleiben, sonst endet die Vorschau.
    */
   async vorschauStarten(seite: Page, link = process.env.GTM_VORSCHAU_LINK, startKnopf = '#domain-start-button') {
-    if (!link) throw new Error('GTM_VORSCHAU_LINK fehlt (in .env eintragen)');
+    if (!link) throw new Error('Vorschau-Link fehlt (in .env eintragen)');
+    vorschauParameter(link, 'Der Vorschau-Link');
     await seite.goto(link);
     const [website] = await Promise.all([
       this.context.waitForEvent('page', { timeout: 30_000 }),
