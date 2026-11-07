@@ -18,6 +18,7 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 - **Eine geplante CSP testen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert. Jeder Lauf liefert dazu ein Inventar aller Ressourcen je CSP-Direktive und einen Vorschlag für die Policy.
 - **Änderungen an der Website vorwegnehmen:** etwa einen neuen GTM- oder Stape-Loader ins HTML setzen oder einen Fehler in einem Skript der Seite korrigieren, nur im Testbrowser, bevor der Dienstleister es ausrollt.
 - **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laden dann die GTM-Vorschau statt des Live-Containers.
+- **Im GTM vorbauen, was die Website noch nicht kann:** dataLayer-Pushes im Testbrowser ergänzen (z. B. einen neuen Consent-Key der CMP) und im Tag Assistant selbst ausprobieren, mit allen Anpassungen der Testumgebung.
 - **Einen Container-Umbau absichern** (z. B. mit der GTM CLI): Vorher den Ist-Zustand je Consent-Szenario als Baseline speichern, nachher gegen die Vorschau des Workspaces vergleichen. Klicks auf tel-, mailto- oder PDF-Links und dataLayer-Events lassen sich dafür auch ohne passende Elemente auf der Seite auslösen.
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
@@ -117,9 +118,14 @@ Dann setzt Du oben den Status auf **bestätigt**.
 
 Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht gesetzt, dann greift die Vorgabe. Steht ein Wert in einer Zeile mit `#` davor, wirkt er nicht; der Testlauf warnt dann mit dem Namen der Variable.
 
-**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er als `GTM_VORSCHAU_LINK` in `.env`, in Anführungszeichen (er enthält oft ein `#`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces.
+**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er in `.env`, in Anführungszeichen (er enthält oft ein `#`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Es gibt zwei Variablen dafür:
 
-Ist der Link gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe `AGENTS.md`).
+- `GTM_VORSCHAU_LINK`: **alle** Tests des Projekts laufen gegen die Vorschau, z. B. um einen Umbau vor dem Veröffentlichen mit der Live-Baseline zu vergleichen.
+- `SITZUNG_VORSCHAU_LINK`: nur die [offene Sitzung](#offene-sitzung-selbst-ausprobieren) startet damit den Tag Assistant; alle übrigen Tests bleiben beim Live-Container.
+
+Nicht denselben Link in beide eintragen.
+
+Ist `GTM_VORSCHAU_LINK` gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe `AGENTS.md`).
 
 ## 5. Tests bauen lassen
 
@@ -156,6 +162,31 @@ Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regu
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
 Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über den Tag Assistant fehlen dort dessen eigener dataLayer und seine GA4-Requests: Die Anhänge zeigen nur die Website.
+
+### Offene Sitzung: selbst ausprobieren
+
+Nicht alles muss ein automatisierter Test sein. Eine offene Sitzung startet den sichtbaren Browser mit allen Regeln und Anpassungen des Projekts und übergibt ihn dann Dir. Mit `SITZUNG_VORSCHAU_LINK` verbindet sich vorher der Tag Assistant mit Deinem GTM-Workspace.
+
+```sh
+npm run sitzung -- projects/mein-shop    # nur Tests mit @sitzung im Titel; bei npm test laufen sie nie
+```
+
+**Beispiel: im GTM mit einem dataLayer-Key bauen, den die Website noch nicht hat.** Die CMP soll künftig zusätzlich `youtube: true/false` pushen, gekoppelt an die Zustimmung zu Statistik. Bis das umgesetzt ist, ergänzt die Testumgebung den Key in jedem passenden Push, bevor GTM ihn sieht:
+
+```ts
+test.use({ stageOptionen: {
+  dataLayerAnpassen: (e) => {
+    if (e?.event === 'consent_ready' && e.consentInfo) e.consentInfo.youtube = e.consentInfo.statistics === true;
+  },
+} });
+
+test('Neuer Consent-Key in der Vorschau @sitzung', async ({ page, stage }) => {
+  const website = await stage.vorschauStarten(page);   // Tag Assistant mit SITZUNG_VORSCHAU_LINK
+  await stage.offenHalten(website);                     // ab hier bedienst Du die Seite
+});
+```
+
+Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Trigger und Tags im Workspace lassen sich damit bauen und prüfen, bevor die Website geändert ist. Die Anpassung wirkt nur im Testbrowser; die Website selbst bleibt unverändert. Den Test schreibt Dir der Agent, wenn Du ihm sagst, was simuliert werden soll.
 
 **Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören.
 

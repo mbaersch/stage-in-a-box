@@ -437,9 +437,12 @@ export class Stage {
    * und liefert den neuen Tab mit der Website; die Journey läuft dann in diesem Tab weiter.
    * Der Tab mit dem Tag Assistant muss offen bleiben, sonst endet die Vorschau.
    */
-  async vorschauStarten(seite: Page, link = process.env.GTM_VORSCHAU_LINK, startKnopf = '#domain-start-button') {
-    if (!link) throw new Error('Vorschau-Link fehlt (in .env eintragen)');
-    vorschauParameter(link, 'Der Vorschau-Link');
+  async vorschauStarten(seite: Page, link?: string, startKnopf = '#domain-start-button') {
+    // Offene Sitzungen haben einen eigenen Link: GTM_VORSCHAU_LINK schaltet die Vorschau für alle Tests ein.
+    const variable = this.testInfo.title.includes('@sitzung') ? 'SITZUNG_VORSCHAU_LINK' : 'GTM_VORSCHAU_LINK';
+    link ??= process.env[variable];
+    if (!link) throw new Error(`${variable} fehlt in .env`);
+    vorschauParameter(link, variable);
     await seite.goto(link);
     const [website] = await Promise.all([
       this.context.waitForEvent('page', { timeout: 30_000 }),
