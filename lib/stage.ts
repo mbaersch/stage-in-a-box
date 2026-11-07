@@ -453,12 +453,21 @@ export class Stage {
   }
 
   /**
-   * Hält den Browser zum eigenen Ausprobieren offen (Playwright Inspector), mit allen Regeln und
-   * Anpassungen der Stage. Ohne Zeitlimit; nur mit --headed sinnvoll.
+   * Hält den Browser zum eigenen Ausprobieren offen, mit allen Regeln und Anpassungen der Stage,
+   * bis der Mensch alle Tabs bzw. das Fenster schließt. Ohne Zeitlimit; nur mit --headed sinnvoll.
    */
   async offenHalten(seite: Page) {
     this.testInfo.setTimeout(0);
-    await seite.pause();
+    const kontext = seite.context();
+    await new Promise<void>((fertig) => {
+      const pruefe = () => { if (kontext.pages().every((p) => p.isClosed())) fertig(); };
+      const beobachte = (p: Page) => p.on('close', pruefe);
+      kontext.pages().forEach(beobachte);
+      kontext.on('page', beobachte);
+      kontext.on('close', () => fertig());
+      kontext.browser()?.on('disconnected', () => fertig());
+      pruefe();
+    });
   }
 
   /**

@@ -182,7 +182,7 @@ test.use({ stageOptionen: {
 
 test('Neuer Consent-Key in der Vorschau @sitzung', async ({ page, stage }) => {
   const website = await stage.vorschauStarten(page);   // Tag Assistant mit SITZUNG_VORSCHAU_LINK
-  await stage.offenHalten(website);                     // ab hier bedienst Du die Seite
+  await stage.offenHalten(website);                     // ab hier bedienst Du die Seite, bis Du den Browser schließt
 });
 ```
 
