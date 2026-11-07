@@ -69,19 +69,25 @@ function ausTagAssistant(json) {
     .sort((a, b) => (b.product === 'GTM') - (a.product === 'GTM') || b.messages.length - a.messages.length)[0];
   if (!primaer) throw new Error('Export enthält keine Messages.');
 
-  // Tag-Typen und Recorder-Tag erkennen
+  // Tag-Typen, Recorder-Tag und pausierte Tags erkennen. tagInfo steht nicht in jeder Message.
+  // tagsFired enthält auch pausierte Tags; nur tagInfo markiert sie (publicId "paused").
   const tagTypen = {};
   const ausgeblendeteTags = new Set();
-  for (const t of primaer.messages[0]?.tagInfo ?? []) {
-    tagTypen[t.name] = t.type;
-    if (JSON.stringify(t.params ?? []).includes('__recConfig')) ausgeblendeteTags.add(t.name);
+  const pausierteTags = new Set();
+  for (const m of primaer.messages) {
+    for (const t of m.tagInfo ?? []) {
+      if (tagTypen[t.name]) continue;
+      tagTypen[t.name] = t.type;
+      if (t.publicId === 'paused') pausierteTags.add(t.name);
+      if (JSON.stringify(t.params ?? []).includes('__recConfig')) ausgeblendeteTags.add(t.name);
+    }
   }
   const istInternerTag = (name) => name.startsWith('_') || ausgeblendeteTags.has(name);
 
   // Gefeuerte Tags pro Message-Index
   const tagsProIndex = new Map();
   for (const [name, eintraege] of Object.entries(primaer.tagsFired ?? {})) {
-    if (istInternerTag(name)) continue;
+    if (istInternerTag(name) || pausierteTags.has(name)) continue;
     for (const e of eintraege) {
       const k = String(e.index);
       if (!tagsProIndex.has(k)) tagsProIndex.set(k, []);
@@ -161,6 +167,7 @@ function ausTagAssistant(json) {
     startUrl: ohneDebugParameter(json.data.domainDetails?.startUrl ?? seiten[0]?.url ?? ''),
     container: container.map((c) => `${c.publicId}${c.tagName ? ` (${c.tagName})` : ''}${c.messages?.length ? '' : ' – nicht debugbar'}`),
     tagTypen: Object.fromEntries(Object.entries(tagTypen).filter(([n]) => !istInternerTag(n))),
+    pausierteTags: [...pausierteTags].sort(),
     seiten,
     eintraege,
   };
@@ -509,6 +516,7 @@ function markdown(a, z, dateiname) {
     p(`- **Testdaten für \`.env\`:**${modus === 'full' ? ' (Klartext aufgezeichnet: mit `--testdaten` nach `testdaten.aufzeichnung.env` übernehmbar)' : ''}`);
     for (const f of z.felder) p(`  - \`${f.env}\` – ${f.feld}${f.autocomplete ? ` (autocomplete: ${f.autocomplete})` : ''}, aufgezeichnet: \`${f.aufgezeichnet ?? ''}\`${f.modus ? ` (${f.modus})` : ''}`);
   }
+  if (a.pausierteTags?.length) p(`- **Pausierte Tags (Trigger hätte ausgelöst, Tag feuert nicht):** ${a.pausierteTags.join(', ')}`);
   if (z.auffaellig.length) {
     p('- **Auffälligkeiten:**');
     for (const x of z.auffaellig) p(`  - ${x}`);
@@ -521,7 +529,8 @@ function markdown(a, z, dateiname) {
     p();
     p('| Event | Tags |');
     p('|---|---|');
-    for (const [ev, tags] of tagEintraege) p(`| ${ev} | ${tags.map((t) => `${t}${a.tagTypen[t] ? ` *(${a.tagTypen[t]})*` : ''}`).join('<br>')} |`);
+    const zelle = (s) => String(s).replace(/\|/g, '\\|');
+    for (const [ev, tags] of tagEintraege) p(`| ${zelle(ev)} | ${tags.map((t) => `${zelle(t)}${a.tagTypen[t] ? ` *(${zelle(a.tagTypen[t])})*` : ''}`).join('<br>')} |`);
     p();
   }
 
