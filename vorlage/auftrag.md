@@ -62,7 +62,7 @@
 - **Vorher:** <!-- Live-Container (Vorgabe) oder eine bestimmte Vorschau -->
 - **Nachher:** <!-- Vorschau des Workspaces (Link als GTM_VORSCHAU_LINK in .env) und/oder nach der Veröffentlichung -->
 - **Seiten:** <!-- Seiten mit eigenen Triggern, z. B. /en, /kontakt, /danke -->
-- **Auslöser:** <!-- Klicks und Events, die Tags auslösen: tel, mailto, PDF, CTAs (Text oder Klasse), dataLayer-Events wie formSubmission. Leer lassen: der Agent leitet sie aus dem Container ab (Export oder `gtm pull`) und fragt nach. -->
+- **Auslöser:** <!-- Klicks und Events, die Tags auslösen: tel, mailto, PDF, CTAs (Text oder Klasse), dataLayer-Events wie formSubmission. Leer lassen: der Agent leitet sie aus dem Container ab (Container-Export oder Tag Manager API) und fragt nach. -->
 - **Consent-Szenarien:** <!-- z. B. alle ablehnen, alle akzeptieren, je Dienst einzeln -->
 - **Erwartete Unterschiede:** <!-- was sich durch den Umbau ändern darf, z. B. „gtag/js entfällt“, „ccm/collect gebündelt“ -->
 

@@ -32,7 +32,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
 - **Eine geplante CSP prüfen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert. Jeder Lauf liefert dazu ein Inventar aller Ressourcen je CSP-Direktive und einen Vorschlag für die Policy.
 - **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laden dann die GTM-Vorschau statt des Live-Containers.
-- **Einen Container-Umbau absichern** (z. B. mit der GTM CLI): Vorher den Ist-Zustand je Consent-Szenario als Baseline speichern, nachher gegen die Vorschau des Workspaces vergleichen. Klicks auf tel-, mailto- oder PDF-Links und dataLayer-Events lassen sich dafür auch ohne passende Elemente auf der Seite auslösen.
+- **Einen Container-Umbau absichern** (ob von Hand oder über die Tag Manager API, ein MCP oder ein CLI wie die [GTM CLI von owntag](https://github.com/owntag/gtm-cli)): Vorher den Ist-Zustand je Consent-Szenario als Baseline speichern, nachher gegen die Vorschau des Workspaces vergleichen. Klicks auf tel-, mailto- oder PDF-Links und dataLayer-Events lassen sich dafür auch ohne passende Elemente auf der Seite auslösen.
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
