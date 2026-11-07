@@ -16,7 +16,9 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 - **Consent-Varianten durchspielen**, ohne die CMP umzukonfigurieren.
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
 - **Eine geplante CSP testen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert.
-- **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laufen dann über die GTM-Vorschau statt gegen den Live-Container.
+- **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laden dann die GTM-Vorschau statt des Live-Containers.
+- **Einen Container-Umbau absichern** (z. B. mit der GTM CLI): Vorher den Ist-Zustand je Consent-Szenario als Baseline speichern, nachher gegen die Vorschau des Workspaces vergleichen. Klicks auf tel-, mailto- oder PDF-Links und dataLayer-Events lassen sich dafür auch ohne passende Elemente auf der Seite auslösen.
+- **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
 
@@ -32,6 +34,8 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
  6. Agent: Baseline ziehen               → Ist-Zustand als Vergleichsbasis
  7. Tests laufen lassen                  (jederzeit, mit Varianten, nach jeder Änderung)
 ```
+
+Für einen **Container-Umbau** ist keine Aufzeichnung nötig: Im Auftrag stehen dann Art „Container-Umbau“, die Seiten, die Auslöser (oder der Agent leitet sie aus dem Container-Export ab) und die Consent-Szenarien. Schritt 6 läuft vor dem Umbau gegen den Live-Container, der Vergleich danach gegen die Vorschau des Workspaces, bevor er veröffentlicht wird.
 
 Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das Eintragen der Testdaten. Den Rest erledigt der Agent. Ab Schritt 6 meldet der Baseline-Vergleich jede Änderung am Setup, auch solche, an die beim Schreiben der festen Erwartungen niemand gedacht hat.
 
@@ -236,7 +240,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ```
 AGENTS.md                 Anweisungen für den Agent (für alle Projekte)
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
-lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/                     Aufzeichnungsformat
 beispiel/                 Demo-Seite mit Beispieltests und Baselines

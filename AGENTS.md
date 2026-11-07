@@ -75,7 +75,7 @@ Ein Request, der zu fehlen scheint, fehlt nicht unbedingt. Er kann über einen P
 Deshalb zu Beginn von Phase 2, bevor Erwartungen entstehen, einmal prüfen:
 
 1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen, mit `stage.conversionPunkt()`) mit `CONVERSION=aus` laufen lassen, am besten mit `PROXY=ein`.
-2. In `projects/<name>/test-results/<test>/` die Dateien `hosts.json`, `tracking-treffer.json` und `weitere-requests.json` ansehen. Requests ohne Regel werden nie abgefangen, auch nicht im Modus `abfangen`; ein Tracking-Endpunkt ohne Regel geht also echt raus. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören. Weitere Requests prüfen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
+2. In `projects/<name>/test-results/<test>/` die Dateien `hosts.json` (mit dem Auslöser des ersten Requests je Host: Skript oder HTML der Seite), `tracking-treffer.json` und `weitere-requests.json` ansehen. Requests ohne Regel werden nie abgefangen, auch nicht im Modus `abfangen`; ein Tracking-Endpunkt ohne Regel geht also echt raus. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören. Weitere Requests prüfen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
 3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten.
 
 Typisches Muster eines Stape-Custom-Loaders: Script- und Tracking-Requests gehen an eine eigene Subdomain mit verschleiertem Pfad und einem einzigen Parameter, dessen Wert der Base64-kodierte Originalpfad ist, z. B. `https://stp.example.de/abcdef/239?0355ae1a=L2d0YWcvanM…` → `/gtag/js?id=G-…`. Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel darauf fängt im Modus `abfangen` auch die Scripts ab. Deshalb dekodieren und nur passende Pfade (z. B. `/g/collect`) als Tracking werten. Dekodier-Logik gehört in den Test des jeweiligen Projekts, nicht nach `lib/`.
@@ -257,6 +257,21 @@ test.use({ stageOptionen: { csp: "default-src 'self'; script-src 'self' https://
 
 Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
 
+**Consent-Varianten** über die API der CMP statt über Klicks, damit jede Variante genau einen Zustand herstellt (`lib/cmp.ts`, bisher Usercentrics):
+
+```ts
+import { usercentrics } from '../../../lib/cmp';
+await usercentrics.nurDienste(page, ['Google Ads']);       // Namen wie in der UC-Konfiguration
+await usercentrics.nurKategorien(page, ['functional']);
+await usercentrics.widerrufen(page);                        // danach: stage.zustand() für Cookies und Storage
+```
+
+- Danach meist neu laden: Viele Setups (Consent-Gates, GTM-Blocker) werten den Consent erst beim nächsten Seitenaufruf aus. Ob es schon auf derselben Seite wirkt, ist selbst ein Befund.
+- `usercentrics.dienste(page)` zeigt die Dienstnamen der CMP. Mit den Consent-Keys im Container abgleichen: Ein Tippfehler im Dienstnamen blockiert einen Tag dauerhaft.
+- Andere CMP: Funktionen nach demselben Muster in `lib/cmp.ts` ergänzen, sobald sie an einer echten Website erprobt sind. Bis dahin über den Banner klicken.
+- „CMP nicht erreichbar“: die Skripte der CMP per Regel mit `modus: 'blockieren'` sperren.
+- Widerruf: Requests nach dem Zeitpunkt des Widerrufs dürfen nicht kommen. `stage.zustand()` vorher und nachher zeigt, ob Cookies und Storage bleiben.
+
 ### Proxy
 
 Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Requests des Testbrowsers über einen lokalen Proxy (`lib/proxy.ts`). Der Proxy sieht und steuert alles im Netzwerk:
@@ -310,6 +325,19 @@ Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`.
 - Bot-Schutz, Captchas, 3-D-Secure: nicht umgehen, sondern melden.
 - Tracking vor Consent, obwohl niemand geklickt hat: zuerst prüfen, ob die CMP den Testbrowser als Bot behandelt und selbst zustimmt (Usercentrics: `isBot`). Die Stage verbirgt `navigator.webdriver` und das Automation-Flag; abschalten nur mit `stageOptionen: { automationVerbergen: false }`.
 - Basic Auth (Staging): `BASIC_AUTH_BENUTZER` und `BASIC_AUTH_PASSWORT` in `.env`, die Config setzt sie für alle Tests.
+
+## Auftragsart Container-Umbau
+
+Steht im Auftrag **Art: Container-Umbau**, geht es nicht um eine einzelne Journey, sondern darum, dass ein Umbau im GTM (z. B. mit der GTM CLI) nichts verliert: gleiche Requests an gleiche Konten, gleicher Consent, nur die erwarteten Unterschiede. Eine Aufzeichnung ist dafür optional.
+
+1. **Katalog statt Aufzeichnung:** Seiten mit eigenen Triggern plus Auslöser für Klick- und Event-Trigger. Steht nichts im Auftrag, aus dem Container ableiten: Export bzw. `gtm pull`-JSON (`containerVersion.trigger`, Filter auf `{{Click URL}}`, `{{Click Classes}}`, `{{Page Path}}`, Custom Events) und den Katalog in Phase 1 zur Bestätigung vorlegen. Trigger, die nur auf anderen Domains greifen, als nicht testbar nennen.
+2. **Auslöser ohne passende Elemente:** `await stage.linkKlicken(page, 'tel:+49…')` bzw. mit `{ attribute: { class: 'btn btn-primary' } }`, `await stage.dataLayerPush(page, { event: 'formSubmission' })`. Je Auslöser ein `test.step`, danach `stage.warteAufRuhe()`.
+3. **Ein Test je Consent-Szenario**, jeweils mit eigener Baseline (`vergleicheMitBaseline('Umbau – nur Google Ads')`). Die Szenarien stehen im Auftrag; „alle ablehnen“ erwartet null Tracking-Requests.
+4. **Vorher:** Baselines gegen den Ist-Stand ziehen (in der Regel der Live-Container, `GTM_VORSCHAU_LINK` leer) und wie in Phase 3 abgleichen, bis sie sauber sind.
+5. **Nachher, vor dem Veröffentlichen:** `GTM_VORSCHAU_LINK` des Workspaces in `.env`, dieselben Tests laufen gegen die Vorschau (Injection) und vergleichen mit den Baselines von vorher. Prüfen, dass die Vorschau wirklich geladen ist. Debug-Mode-Grenze beachten (siehe „GTM-Vorschau statt Live-Container“).
+6. **Bericht:** jede Abweichung einordnen als erwartet (steht unter „Erwartete Unterschiede“) oder unerwartet. Rote Abweichungen, die erwartet sind, nicht durch neues Ziehen der Baseline verdecken, sondern benennen; erst nach Freigabe durch den Menschen und nach der Veröffentlichung die Baseline neu ziehen.
+
+Der Modus ist `durchlassen` wie bei jeder Baseline: Conversions bei synthetischen Klicks gehen echt raus. Im Auftrag klären, ob das in Ordnung ist (Testtraffic erkennbar?), sonst die Läufe auf Remarketing und Seitenaufrufe beschränken.
 
 ## Grenzen und Sicherheit
 

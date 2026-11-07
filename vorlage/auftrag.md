@@ -12,6 +12,8 @@
 > Aufzeichnung im Modus `full` kann das Analyse-Script auf Wunsch in `testdaten.aufzeichnung.env`
 > übernehmen; `.env` hat Vorrang.
 
+**Art:** <!-- Journey (aus einer Aufzeichnung) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / beides -->
+
 ## Website
 
 - **Startadresse:** <!-- z. B. https://www.example.de/ – kommt auch als BASE_URL in .env -->
@@ -52,11 +54,27 @@
 - **Mit Proxy?** <!-- ja (empfohlen: sieht auch Beacons beim Verlassen und Service Worker) / nein -->
 - **Tempo:** <!-- schnell / mittel / langsam / aufzeichnung (Pausen wie aufgezeichnet). Baseline und Vergleich laufen immer im selben Tempo. -->
 
+## Container-Umbau
+
+<!-- Nur bei Art „Container-Umbau“: Der Ist-Zustand wird vor dem Umbau als Baseline gespeichert, danach wird verglichen. -->
+
+- **Was wird umgebaut?** <!-- z. B. Google-Tags auf Destinations, CMP-Wechsel, Aufräumen; Workspace-Name bzw. -Nummer -->
+- **Vorher:** <!-- Live-Container (Vorgabe) oder eine bestimmte Vorschau -->
+- **Nachher:** <!-- Vorschau des Workspaces (Link als GTM_VORSCHAU_LINK in .env) und/oder nach der Veröffentlichung -->
+- **Seiten:** <!-- Seiten mit eigenen Triggern, z. B. /en, /kontakt, /danke -->
+- **Auslöser:** <!-- Klicks und Events, die Tags auslösen: tel, mailto, PDF, CTAs (Text oder Klasse), dataLayer-Events wie formSubmission. Leer lassen: der Agent leitet sie aus dem Container ab (Export oder `gtm pull`) und fragt nach. -->
+- **Consent-Szenarien:** <!-- z. B. alle ablehnen, alle akzeptieren, je Dienst einzeln -->
+- **Erwartete Unterschiede:** <!-- was sich durch den Umbau ändern darf, z. B. „gtag/js entfällt“, „ccm/collect gebündelt“ -->
+
 ## Varianten
 
 <!-- Ankreuzen bzw. ergänzen; nur was angekreuzt ist, wird gebaut. Varianten senden nichts (Modus „abfangen“). -->
 
 - [ ] Consent abgelehnt
+- [ ] Nur einzelne Dienste bzw. Kategorien zugelassen: <!-- Namen wie in der CMP, z. B. „Google Ads“, „Microsoft Advertising“ – je einer pro Lauf -->
+- [ ] Widerruf auf der Seite: <!-- danach darf nichts mehr feuern; bleiben Cookies stehen? -->
+- [ ] CMP nicht erreichbar (Skript blockiert): <!-- was soll dann passieren? -->
+- [ ] Zustimmen und sofort weiter (Klick auf Link direkt nach dem Banner)
 - [ ] Einzelne Dienste blockiert (Adblocker): <!-- welche? -->
 - [ ] Geplante CSP testen: <!-- Policy einfügen oder Datei nennen -->
 - [ ] Ladereihenfolge (z. B. GTM oder CMP verzögert): <!-- was genau? -->

@@ -277,6 +277,8 @@ export class TrackingProtokoll {
   readonly treffer: Treffer[] = [];
   /** Alle Hosts, die während des Tests angefragt wurden (nicht nur Tracking). */
   readonly hosts = new Set<string>();
+  /** Je Host, was dessen ersten Request ausgelöst hat (Skript-URLs aus dem Aufrufstapel bzw. „HTML der Seite“). */
+  readonly ausloeser = new Map<string, string>();
   /**
    * Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking über eigene Pfade oder
    * Formate (Custom Loader, getunnelte Requests) taucht hier auf, solange keine Regel passt.
@@ -337,6 +339,7 @@ export class Stage {
   private readonly netlogUrls = new Map<string, number>();
   /** URLs von Requests der Debug-Werkzeuge; der NetLog-Abgleich darf sie nicht nachtragen. */
   readonly werkzeugUrls = new Set<string>();
+  dataLayerName = 'dataLayer';
 
   constructor(
     readonly modus: Modus,
@@ -441,6 +444,55 @@ export class Stage {
       await pause(100);
     }
     this.netzwerkAbgleich();
+  }
+
+  /**
+   * Zustand im Browser: Cookies (Name und Domain), Keys in localStorage und sessionStorage der Seite,
+   * geladene Google-Container. Z. B. vor und nach einem Widerruf vergleichen.
+   */
+  async zustand(seite?: Page) {
+    const p = seite ?? this.context.pages().filter((x: Page) => !x.isClosed()).at(-1);
+    const cookies = (await this.context.cookies()).map((c) => `${c.name} (${c.domain})`).sort();
+    const leer = { localStorage: [] as string[], sessionStorage: [] as string[], container: [] as string[] };
+    const imBrowser = p ? await p.evaluate(() => ({
+      localStorage: Object.keys(localStorage).sort(),
+      sessionStorage: Object.keys(sessionStorage).sort(),
+      container: Object.keys((window as any).google_tag_manager ?? {}).filter((k) => /^(GTM|GT|G|AW|DC)-/.test(k)).sort(),
+    })).catch(() => leer) : leer;
+    return { cookies, ...imBrowser };
+  }
+
+  /**
+   * Fügt einen Link ein und klickt ihn, um Klick-Trigger auszulösen, ohne ein passendes Element auf der
+   * Seite zu brauchen (z. B. tel:, mailto:, PDF). Öffnet im neuen Tab, damit die Seite bleibt; der Tab wird geschlossen.
+   */
+  async linkKlicken(seite: Page, href: string, optionen: { text?: string; attribute?: Record<string, string> } = {}) {
+    const neu: Page[] = [];
+    const merke = (p: Page) => neu.push(p);
+    this.context.on('page', merke);
+    try {
+      await seite.evaluate(({ href, text, attribute }) => {
+        const a = document.createElement('a');
+        a.setAttribute('href', href);
+        a.target = '_blank';
+        a.textContent = text;
+        for (const [k, v] of Object.entries(attribute)) a.setAttribute(k, v);
+        document.body.appendChild(a);
+        a.click();
+      }, { href, text: optionen.text ?? href, attribute: optionen.attribute ?? {} });
+      await pause(1000);
+    } finally {
+      this.context.off('page', merke);
+      for (const p of neu) await p.close().catch(() => { /* schon zu */ });
+    }
+  }
+
+  /** Schreibt ein Objekt in den dataLayer der Seite, z. B. ein Event, das sonst ein Formular auslöst. */
+  async dataLayerPush(seite: Page, daten: Record<string, unknown>) {
+    await seite.evaluate(({ name, daten }) => {
+      const w = window as any;
+      (w[name] = w[name] || []).push(daten);
+    }, { name: this.dataLayerName, daten });
   }
 
   /**
@@ -554,6 +606,32 @@ function vonWerkzeug(request: Request) {
   return istWerkzeug(request.headers()['referer']);
 }
 
+/**
+ * Merkt sich je Host, was dessen ersten Request ausgelöst hat (CDP, nur Chromium): Skripte aus dem
+ * Aufrufstapel bzw. das HTML der Seite. Beantwortet bei neuen Domains: lädt GTM sie oder die Seite selbst?
+ */
+async function erfasseAusloeser(context: BrowserContext, stage: Stage) {
+  const kurz = (u: string) => { const t = zerlege(u); return t.host ? t.host + t.pfad : u; };
+  const verbinde = async (seite: Page) => {
+    try {
+      const cdp = await context.newCDPSession(seite);
+      await cdp.send('Network.enable');
+      cdp.on('Network.requestWillBeSent', (e: any) => {
+        const host = zerlege(e.request.url).host;
+        if (!host || stage.tracking.ausloeser.has(host)) return;
+        const skripte: string[] = [];
+        for (let s = e.initiator?.stack; s; s = s.parent) for (const f of s.callFrames ?? []) if (f.url) skripte.push(kurz(f.url));
+        const quelle = skripte.length ? [...new Set(skripte)].slice(0, 3).join(' ← ')
+          : e.initiator?.type === 'parser' && e.initiator.url ? `HTML ${kurz(e.initiator.url)}`
+          : e.initiator?.url ? kurz(e.initiator.url) : e.initiator?.type === 'other' ? 'Navigation' : e.initiator?.type ?? 'unbekannt';
+        stage.tracking.ausloeser.set(host, quelle);
+      });
+    } catch { /* kein Chromium oder Seite schon geschlossen */ }
+  };
+  for (const p of context.pages()) await verbinde(p);
+  context.on('page', (p) => { void verbinde(p); });
+}
+
 export async function richteStageEin(
   context: BrowserContext, testInfo: TestInfo, optionen: StageOptionen = {}, proxy?: StageProxy,
 ): Promise<Stage> {
@@ -563,6 +641,8 @@ export async function richteStageEin(
   const regeln = [...(optionen.regeln ?? []), ...STANDARD_DIENSTE];
   const regelFuer = (url: string) => regeln.find((r) => r.muster.test(url));
   const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
+  stage.dataLayerName = optionen.dataLayerName ?? 'dataLayer';
+  await erfasseAusloeser(context, stage);
 
   // Sicherheitsnetz: unbekannte Requests an fremde Domains wie Tracking behandeln
   const unbekannteAktiv = (optionen.unbekannteAbfangen ?? unbekannteAusUmgebung()) && modus !== 'durchlassen';
@@ -832,7 +912,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     };
     await ablegen('dataLayer.json', stage.dataLayer.eintraege);
     await ablegen('tracking-treffer.json', stage.tracking.treffer);
-    await ablegen('hosts.json', [...stage.tracking.hosts].sort());
+    await ablegen('hosts.json', [...stage.tracking.hosts].sort().map((h) => ({ host: h, ausgeloestVon: stage.tracking.ausloeser.get(h) })));
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
   },

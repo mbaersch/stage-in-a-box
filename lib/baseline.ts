@@ -120,6 +120,10 @@ export interface Baseline {
   consent: string[];
   anfragen: BaselineAnfrage[];
   hosts: string[];
+  /** Je Host, was den ersten Request ausgelöst hat (siehe TrackingProtokoll.ausloeser) */
+  ausloeser?: Record<string, string>;
+  /** Cookies am Ende der Journey, als „Name (Domain)“ */
+  cookies?: string[];
   /** Requests ohne Regel (Fetch/XHR/Beacon), als „METHODE host/pfad“ mit # für Ziffernfolgen */
   weitere?: string[];
   cspVerstoesse: string[];
@@ -128,7 +132,7 @@ export interface Baseline {
 export interface Befund {
   stufe: 'rot' | 'info';
   /** "Neu im Netzwerk": neue Domains und Requests ohne Regel – mögliches neues Tracking, im Bericht eigener Abschnitt */
-  bereich: 'dataLayer' | 'Consent' | 'Requests' | 'Hosts' | 'CSP' | 'Neu im Netzwerk';
+  bereich: 'dataLayer' | 'Consent' | 'Requests' | 'Hosts' | 'Cookies' | 'CSP' | 'Neu im Netzwerk';
   text: string;
 }
 
@@ -204,7 +208,7 @@ function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
   return out;
 }
 
-export function momentaufnahme(stage: Stage, journey: string): Baseline {
+export function momentaufnahme(stage: Stage, journey: string, cookies?: string[]): Baseline {
   const events: BaselineEvent[] = [];
   const consent: string[] = [];
   for (const e of stage.dataLayer.eintraege) {
@@ -229,6 +233,8 @@ export function momentaufnahme(stage: Stage, journey: string): Baseline {
     consent,
     anfragen: anfragenAus(stage.tracking.treffer),
     hosts: [...stage.tracking.hosts].sort(),
+    ausloeser: Object.fromEntries([...(stage.tracking.ausloeser ?? new Map())].sort()),
+    cookies,
     weitere: stage.tracking.weitere.map((w) => `${w.methode} ${w.host}${w.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#')}`),
     cspVerstoesse: [...new Set(stage.cspVerstoesse.map((v) => `${v.direktive}: ${v.blockiert}`))],
   };
@@ -380,7 +386,8 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   const domainsVorher = new Set(basis.hosts.map(basisDomain));
   const domainsJetzt = new Set(lauf.hosts.map(basisDomain));
   for (const h of lauf.hosts) {
-    if (!domainsVorher.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neue Domain: ${h}` });
+    const von = lauf.ausloeser?.[h];
+    if (!domainsVorher.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neue Domain: ${h}${von ? ` (ausgelöst von: ${von})` : ''}` });
   }
   for (const h of basis.hosts) {
     if (!domainsJetzt.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Domain nicht mehr angefragt: ${h}` });
@@ -394,6 +401,13 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   }
   for (const [k] of weitereVorher) {
     if (!weitereJetzt.has(k)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `Request ohne Regel nicht mehr vorhanden: ${k}` });
+  }
+
+  // Cookies (nur wenn beide Momentaufnahmen sie kennen; ältere Baselines haben keine)
+  if (basis.cookies && lauf.cookies) {
+    const vorher = new Set(basis.cookies), jetzt = new Set(lauf.cookies);
+    for (const c of jetzt) if (!vorher.has(c)) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neues Cookie: ${c}` });
+    for (const c of vorher) if (!jetzt.has(c)) befunde.push({ stufe: 'info', bereich: 'Cookies', text: `Cookie nicht mehr gesetzt: ${c}` });
   }
 
   // CSP
@@ -423,7 +437,7 @@ export function bericht(basis: Baseline, lauf: Baseline, befunde: Befund[]): str
     rot.length ? liste(rot) : 'Keine.',
     '',
     ...(neuImNetz.length
-      ? ['## Neu im Netzwerk', '', 'Neue Domains und Requests ohne Regel: prüfen, ob hier neues Tracking dazugekommen ist.', '', liste(neuImNetz), '']
+      ? ['## Neu im Netzwerk', '', 'Neue Domains, Cookies und Requests ohne Regel: prüfen, ob hier neues Tracking dazugekommen ist.', '', liste(neuImNetz), '']
       : []),
     '## Hinweise',
     '',
@@ -447,7 +461,7 @@ export async function vergleicheMitBaseline(stage: Stage, journey: string, optio
   // testDir ist <projekt>/tests; die Baselines liegen daneben
   const projekt = path.dirname(testInfo.project.testDir);
   const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey, stage.mitProxy));
-  const lauf = momentaufnahme(stage, journey);
+  const lauf = momentaufnahme(stage, journey, (await stage.zustand()).cookies);
   const neu = !fs.existsSync(datei)
     || testInfo.config.updateSnapshots === 'all'
     || testInfo.config.updateSnapshots === 'changed';
