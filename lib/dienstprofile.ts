@@ -1,8 +1,10 @@
 /**
  * Dienstprofile: was die Stage über einen Dienst wissen muss, an einer Stelle.
  *
- * - klickId: Mit welchem URL-Parameter kommt die Klick-ID, wo speichert der Dienst sie (Cookie oder
- *   localStorage, Format egal), mit welchem Parameter sendet er sie wieder (lib/bedingungen.ts).
+ * - klickId: je Identifier (URL-Parameter der Landung, z. B. gclid): wo speichert der Dienst ihn
+ *   (Cookie oder localStorage, Format egal), mit welchem Parameter sendet er ihn wieder
+ *   (lib/bedingungen.ts). Ein leerer Eintrag heißt: gehört zum Dienst, Ablage unbekannt – dann zählt
+ *   nur die Suche nach dem Wert.
  * - conversion: Woran ein Request zu einem Event erkannt wird und wo Wert, Währung, Transaktions-ID
  *   und Artikel darin stehen (Durchgängigkeit, lib/pruefungen.ts).
  *
@@ -13,20 +15,21 @@
  * Parameter, Ablage und Request-Parameter an einer echten Website bestätigt sind; bis dahin findet die
  * Suche nach dem Wert sie trotzdem.
  *
- * Projekte ergänzen oder überschreiben Profile mit stageOptionen.dienstProfile (gleicher Name =
- * Felder überschreiben). Was sich bewährt und für jede Website mit dem Dienst gilt, gehört hierher
+ * Projekte ergänzen oder überschreiben Profile mit stageOptionen.dienstProfile. Gleicher Name:
+ * Felder überschreiben, Listen ersetzen, alles andere bleibt (klickId je Identifier, conversion je Feld). Was sich bewährt und für jede Website mit dem Dienst gilt, gehört hierher
  * und nach docs/wissen/dienste.md. Der Name muss zum Dienst der Regel passen (STANDARD_DIENSTE bzw.
  * eigene regeln), sonst werden die Requests nicht zugeordnet.
  */
 
-export interface KlickIdProfil {
-  /** URL-Parameter der Landung, z. B. ['gclid', 'gbraid', 'wbraid'] */
-  parameter: string[];
+export interface KlickIdEintrag {
   /** Ablage: Cookie-Namen oder "localStorage:<key>"; Vorhandensein genügt, Format egal */
   speicher?: string[];
   /** Parameter, mit denen der Dienst die Klick-ID in Requests sendet; Vorhandensein genügt */
   request?: string[];
 }
+
+/** Je Identifier, Schlüssel = URL-Parameter der Landung (eindeutig), z. B. { gclid: {…}, gbraid: {…} } */
+export type KlickIdProfil = Record<string, KlickIdEintrag>;
 
 export type Feld = string | string[];
 
@@ -78,7 +81,11 @@ export const DIENST_PROFILE: DienstProfil[] = [
   },
   {
     name: 'Google Ads',
-    klickId: { parameter: ['gclid', 'gbraid', 'wbraid'], speicher: ['_gcl_aw', '_gcl_gb'], request: ['gclaw', 'gclgb'] },
+    klickId: {
+      gclid: { speicher: ['_gcl_aw'], request: ['gclaw'] },
+      gbraid: { speicher: ['_gcl_gb'], request: ['gclgb'] },
+      wbraid: {}, // Ablage nicht belegt: nur Suche nach dem Wert
+    },
     conversion: {
       pfad: /\/(pagead\/)?(1p-)?conversion\//,
       pflicht: ['label'],
@@ -89,7 +96,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
   },
   {
     name: 'Meta',
-    klickId: { parameter: ['fbclid'], speicher: ['_fbc'], request: ['fbc'] },
+    klickId: { fbclid: { speicher: ['_fbc'], request: ['fbc'] } },
     conversion: {
       ereignis: { parameter: 'ev', werte: META_EVENTS },
       value: 'cd[value]',
@@ -100,19 +107,31 @@ export const DIENST_PROFILE: DienstProfil[] = [
   },
   {
     name: 'Microsoft Ads',
-    klickId: { parameter: ['msclkid'], speicher: ['_uetmsclkid'], request: ['msclkid'] },
+    klickId: { msclkid: { speicher: ['_uetmsclkid'], request: ['msclkid'] } },
     conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc' },
   },
 ];
 
-/** Zentrale Profile, ergänzt bzw. überschrieben durch die des Projekts (gleicher Name = zusammenführen). */
+/**
+ * Zentrale Profile, ergänzt bzw. überschrieben durch die des Projekts. Gleicher Name: Felder
+ * überschreiben, Listen ersetzen (so lassen sich zentrale Einträge auch entfernen), alles andere
+ * bleibt; klickId wird je Identifier zusammengeführt, conversion je Feld.
+ */
 export function profileZusammenfuehren(eigene: DienstProfil[] = []): DienstProfil[] {
   const alle = new Map(DIENST_PROFILE.map((p) => [p.name, { ...p }]));
   for (const e of eigene) {
-    const vorhanden = alle.get(e.name);
-    alle.set(e.name, vorhanden
-      ? { ...vorhanden, ...e, klickId: e.klickId ?? vorhanden.klickId, conversion: e.conversion ? { ...vorhanden.conversion, ...e.conversion } : vorhanden.conversion }
-      : e);
+    const v = alle.get(e.name);
+    if (!v) {
+      alle.set(e.name, e);
+      continue;
+    }
+    const klickId: KlickIdProfil | undefined = v.klickId || e.klickId ? { ...v.klickId } : undefined;
+    for (const [id, eintrag] of Object.entries(e.klickId ?? {})) klickId![id] = { ...klickId![id], ...eintrag };
+    alle.set(e.name, {
+      name: e.name,
+      klickId,
+      conversion: v.conversion || e.conversion ? { ...v.conversion, ...e.conversion } : undefined,
+    });
   }
   return [...alle.values()];
 }

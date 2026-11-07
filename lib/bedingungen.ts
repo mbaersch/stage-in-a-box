@@ -15,8 +15,11 @@ export const KLICK_IDS = ['gclid', 'gbraid', 'wbraid', 'dclid', 'fbclid', 'msclk
 export type KlickId = (typeof KLICK_IDS)[number];
 
 export interface Landung {
-  /** Diese Klick-IDs mit erkennbaren Testwerten (TEST-sib-…) an die Startadresse hängen. */
-  klickIds?: KlickId[];
+  /**
+   * Diese Klick-IDs mit erkennbaren Testwerten (TEST-sib-…) an die Startadresse hängen. Neben den
+   * bekannten (KLICK_IDS) geht jeder Identifier, den ein Dienstprofil kennt.
+   */
+  klickIds?: (KlickId | (string & {}))[];
   /** UTM-Parameter, z. B. { source: 'google', medium: 'cpc' } – ohne "utm_" davor. */
   utm?: Record<string, string>;
   /** Weitere Parameter unverändert anhängen. */
@@ -65,14 +68,15 @@ export async function klickIdBefunde(
     try { herkunft = new URL(seite.url()).host; } catch { /* about:blank */ }
     for (const [key, wert] of eintraege) speicher.push({ key, wert, herkunft });
   }
-  return Object.entries(werte).filter(([id]) => (KLICK_IDS as readonly string[]).includes(id)).map(([id, wert]) => {
-    const passendeProfile = profile.filter((p) => p.klickId?.parameter.includes(id));
+  const bekannt = new Set<string>([...KLICK_IDS, ...profile.flatMap((p) => Object.keys(p.klickId ?? {}))]);
+  return Object.entries(werte).filter(([id]) => bekannt.has(id)).map(([id, wert]) => {
+    const passendeProfile = profile.filter((p) => p.klickId?.[id]);
     const gespeichert = [
       ...cookies.filter((c) => dekodiert(c.value).includes(wert)).map((c) => `Cookie ${c.name} (${c.domain})`),
       ...speicher.filter((s) => dekodiert(s.wert).includes(wert)).map((s) => `localStorage ${s.key} (${s.herkunft})`),
     ];
     for (const p of passendeProfile) {
-      for (const ablage of p.klickId!.speicher ?? []) {
+      for (const ablage of p.klickId![id].speicher ?? []) {
         if (ablage.startsWith('localStorage:')) {
           const key = ablage.slice('localStorage:'.length);
           for (const s of speicher.filter((x) => x.key === key)) gespeichert.push(`localStorage ${s.key} (${s.herkunft}, laut Profil ${p.name})`);
@@ -90,7 +94,7 @@ export async function klickIdBefunde(
       }
       const profil = passendeProfile.find((p) => p.name === t.dienst);
       const f = profil ? felder(t.parameter, t.body) : {};
-      const param = profil?.klickId!.request?.find((r) => f[r]);
+      const param = profil?.klickId![id].request?.find((r) => f[r]);
       if (param) requests.push({ nr: t.nr, dienst: t.dienst, zeit: t.zeit, ereignis, wie: `Parameter ${param} (Profil)` });
     }
     // Ohne Duplikate: gleiche Ablage kann über Wert und Profil gefunden werden

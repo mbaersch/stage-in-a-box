@@ -50,7 +50,9 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request
 
 | Parameter | Dienst | Ablage | Parameter im Request |
 |---|---|---|---|
-| `gclid`, `gbraid`, `wbraid` | Google Ads (Conversion Linker) | Cookies `_gcl_aw`, `_gcl_gb` | `gclaw`, `gclgb` |
+| `gclid` | Google Ads (Conversion Linker) | Cookie `_gcl_aw` | `gclaw` |
+| `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` | `gclgb` |
+| `wbraid` | Google Ads | nicht belegt – nur Suche nach dem Wert | nicht belegt |
 | `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
 | `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` |
 

@@ -80,7 +80,19 @@ test.use({ stageOptionen: {
 } });
 ```
 
-Felder sind Parameternamen; JSON-Bodies werden flach gemacht (`properties.value`). Gleiche Namen wie zentral überschreiben einzelne Felder. Bewährt sich ein Profil, als Vorschlag für `lib/dienstprofile.ts` und `docs/wissen/dienste.md` melden – nur mit belegten Fakten.
+Felder sind Parameternamen; JSON-Bodies werden flach gemacht (`properties.value`).
+
+**Zusammenführen mit den zentralen Profilen** (gleicher Name): Felder überschreiben, Listen ersetzen, alles andere bleibt. `klickId` wird je Identifier zusammengeführt, `conversion` je Feld. Beispiele:
+
+```ts
+dienstProfile: [
+  { name: 'Google Ads', klickId: { wbraid: { speicher: ['…'], request: ['…'] } } },  // ergänzt wbraid, gclid und gbraid bleiben
+  { name: 'Google Ads', conversion: { value: 'value_netto' } },                     // nur value anders
+  { name: 'Meta', klickId: { fbclid: { request: [] } } },                           // Request-Parameter entfernt, Ablage bleibt
+]
+```
+
+Ein Identifier ohne Angaben (`wbraid: {}`) gehört zum Dienst, Ablage und Parameter sind aber unbekannt; dann zählt nur die Suche nach dem Wert. Bewährt sich ein Profil, als Vorschlag für `lib/dienstprofile.ts` und `docs/wissen/dienste.md` melden – nur mit belegten Fakten.
 - Bewusste Unterschiede (z. B. Ads bekommt den Nettowert) als `ausnahmen: ['Google Ads:value']` eintragen und im Bericht begründen.
 - Läuft nur, wenn der Test bis zum Ende kommt – mit `CONVERSION=aus` also nicht. Ergebnis in `durchgaengigkeit.json`; `stage.pruefeDurchgaengigkeit(event)` auch für eigene Aufrufe.
 
