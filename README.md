@@ -36,6 +36,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
+- **Unter weiteren Bedingungen**, als Zusatz zu einer bestehenden Journey: Landung über eine Anzeige (kommt die Klick-ID in der Conversion an?), wiederkehrender Besucher, Uhr vorspulen für Timer und Sitzungsende, langsames Netz und schwaches Gerät, Mobilgerät, andere Browser-Kennung, Zurück-Navigation aus dem bfcache. Im Auftrag sind das Kreuzchen.
 
 ## Voraussetzungen
 
@@ -64,6 +65,8 @@ npm run sitzung -- projects/mein-shop
 Der Browser öffnet die Website, und Du bedienst sie selbst; schließt Du ihn, endet die Sitzung. Jede Sitzung startet mit frischem Profil, ohne Cookies, der Consent-Banner erscheint also wieder. Requests gehen wie bei einem echten Besuch raus.
 
 **Mit GTM-Vorschau:** Link aus GTM *Vorschau teilen* als `SITZUNG_VORSCHAU_LINK` in `.env`, in Anführungszeichen. Dann verbindet sich zuerst der Tag Assistant mit Deinem Workspace und öffnet die Website in einem neuen Tab. Den Tab des Tag Assistant offen lassen.
+
+**Mit sGTM-Vorschau:** Header-Wert aus der Vorschau des Server-Containers als `SITZUNG_SGTM_HEADER` und dessen Host als `SITZUNG_SGTM_HOST` in `.env`. Dann landen die Requests an den Server-Container in dessen Vorschau.
 
 **Mit Extensions:** `npm run erweiterung -- <ID aus dem Chrome Web Store>` (oder eine ZIP-Datei bzw. ein entpackter Ordner) legt die Extension in `erweiterungen/` ab; jede Sitzung lädt alle Extensions von dort. Die ID ist der 32-stellige Teil am Ende der Adresse im Web Store, z. B. `…/detail/tag-assistant/kejbdjndbnbjgmefkgdddjlbokphdefk`. Aus dem Store geholt, behält die Extension ihre ID. Das braucht etwa der Tag Assistant: Nur dann erkennt tagassistant.google.com die Extension und öffnet die Website als Tab im selben Fenster. Aus einer ZIP-Datei oder einem Ordner bekommt sie eine andere ID. Erneut aufgerufen, holt der Befehl die aktuelle Version; eine Extension entfernst Du, indem Du ihren Ordner in `erweiterungen/` löschst. Rechte, die eine Extension erst bei Bedarf anfragt (z. B. Zugriff auf Websites), erteilst Du in der Sitzung wie gewohnt; weil jede Sitzung mit frischem Profil startet, auch jedes Mal neu. Bewährt haben sich:
 
@@ -299,7 +302,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ```
 AGENTS.md                 Kern der Anweisungen für den Agent: Regeln und Wegweiser
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
-lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/
   anleitung/              Anleitungen je Aufgabe (Staging, Aufzeichnung, Tests, Baseline, Varianten …)

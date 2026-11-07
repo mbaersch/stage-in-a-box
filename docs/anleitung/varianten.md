@@ -1,4 +1,4 @@
-# Varianten und Anpassungen
+# Varianten, Bedingungen und Anpassungen
 
 Gilt für Varianten in Tests und für Anpassungen in Sitzungen ([`staging.md`](staging.md)). In Tests nur bauen, was der Auftrag verlangt. Varianten laufen über `test.use` in eigenen `describe`-Blöcken, im Modus `abfangen`; in Sitzungen stehen dieselben Optionen in `sitzung.use(…)`.
 
@@ -32,6 +32,25 @@ Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsk
 - **dataLayer vorbelegen** (z. B. andere CMP-Konfiguration simulieren): `page.addInitScript(() => { window.dataLayer = window.dataLayer || []; window.dataLayer.push(…); })` – läuft vor allen Scripts der Seite.
 - **CSP-Inventar:** Jeder Test legt `csp-inventar.json` ab: alle Ressourcen nach Direktive, Herkunft und Kontext (Seite, iframe, Service Worker) und einen Vorschlag für die Policy der Seite (`vorschlag`). Grundlage für eine neue CSP: einen vollständigen Lauf mit allen Consent-Zuständen und Zahlarten machen, dann den Vorschlag prüfen und die Policy als Variante `csp` testen. iframes und Service Worker fallen nicht unter die CSP der Seite. Dienstspezifische Fallstricke: [`../wissen/dienste.md`](../wissen/dienste.md).
 - **Weitere Dienste:** Endpunkte aus `tracking-vendors.json` im [Tracking Auditor](https://github.com/mbaersch/tracking-auditor) als Regel ergänzen.
+
+## Bedingungen für eine Journey
+
+Bedingungen sind keine eigenen Tests, sondern Zusätze für eine bestehende Journey (z. B. den Testkauf), angekreuzt im Auftrag unter „Bedingungen“. Code: `lib/bedingungen.ts`, Beispiele: `beispiel/tests/bedingungen.spec.ts`.
+
+| Bedingung | Option | Im Test |
+|---|---|---|
+| Landung über eine Anzeige | `landung: { klickIds: ['gclid', 'fbclid'], utm: { source: 'google', medium: 'cpc' } }` | Statt `page.goto` die Journey mit `await stage.landen(page, '/pfad')` beginnen. Prüfen mit `await stage.erwarteKlickId('gclid', { dienst: 'Google Ads', ab })`; `ab = stage.tracking.treffer.length` vor der Conversion, sonst zählt schon der Request der Landungsseite. |
+| Wiederkehrender Besucher | erster Test: `await stage.zustandSpeichern('nach-kauf')`; zweiter: `startZustand: 'nach-kauf'` | Beide in einem `test.describe.serial`. Gespeichert werden Cookies und localStorage (nicht sessionStorage) unter `zustaende/` im Projekt. |
+| Zeit vorspulen | `uhr: true` | `await stage.zeitVorstellen('31m')` springt vor und löst fällige Timer aus. |
+| Netz und CPU | `netz: 'langsam-3g' \| '3g' \| '4g'`, `cpu: 4` | Drosselt alle Seiten des Tests. |
+| Mobilgerät | `geraet: 'iPhone 15'` | Maße, Touch und Kennung aus der Geräteliste von Playwright. |
+| Browser-Kennung | `userAgent: 'safari-ios' \| 'safari-mac' \| 'firefox' \| '<eigener String>'` | Geht vor `geraet`. |
+| Zurück-Navigation | `bfcache: true` | `const r = await stage.zurueck(page)`; `r.ausBfcache` sagt, ob die Seite aus dem Cache kam. Danach prüfen, ob ein `page_view` kam bzw. kommen sollte. |
+
+- **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests; am Testende liegt das Ergebnis als `klick-ids.json` bei. Wo die Dienste sie üblicherweise speichern: [`../wissen/dienste.md`](../wissen/dienste.md).
+- **Uhr:** Betrifft die Uhr der Seite (Timer, `Date`). Cookie-Laufzeiten verwaltet der Browser selbst; deren Ablauf lässt sich so nicht testen. Sitzungsende bei GA4 funktioniert, weil es auf Zeitstempeln in Cookie-Werten beruht.
+- **Gerät und Kennung:** Die Engine bleibt Chromium. Für Safari und Firefox werden die Client Hints entfernt (Marken leer, `navigator.userAgentData` undefiniert). Der Header `Sec-CH-UA` kommt dann leer statt gar nicht – Skripte, die exakt darauf prüfen, sehen den Unterschied. Mobile Layouts brauchen ein `<meta name="viewport">` der Seite, sonst rendert sie 980 px breit.
+- **bfcache:** Startet einen eigenen Browser (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet. Nach `zurueck` nicht auf `load` warten: Aus dem bfcache kommt keiner.
 
 ## Consent-Varianten
 

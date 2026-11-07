@@ -13,6 +13,8 @@
  * - NetLog-Abgleich: Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts)
  * - Optional Proxy (PROXY=ein): alle Requests im Netzwerk sehen und steuern, auch Beacons beim
  *   Verlassen einer Seite und Service Worker (lib/proxy.ts)
+ * - Bedingungen: Landung über eine Anzeige (Klick-IDs), wiederkehrender Besucher, Uhr vorstellen,
+ *   Netz/CPU drosseln, Gerät und Browser-Kennung, Zurück-Navigation mit bfcache (lib/bedingungen.ts)
  *
  * Verwendung in Tests:
  *   import { test, expect } from '../../../lib/stage';   // aus projects/<name>/tests/
@@ -30,6 +32,10 @@ import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
+import {
+  clientHintsEntfernen, drossele, geraetAus, klickIdBefunde, landungsParameter, userAgentAus,
+  type KlickIdBefund, type Landung, type Netz,
+} from './bedingungen';
 
 export type { Tempo } from './tempo';
 
@@ -104,6 +110,47 @@ export interface StageOptionen {
    * keine Variablen aus dem Test.
    */
   dataLayerAnpassen?: (eintrag: any) => any;
+
+  /* Bedingungen (lib/bedingungen.ts) */
+
+  /** Einstieg wie über eine Anzeige: stage.landen() hängt Klick-IDs mit Testwerten und UTM-Parameter an. */
+  landung?: Landung;
+  /** Mit dem Zustand starten, den stage.zustandSpeichern(name) abgelegt hat (Cookies, localStorage). */
+  startZustand?: string;
+  /** Uhr der Seite steuerbar machen; stage.zeitVorstellen() springt dann vor. */
+  uhr?: boolean;
+  /** Netz drosseln: 'langsam-3g', '3g', '4g' oder eigene Werte. */
+  netz?: Netz;
+  /** CPU verlangsamen um diesen Faktor, z. B. 4. */
+  cpu?: number;
+  /** Gerät aus der Liste von Playwright, z. B. 'iPhone 15': Maße, Touch, Kennung. Engine bleibt Chromium. */
+  geraet?: string;
+  /** Browser-Kennung: 'safari-ios', 'safari-mac', 'firefox' oder ein eigener String. Geht vor geraet. */
+  userAgent?: string;
+  /**
+   * Zurück-Navigation aus dem bfcache ermöglichen (stage.zurueck). Startet dafür einen eigenen Browser
+   * (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet.
+   */
+  bfcache?: boolean;
+}
+
+/** Ordner des Projekts (bzw. des Beispiels), in dem der Test liegt. */
+function projektOrdner(testInfo: TestInfo) {
+  return path.dirname(testInfo.project.testDir);
+}
+
+function zustandsDatei(testInfo: TestInfo, name: string) {
+  const datei = name.toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
+  return path.join(projektOrdner(testInfo), 'zustaende', `${datei}.json`);
+}
+
+/** '45s', '31m', '2h' oder Millisekunden */
+function dauerMs(dauer: string | number): number {
+  if (typeof dauer === 'number') return dauer;
+  const m = dauer.trim().match(/^(\d+(?:[.,]\d+)?)\s*(ms|s|m|h)$/);
+  if (!m) throw new Error(`Dauer "${dauer}" nicht erkannt, z. B. '45s', '31m', '2h'`);
+  const faktor = { ms: 1, s: 1000, m: 60_000, h: 3_600_000 }[m[2] as 'ms' | 's' | 'm' | 'h'];
+  return Math.round(parseFloat(m[1].replace(',', '.')) * faktor);
 }
 
 /** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
@@ -357,6 +404,13 @@ export class Stage {
   dataLayerName = 'dataLayer';
   /** URLs, auf die eine Anpassung passte, ohne etwas zu ändern (siehe StageOptionen.anpassungen). */
   readonly anpassungenOhneWirkung = new Set<string>();
+  /** Werte der Landung (Parameter → Wert), sobald stage.landen() aufgerufen wurde. */
+  landungsWerte: Record<string, string> = {};
+  /** pageshow-Ereignisse der Hauptseite; persisted = aus dem bfcache wiederhergestellt. */
+  readonly seitenAnzeigen: { zeit: number; url: string; persisted: boolean }[] = [];
+  /** true, wenn der Browser dieses Tests den bfcache erlaubt (stageOptionen.bfcache). */
+  bfcacheAktiv = false;
+  uhrAktiv = false;
   /** Alle Ressourcen nach CSP-Direktive, Host und Kontext (Seite, iframe, Service Worker), mit Anzahl. */
   readonly ressourcen = new Map<string, { direktive: string; host: string; origin: string; kontext: string; anzahl: number }>();
 
@@ -556,6 +610,79 @@ export class Stage {
   }
 
   /**
+   * Öffnet die Startseite (oder pfad) wie nach einem Klick auf eine Anzeige: mit den Klick-IDs und
+   * UTM-Parametern aus stageOptionen.landung. Die Testwerte stehen danach in stage.landungsWerte.
+   */
+  async landen(seite: Page, pfad = '/', landung: Landung | undefined = this.landung) {
+    if (!landung) throw new Error('stageOptionen.landung fehlt (Klick-IDs bzw. UTM-Parameter)');
+    const werte = landungsParameter(landung);
+    const url = new URL(pfad, String(this.testInfo.project.use.baseURL ?? 'http://localhost'));
+    for (const [k, v] of Object.entries(werte)) url.searchParams.set(k, v);
+    this.landungsWerte = { ...this.landungsWerte, ...werte };
+    await seite.goto(url.href);
+    return werte;
+  }
+
+  /** Landung, wie sie in stageOptionen steht (von richteStageEin gesetzt). */
+  landung?: Landung;
+
+  /**
+   * Wo die Klick-IDs der Landung gelandet sind: gespeichert (Cookies, localStorage) und in welchen
+   * Tracking-Requests. Wird am Testende zusätzlich als klick-ids.json abgelegt.
+   */
+  async klickIds(): Promise<KlickIdBefund[]> {
+    return klickIdBefunde(this.context, this.landungsWerte, this.tracking.treffer);
+  }
+
+  /**
+   * Erwartet, dass eine Klick-ID gespeichert ist und in einem Request des Dienstes ankommt
+   * (z. B. erwarteKlickId('gclid', { dienst: 'Google Ads', ab })). ab: nur Requests mit nr ≥ ab.
+   */
+  async erwarteKlickId(id: string, optionen: { dienst?: string; ab?: number; gespeichert?: boolean; timeout?: number } = {}) {
+    const { dienst, ab = 0, gespeichert = true, timeout = 10_000 } = optionen;
+    let befund: KlickIdBefund | undefined;
+    await expect.poll(async () => {
+      befund = (await this.klickIds()).find((b) => b.id === id);
+      if (!befund) return 'nicht in der Landung';
+      if (gespeichert && !befund.gespeichert.length) return 'nicht gespeichert';
+      const passend = befund.requests.filter((r) => r.nr >= ab && (!dienst || r.dienst === dienst));
+      return passend.length ? 'ok' : `in keinem Request${dienst ? ` an ${dienst}` : ''}${ab ? ` ab nr ${ab}` : ''}`;
+    }, { message: `Klick-ID ${id}`, timeout }).toBe('ok');
+    return befund!;
+  }
+
+  /**
+   * Speichert Cookies und localStorage unter zustaende/<name>.json im Projekt. Ein späterer Test
+   * startet damit über stageOptionen.startZustand als wiederkehrender Besucher.
+   */
+  async zustandSpeichern(name: string) {
+    const datei = zustandsDatei(this.testInfo, name);
+    fs.mkdirSync(path.dirname(datei), { recursive: true });
+    await this.context.storageState({ path: datei });
+    return datei;
+  }
+
+  /** Springt mit der Uhr der Seite vor (z. B. '31m' für ein Sitzungsende); braucht stageOptionen.uhr. */
+  async zeitVorstellen(dauer: string | number) {
+    if (!this.uhrAktiv) throw new Error('stageOptionen.uhr fehlt');
+    await this.context.clock.fastForward(dauerMs(dauer));
+  }
+
+  /**
+   * Zurück-Navigation wie mit der Zurück-Taste. Meldet, ob die Seite aus dem bfcache kam (dann
+   * laufen keine Skripte neu, und es gibt oft keinen oder einen doppelten page_view). Ohne
+   * stageOptionen.bfcache wird die Seite immer neu geladen.
+   */
+  async zurueck(seite: Page, timeout = 15_000) {
+    const vorher = this.seitenAnzeigen.length;
+    // Auf "load" zu warten hinge bei einer Wiederherstellung aus dem bfcache.
+    await seite.goBack({ waitUntil: 'commit', timeout });
+    await expect.poll(() => this.seitenAnzeigen.length > vorher, { message: 'pageshow nach Zurück', timeout }).toBe(true);
+    const anzeige = this.seitenAnzeigen[this.seitenAnzeigen.length - 1];
+    return { url: anzeige.url, ausBfcache: anzeige.persisted, bfcacheAktiv: this.bfcacheAktiv };
+  }
+
+  /**
    * Direkt vor der Aktion aufrufen, die die Conversion auslöst (Kauf, Absenden). Mit CONVERSION=aus
    * endet der Test hier und gilt als übersprungen; alles davor ist geprüft, nichts wurde abgeschickt.
    */
@@ -746,7 +873,40 @@ export async function richteStageEin(
   const regelFuer = (url: string) => regeln.find((r) => r.muster.test(url));
   const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
   stage.dataLayerName = optionen.dataLayerName ?? 'dataLayer';
+  stage.landung = optionen.landung;
+  stage.bfcacheAktiv = !!optionen.bfcache;
   await erfasseAusloeser(context, stage);
+
+  // Bedingungen (lib/bedingungen.ts)
+  if (optionen.uhr) {
+    await context.clock.install();
+    stage.uhrAktiv = true;
+  }
+  await drossele(context, { netz: optionen.netz, cpu: optionen.cpu });
+  const ua = optionen.userAgent ? userAgentAus(optionen.userAgent)
+    : optionen.geraet ? geraetAus(optionen.geraet).userAgent : undefined;
+  // Safari und Firefox kennen keine Client Hints; Skripte, die sie lesen, sollen keinen Widerspruch sehen.
+  if (ua) await clientHintsEntfernen(context, ua);
+  await context.exposeFunction('__stageSeitenAnzeige', (v: string) => {
+    stage.seitenAnzeigen.push({ zeit: Date.now(), ...JSON.parse(v) });
+  });
+  await context.addInitScript(() => {
+    if (window !== window.top) return;
+    addEventListener('pageshow', (e) => {
+      try { (window as any).__stageSeitenAnzeige(JSON.stringify({ url: location.href, persisted: e.persisted })); } catch { /* ignorieren */ }
+    });
+  });
+
+  // Offene Sitzungen: Requests an den Server-Container in dessen Vorschau schicken (Header aus der
+  // sGTM-Vorschau, "Requests manuell senden"). Nur Sitzungen, damit Tests den echten Ablauf sehen.
+  const sgtmHeader = process.env.SITZUNG_SGTM_HEADER;
+  const sgtmHost = process.env.SITZUNG_SGTM_HOST?.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  if (testInfo.title.includes('@sitzung') && sgtmHeader && sgtmHost) {
+    await context.route((url: URL) => url.host === sgtmHost, async (route: Route, request: Request) => {
+      await route.fallback({ headers: { ...request.headers(), 'x-gtm-server-preview': sgtmHeader } })
+        .catch(() => { /* Seite schon geschlossen */ });
+    });
+  }
 
   // Sicherheitsnetz: unbekannte Requests an fremde Domains wie Tracking behandeln
   const unbekannteAktiv = (optionen.unbekannteAbfangen ?? unbekannteAusUmgebung()) && modus !== 'durchlassen';
@@ -1023,6 +1183,64 @@ function verbindeProxy(
 export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: StageProxy | undefined; stage: Stage }>({
   stageOptionen: [{}, { option: true }],
 
+  // Gerät und Browser-Kennung (stageOptionen.geraet, stageOptionen.userAgent)
+  viewport: async ({ viewport, stageOptionen }, use) => {
+    await use(stageOptionen.geraet ? geraetAus(stageOptionen.geraet).viewport : viewport);
+  },
+  deviceScaleFactor: async ({ deviceScaleFactor, stageOptionen }, use) => {
+    await use(stageOptionen.geraet ? geraetAus(stageOptionen.geraet).deviceScaleFactor : deviceScaleFactor);
+  },
+  isMobile: async ({ isMobile, stageOptionen }, use) => {
+    await use(stageOptionen.geraet ? geraetAus(stageOptionen.geraet).isMobile : isMobile);
+  },
+  hasTouch: async ({ hasTouch, stageOptionen }, use) => {
+    await use(stageOptionen.geraet ? geraetAus(stageOptionen.geraet).hasTouch : hasTouch);
+  },
+  userAgent: async ({ userAgent, stageOptionen }, use) => {
+    await use(stageOptionen.userAgent ? userAgentAus(stageOptionen.userAgent)
+      : stageOptionen.geraet ? geraetAus(stageOptionen.geraet).userAgent : userAgent);
+  },
+  // Die Stage richtet sich vor der ersten Navigation ein: Einstellungen pro Seite (CDP: Drosselung,
+  // Kennung, Auslöser) greifen so schon beim ersten Request, nicht erst nach einem Wettlauf.
+  page: async ({ page, stage }, use) => {
+    void stage;
+    await use(page);
+  },
+  // Wiederkehrender Besucher (stageOptionen.startZustand, gespeichert mit stage.zustandSpeichern)
+  storageState: async ({ storageState, stageOptionen }, use, testInfo) => {
+    if (!stageOptionen.startZustand) {
+      await use(storageState);
+      return;
+    }
+    const datei = zustandsDatei(testInfo, stageOptionen.startZustand);
+    if (!fs.existsSync(datei)) {
+      throw new Error(`Zustand "${stageOptionen.startZustand}" fehlt (${path.relative(process.cwd(), datei)}). `
+        + 'Zuerst den Test laufen lassen, der stage.zustandSpeichern() aufruft; beide im selben describe mit mode "serial".');
+    }
+    await use(datei);
+  },
+  // bfcache: eigener Browser, weil Playwright ihn in seinem Standard-Browser abschaltet
+  context: async ({
+    context, stageOptionen, playwright, launchOptions, headless, contextOptions, baseURL, locale, timezoneId,
+    httpCredentials, proxy, ignoreHTTPSErrors, serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile,
+    hasTouch, storageState,
+  }, use) => {
+    if (!stageOptionen.bfcache) {
+      await use(context);
+      return;
+    }
+    const browser = await playwright.chromium.launch({
+      ...launchOptions, headless, channel: 'chromium',
+      ignoreDefaultArgs: [...(Array.isArray(launchOptions.ignoreDefaultArgs) ? launchOptions.ignoreDefaultArgs : []), '--disable-back-forward-cache'],
+    });
+    const eigener = await browser.newContext({
+      ...contextOptions, baseURL, locale, timezoneId, httpCredentials, proxy, ignoreHTTPSErrors, serviceWorkers,
+      viewport, userAgent, deviceScaleFactor, isMobile, hasTouch, storageState,
+    });
+    await use(eigener);
+    await browser.close();
+  },
+
   // Proxy pro Test, nur wenn eingeschaltet (stageOptionen.proxy oder PROXY=ein)
   stageProxy: async ({ stageOptionen }, use) => {
     if (!(stageOptionen.proxy ?? proxyAusUmgebung())) {
@@ -1079,6 +1297,8 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
     await ablegen('csp-inventar.json', stage.cspInventar());
+    if (Object.keys(stage.landungsWerte).length) await ablegen('klick-ids.json', await stage.klickIds().catch(() => []));
+    if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
   },
 });
 

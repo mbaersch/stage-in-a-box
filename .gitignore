@@ -33,3 +33,5 @@ playwright-report/
 __pycache__/
 test/beispielausgabe.json
 *.stackdump
+# Gespeicherte Zustände für wiederkehrende Besucher (stage.zustandSpeichern)
+zustaende/

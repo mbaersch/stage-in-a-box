@@ -82,6 +82,18 @@
 - [ ] Hashing / Enhanced Conversions prüfen (Aufzeichnung im Modus `full` nötig)
 - [ ] Sonstiges:
 
+## Bedingungen
+
+<!-- Zusätzliche Bedingungen für die Journey (z. B. den Testkauf), keine eigenen Tests. Ankreuzen und ergänzen. -->
+
+- [ ] Landung über eine Anzeige: <!-- Klick-IDs, z. B. gclid, wbraid, fbclid, msclkid, ttclid; ggf. UTM-Parameter. Geprüft wird: gespeichert und in der Conversion wieder angekommen? Bei welchem Dienst? -->
+- [ ] Wiederkehrender Besucher: <!-- zweiter Besuch mit Cookies und Speicher des ersten; was wird erwartet (kein Banner, Consent gemerkt, keine neue Sitzung …)? -->
+- [ ] Zeit vorspulen: <!-- Timer-Trigger, Sitzungsende (z. B. nach 31 min) -->
+- [ ] Langsames Netz / schwaches Gerät: <!-- langsam-3g, 3g oder 4g; CPU-Faktor, z. B. 4 -->
+- [ ] Mobilgerät: <!-- Gerät, z. B. iPhone 15, Pixel 7 (Maße, Touch, Kennung; Engine bleibt Chromium) -->
+- [ ] Andere Browser-Kennung: <!-- safari-ios, safari-mac, firefox oder eigener User-Agent -->
+- [ ] Zurück-Navigation: <!-- von welcher Seite zurück? Erwartung bei Rückkehr aus dem bfcache (page_view ja/nein)? -->
+
 ## Hinweise
 
 <!-- Alles, was der Agent wissen sollte: bekannte Fehler, A/B-Tests, Bot-Schutz, besondere Wartezeiten … -->

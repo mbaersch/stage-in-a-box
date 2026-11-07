@@ -8,6 +8,9 @@
  *   Demo-Server antwortet darauf mit einer Weiterleitung auf /sgtm-pixel (Folge-Request)
  * - beim Verlassen jeder Seite ein user_engagement-Treffer (wie GA4), der nur entsteht,
  *   wenn die Seite wirklich verlassen wird
+ * - gclid aus der URL wird wie beim Conversion Linker im Cookie _gcl_aw gespeichert und bei der
+ *   Conversion mitgesendet (Landung über eine Anzeige)
+ * - nach 30 s auf einer Seite ein Event verweildauer_30s (Timer-Trigger, mit stage.zeitVorstellen testbar)
  * - window.__demoFehler = 'doppelt' (vor dem Laden gesetzt) pusht die Conversion zweimal,
  *   um zu zeigen, dass der Baseline-Vergleich das erkennt
  * Es geht nie etwas an echte Dienste.
@@ -32,6 +35,14 @@
     var stand = null;
     try { stand = localStorage.getItem(SPEICHER); } catch (e) { /* ignorieren */ }
     return stand === 'ja' ? 'G111' : 'G100';
+  }
+
+  // Klick-ID speichern wie ein Conversion Linker: Cookie _gcl_aw = GCL.<Zeit>.<gclid>
+  var gclid = new URLSearchParams(location.search).get('gclid');
+  if (gclid) document.cookie = '_gcl_aw=GCL.' + Math.floor(Date.now() / 1000) + '.' + encodeURIComponent(gclid) + '; path=/; max-age=7776000';
+  function gespeicherteGclid() {
+    var m = document.cookie.match(/(?:^|; )_gcl_aw=GCL\.\d+\.([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
   }
 
   function sendeGa4(en, parameter) {
@@ -68,6 +79,7 @@
     dataLayer.push({ event: 'seite_geladen', seitentyp: document.body.getAttribute('data-seitentyp') });
     sendeGa4('page_view', {});
     if (!gespeichert) zeigeBanner();
+    setTimeout(function () { dataLayer.push({ event: 'verweildauer_30s' }); }, 30000);
 
     var cta = document.querySelector('[data-testid="cta-anfrage"]');
     if (cta) {
@@ -76,7 +88,9 @@
         var lead = { event: 'generate_lead', lead_id: id, lead_typ: 'angebot', value: 50, currency: 'EUR' };
         dataLayer.push(lead);
         if (window.__demoFehler === 'doppelt') dataLayer.push(lead);
-        sendeGa4('generate_lead', { lead_typ: 'angebot', value: 50, currency: 'EUR' });
+        var parameter = { lead_typ: 'angebot', value: 50, currency: 'EUR' };
+        if (gespeicherteGclid()) parameter.gclid = gespeicherteGclid();
+        sendeGa4('generate_lead', parameter);
         document.getElementById('bestaetigung').hidden = false;
       });
     }

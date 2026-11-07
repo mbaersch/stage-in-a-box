@@ -12,7 +12,7 @@ Diese Datei enthält nur, was immer gilt, und den Wegweiser. Die Anleitungen zu 
 | Aufzeichnung analysieren, Auftrag vorausfüllen (Phase 1) | [`docs/anleitung/aufzeichnung.md`](docs/anleitung/aufzeichnung.md) |
 | Tests bauen und stabilisieren (Phase 2) | [`docs/anleitung/tests-bauen.md`](docs/anleitung/tests-bauen.md) |
 | Baseline ziehen und abgleichen (Phase 3) | [`docs/anleitung/baseline.md`](docs/anleitung/baseline.md) |
-| Varianten: Dienste blockieren oder verzögern, CSP, Website anpassen, dataLayer ändern, Consent-Varianten, Proxy | [`docs/anleitung/varianten.md`](docs/anleitung/varianten.md) |
+| Varianten und Bedingungen: Dienste blockieren oder verzögern, CSP, Website anpassen, dataLayer ändern, Consent-Varianten, Proxy, Landung über Anzeige, wiederkehrender Besucher, Uhr, Netz, Gerät, Kennung, Zurück-Navigation | [`docs/anleitung/varianten.md`](docs/anleitung/varianten.md) |
 | Tests oder Sitzung gegen eine GTM-Vorschau | [`docs/anleitung/gtm-vorschau.md`](docs/anleitung/gtm-vorschau.md) |
 | Auftragsart Container-Umbau | [`docs/anleitung/container-umbau.md`](docs/anleitung/container-umbau.md) |
 

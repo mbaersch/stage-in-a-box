@@ -29,6 +29,19 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 - Uploads mit schwankender Anzahl: im Baseline-Vergleich „(Begleit)“ oder als Rauschen mit `nichtProtokollieren: true`.
 
+## Klick-IDs
+
+Wo Dienste die Klick-ID aus der Landungs-URL üblicherweise speichern (`stage.klickIds()` sucht ohnehin überall):
+
+| Parameter | Dienst | übliche Ablage |
+|---|---|---|
+| `gclid`, `gbraid`, `wbraid`, `dclid` | Google Ads, Floodlight (Conversion Linker) | Cookies `_gcl_aw`, `_gcl_gb`, `_gcl_dc` |
+| `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) |
+| `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` |
+| `ttclid` | TikTok | Cookie `ttclid` (je nach Pixel-Version, nicht verifiziert) |
+
+Gespeichert wird meist erst mit Consent. Fehlt die ID in der Conversion, ist das ein Befund: Conversion Linker fehlt, feuert zu spät oder ohne Consent, oder die Landungsseite leitet um und verliert den Parameter.
+
 ## Enhanced Conversions / gehashte Nutzerdaten
 
 Aufzeichnung im Modus `full` mit Testdaten; prüfen, dass Requests die Daten nur gehasht enthalten. Parser für die Parameter der gängigen Dienste: `pii-lib/` im [Tracking Auditor](https://github.com/mbaersch/tracking-auditor). Gehashte Werte (`sha256_*`) bleiben bei gleichen Testdaten gleich und sind deshalb nicht flüchtig.

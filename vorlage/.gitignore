@@ -3,6 +3,8 @@
 testdaten.aufzeichnung.env
 test-results/
 playwright-report/
+# Gespeicherte Zustände (Cookies, localStorage) für wiederkehrende Besucher
+zustaende/
 # Exporte können personenbezogene Daten enthalten (Modus "full"), deshalb nicht einchecken.
 aufzeichnungen/*
 !aufzeichnungen/LIESMICH.md

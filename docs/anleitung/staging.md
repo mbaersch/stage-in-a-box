@@ -18,6 +18,10 @@ Wünsche des Menschen („in der Sitzung soll der CMP-Push zusätzlich … entha
 
 Prüfe eine Anpassung vor der Übergabe ohne Sitzung: kurzer Test im Modus `abfangen` bis zu der Stelle, an der sie wirkt (z. B. `consent_ready` im dataLayer bzw. im GTM-Datenmodell `google_tag_manager[<ID>].dataLayer.get(…)`), danach löschen. Echte Formulare nicht absenden.
 
+## sGTM-Vorschau
+
+Soll in der Sitzung auch der Server-Container in seiner Vorschau laufen: In der sGTM-Vorschau unter „Requests manuell senden“ den Wert des Headers `X-Gtm-Server-Preview` kopieren und als `SITZUNG_SGTM_HEADER` in `.env` eintragen, den Host des Server-Containers als `SITZUNG_SGTM_HOST`. Die Stage setzt den Header dann nur in Sitzungen und nur für Requests an diesen Host. Was der Server-Container weitersendet, zeigt seine Vorschau.
+
 ## Extensions
 
 `npm run erweiterung -- <Web-Store-ID | zip | ordner>` legt sie entpackt in `erweiterungen/` (nicht in Git). Benötigte Rechte (z. B. Host-Zugriff) erteilt der Mensch in der Sitzung selbst; das Profil ist bei jeder Sitzung frisch.
