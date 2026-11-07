@@ -23,7 +23,8 @@ Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst 
 ## Umgang mit `.env`
 
 - `.env` füllt ausschließlich der Mensch aus. Du schreibst sie nie, auch nicht teilweise, und gibst ihre Werte nie aus (auch nicht in Logs oder Berichten).
-- Braucht ein Test Zugangs- oder Testdaten, ergänzt Du in `.env.example` den Variablennamen mit kurzem Kommentar und nennst ihn dem Menschen.
+- Braucht ein Test Zugangs- oder Testdaten, ergänzt Du in `.env.example` den Variablennamen mit kurzem Kommentar und nennst ihn dem Menschen. Variablen stehen dort nicht auskommentiert und ohne Wert (`NAME=`); leere Einträge gelten als nicht gesetzt. Kommentare nur in eigenen Zeilen, damit niemand den Wert hinter ein `#` schreibt (`playwright.config.ts` warnt dann, ohne Werte zu nennen).
+- Ob eine Variable gesetzt ist, nur mit einem Script prüfen, das ausschließlich Namen ausgibt (z. B. `gesetzt`/`FEHLT`).
 - Im Code nur `process.env.NAME`. Fehlt eine Variable, soll der Test mit klarer Meldung abbrechen:
   ```ts
   const passwort = process.env.TEST_LOGIN_PASSWORT ?? test.skip(true, 'TEST_LOGIN_PASSWORT in .env fehlt') as never;
@@ -61,6 +62,10 @@ Deshalb zu Beginn von Phase 2, bevor Erwartungen entstehen, einmal prüfen:
 1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen) laufen lassen, am besten mit `PROXY=ein`.
 2. In den Anhängen `hosts.json` und `weitere-requests.json` nachsehen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
 3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten.
+
+Typisches Muster eines Stape-Custom-Loaders: Script- und Tracking-Requests gehen an eine eigene Subdomain mit verschleiertem Pfad und einem einzigen Parameter, dessen Wert der Base64-kodierte Originalpfad ist, z. B. `https://stp.example.de/abcdef/239?0355ae1a=L2d0YWcvanM…` → `/gtag/js?id=G-…`. Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel darauf fängt im Modus `abfangen` auch die Scripts ab. Deshalb dekodieren und nur passende Pfade (z. B. `/g/collect`) als Tracking werten. Dekodier-Logik gehört in den Test des jeweiligen Projekts, nicht nach `lib/`.
+
+Tag feuert laut Tag Assistant, aber es kommt kein Request: Im Browser `google_tag_data.tidr` prüfen. `container[<ID>].state` 2 heißt registriert, Ziele in `pending` warten auf ein Google-Tag, das nie geladen bzw. registriert wurde (z. B. bei gemischtem Setup aus Google-Tag und Ereignis-Tags). `scriptSource` zeigt, woher ein Container geladen wurde; `Object.keys(google_tag_manager)` listet alle geladenen Container und Ziele. Das ist ein Befund über die Website, kein Testfehler.
 
 Referenz dafür ist der [Tracking Auditor](https://github.com/mbaersch/tracking-auditor): `tracking-vendors.json` (Skripte und Endpunkte bekannter Dienste) und `lib/tracking-classify.js` mit Erkennung von First-Party-Collect-Endpunkten und Stape-Tunneln (`extractFirstPartyCollectMatches`, `extractStapeMatches`, `tryDecodeStapeTransport`). Nicht alles daraus übernehmen: Ziel ist nicht, jeden denkbaren Loader zu erkennen, sondern die Requests dieser einen Website richtig zuzuordnen.
 
@@ -138,6 +143,12 @@ Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben o
 - Klick im offenen Shadow DOM: Playwright-Locators durchdringen offene Shadow Roots, `getByTestId`/CSS funktionieren direkt.
 - Kein Recorder-Klick, aber ein `consent update` im dataLayer: Der Banner liegt in einem iframe oder geschlossenen Shadow DOM. Prüfe die CMP-Bibliothek im Repo [mbaersch/tracking-auditor](https://github.com/mbaersch/tracking-auditor), Datei `cmp-library.json`: Dort stehen für über 120 CMPs `accept`, `reject`, ggf. `rejectSteps` (zweistufiges Ablehnen), `detect` (Container zum Erkennen) und `shadowDom`. Bei iframe-Bannern `page.frameLocator(…)` verwenden.
 - Jeder Test startet in einem frischen Browser-Kontext ohne Cookies, der Banner erscheint also immer.
+
+**GTM-Vorschau statt Live-Container:** Steht im Auftrag, dass getestet wird, was nur in einer GTM-Vorschau läuft (Workspace oder Umgebung), beginnt die Journey mit `const website = await stage.vorschauStarten(page)` und läuft danach im Tab `website` weiter, nicht in `page`.
+- Der Link muss aus GTM kommen („Vorschau“ bzw. „Vorschau teilen“, mit `gtm_auth` und `gtm_preview`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Der Link gehört als `GTM_VORSCHAU_LINK` in `.env`.
+- Im frischen Browser erscheint der Dialog „Verbinden“; `vorschauStarten` klickt `#domain-start-button` und wartet auf den neuen Tab. Der Tab mit dem Tag Assistant bleibt offen, sonst endet die Vorschau.
+- Eigener dataLayer und eigene GA4-Requests des Tag Assistant werden nicht protokolliert (`WERKZEUG_SEITEN` in `lib/stage.ts`).
+- Prüfen, dass die Vorschau wirklich geladen ist (z. B. ein Event, das nur im Workspace existiert), bevor Erwartungen entstehen.
 
 **Iframes:** Zahlungsfelder und manche CMPs liegen in Cross-Origin-iframes; der Recorder sieht dort nichts. Wenn der Auftrag diesen Teil abdeckt, mit `frameLocator` arbeiten und Selektoren mit dem Menschen klären. Sonst den Test vor diesem Schritt enden lassen und das im Bericht erwähnen.
 
@@ -247,6 +258,7 @@ npx playwright test tests/kauf.spec.ts --headed   # sichtbar
 
 - Bei Fehlern zuerst die Anhänge (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`), Trace und Screenshot im Report ansehen.
 - Fehlt ein erwarteter Request, zuerst in `weitere-requests.json` nachsehen, ob er über einen eigenen Pfad oder ein anderes Format rausging (siehe „Requests über eigene Pfade und Formate“).
+- Pushes aus GTM-Custom-Templates liegen im dataLayer der Seite teils als Hüllen-Objekt `{ value: { event: … } }`. Die Stage packt sie aus; im Protokoll stehen sie wie normale Events. Wer `window.dataLayer` direkt liest, sieht die Hülle.
 - Neue Tests zuerst mit `TEMPO=schnell` stabil bekommen, dann im gewünschten Tempo laufen lassen.
 - Testfehler (Locator, Timing) beheben. Website- oder Tracking-Fehler **nicht wegtesten**: Erwartungen nicht aufweichen, damit es grün wird, sondern melden.
 - Tests mit festen Erwartungen mindestens dreimal hintereinander grün laufen lassen (`--repeat-each=3`). Baseline-Tests senden echte Requests: dort reichen zwei Läufe.

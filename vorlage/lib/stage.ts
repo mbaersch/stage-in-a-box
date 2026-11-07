@@ -170,6 +170,15 @@ export const STANDARD_DIENSTE: Regel[] = [
 /* Protokolle                                                         */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Seiten von Debug-Werkzeugen (Referer/Origin bzw. Frame-URL). Deren eigener dataLayer und
+ * eigene Tracking-Requests (der Tag Assistant misst sich z. B. selbst mit GA4) gehören nicht
+ * zur getesteten Website und werden nicht protokolliert.
+ */
+export const WERKZEUG_SEITEN: RegExp[] = [/^https:\/\/tagassistant\.google\.com(\/|$)/];
+
+const istWerkzeug = (url: string | undefined) => !!url && WERKZEUG_SEITEN.some((m) => m.test(url));
+
 export class DataLayerProtokoll {
   readonly eintraege: DataLayerEintrag[] = [];
 
@@ -276,6 +285,8 @@ export class Stage {
 
   private readonly start = Date.now();
   private readonly netlogUrls = new Map<string, number>();
+  /** URLs von Requests der Debug-Werkzeuge; der NetLog-Abgleich darf sie nicht nachtragen. */
+  readonly werkzeugUrls = new Set<string>();
 
   constructor(
     readonly modus: Modus,
@@ -296,7 +307,7 @@ export class Stage {
     const imNetz = new Map<string, number>();
     for (const r of leseNetlog(this.start, Date.now())) {
       const regel = this.regelFuer(r.url);
-      if (!regel || regel.nichtProtokollieren) continue;
+      if (!regel || regel.nichtProtokollieren || this.werkzeugUrls.has(r.url)) continue;
       const anzahl = (imNetz.get(r.url) ?? 0) + 1;
       imNetz.set(r.url, anzahl);
       // Requests, die Playwright mit echtem Netzwerkzugriff gesehen hat, nicht doppelt zählen
@@ -330,6 +341,23 @@ export class Stage {
   async denkpause(aufgezeichnetMs?: number) {
     const ms = pausenDauer(this.tempo, aufgezeichnetMs);
     if (ms > 0) await pause(ms);
+  }
+
+  /**
+   * Optionaler Einstieg über die GTM-Vorschau im Tag Assistant (Link aus GTM „Vorschau“ bzw.
+   * „Vorschau teilen“, enthält gtm_auth und gehört deshalb in .env). Klickt auf den Start-Button
+   * und liefert den neuen Tab mit der Website; die Journey läuft dann in diesem Tab weiter.
+   * Der Tab mit dem Tag Assistant muss offen bleiben, sonst endet die Vorschau.
+   */
+  async vorschauStarten(seite: Page, link = process.env.GTM_VORSCHAU_LINK, startKnopf = '#domain-start-button') {
+    if (!link) throw new Error('GTM_VORSCHAU_LINK fehlt (in .env eintragen)');
+    await seite.goto(link);
+    const [website] = await Promise.all([
+      this.context.waitForEvent('page', { timeout: 30_000 }),
+      seite.locator(startKnopf).click(),
+    ]);
+    await website.waitForLoadState('domcontentloaded');
+    return website;
   }
 
   /**
@@ -385,8 +413,9 @@ export class Stage {
  * dass jeder Push gemeldet wird, auch nachdem GTM push() ersetzt hat: GTM ruft die
  * vorherige push-Funktion weiterhin auf, die Kette bleibt also erhalten.
  */
-function browserSetup(dlName: string) {
+function browserSetup({ dlName, werkzeugSeiten }: { dlName: string; werkzeugSeiten: string[] }) {
   if (window !== window.top) return; // nur Hauptframe
+  if (werkzeugSeiten.some((m) => new RegExp(m).test(location.href))) return;
   const melde = (window as any).__stageDataLayer as (daten: string, url: string) => void;
   const meldeCsp = (window as any).__stageCsp as (v: string) => void;
 
@@ -404,13 +433,19 @@ function browserSetup(dlName: string) {
     }
   };
 
+  // Custom Templates (createQueue) pushen in GTM-Vorschau u. a. Hüllen-Objekte einer internen
+  // Klasse mit dem einzigen Key "value"; GTM verarbeitet den Inhalt als normale Message.
+  const entpacke = (wert: any) => wert && typeof wert === 'object' && !Array.isArray(wert)
+    && Object.getPrototypeOf(wert) !== Object.prototype && Object.keys(wert).length === 1
+    && wert.value && typeof wert.value === 'object' ? wert.value : wert;
+
   const instrumentiere = (arr: any) => {
     if (!Array.isArray(arr) || (arr as any).__stage) return;
     Object.defineProperty(arr, '__stage', { value: true });
-    for (const vorhanden of arr) melde(serialisiere(vorhanden), location.href);
+    for (const vorhanden of arr) melde(serialisiere(entpacke(vorhanden)), location.href);
     const vorher = arr.push;
     arr.push = function () {
-      for (let i = 0; i < arguments.length; i++) melde(serialisiere(arguments[i]), location.href);
+      for (let i = 0; i < arguments.length; i++) melde(serialisiere(entpacke(arguments[i])), location.href);
       return vorher.apply(arr, arguments as any);
     };
   };
@@ -448,6 +483,14 @@ function zerlege(url: string): { host: string; pfad: string; parameter: Record<s
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+function vonWerkzeug(request: Request) {
+  if (istWerkzeug(request.url())) return true;
+  try {
+    if (istWerkzeug(request.frame().url())) return true;
+  } catch { /* Service-Worker-Requests haben keinen Frame */ }
+  return istWerkzeug(request.headers()['referer']);
+}
+
 export async function richteStageEin(
   context: BrowserContext, testInfo: TestInfo, optionen: StageOptionen = {}, proxy?: StageProxy,
 ): Promise<Stage> {
@@ -464,7 +507,10 @@ export async function richteStageEin(
   await context.exposeFunction('__stageCsp', (v: string) => {
     stage.cspVerstoesse.push({ zeit: Date.now(), ...JSON.parse(v) });
   });
-  await context.addInitScript(browserSetup, optionen.dataLayerName ?? 'dataLayer');
+  await context.addInitScript(browserSetup, {
+    dlName: optionen.dataLayerName ?? 'dataLayer',
+    werkzeugSeiten: WERKZEUG_SEITEN.map((m) => m.source),
+  });
 
   if (proxy) {
     verbindeProxy(stage, proxy, regelFuer, modus, optionen);
@@ -476,6 +522,10 @@ export async function richteStageEin(
   const offen = new Map<Request, Treffer>();
   context.on('request', (request) => {
     const url = request.url();
+    if (vonWerkzeug(request)) {
+      stage.werkzeugUrls.add(url);
+      return;
+    }
     const teile = zerlege(url);
     if (teile.host) stage.tracking.hosts.add(teile.host);
     const regel = regelFuer(url);
@@ -584,6 +634,7 @@ function verbindeProxy(
       return { aktion: regel.modus ?? modus, verzoegerungMs: regel.verzoegerungMs };
     },
     melde(r: ProxyRequest) {
+      if (istWerkzeug(r.herkunft) || istWerkzeug(r.url)) return;
       const teile = zerlege(r.url);
       if (teile.host) stage.tracking.hosts.add(teile.host);
       const regel = regelFuer(r.url);

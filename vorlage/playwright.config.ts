@@ -1,13 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import fs from 'node:fs';
 import { SLOW_MO, tempoAusUmgebung } from './lib/tempo';
 import { netlogArgumente } from './lib/netlog';
 import { proxyArgumente } from './lib/proxy';
 
 // Liest BASE_URL, TRACKING_MODUS, Testdaten usw. aus .env, falls vorhanden.
-try {
+if (fs.existsSync('.env')) {
   process.loadEnvFile();
-} catch {
-  // keine .env – Umgebungsvariablen bzw. Vorgaben gelten
+  // Leere Einträge ("TEMPO=") gelten als nicht gesetzt, damit Vorgaben und "?? test.skip(…)" greifen
+  for (const [name, wert] of Object.entries(process.env)) if (wert === '') delete process.env[name];
+  // Häufiger Fehler: Wert eingetragen, aber "#" davor stehen gelassen. Nur Namen ausgeben, nie Werte.
+  const auskommentiert = [...fs.readFileSync('.env', 'utf8').matchAll(/^\s*#\s*([A-Z][A-Z0-9_]*)\s*=\s*\S/gm)]
+    .map((m) => m[1]).filter((name) => process.env[name] === undefined);
+  if (auskommentiert.length && !process.env.STAGE_ENV_GEWARNT) {
+    process.env.STAGE_ENV_GEWARNT = '1';
+    console.warn(`Achtung: In .env sind Variablen mit Wert auskommentiert und damit nicht gesetzt: ${auskommentiert.join(', ')}`);
+  }
 }
 
 // Ohne BASE_URL laufen die Tests gegen die mitgelieferte Demo-Seite.

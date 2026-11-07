@@ -15,6 +15,7 @@
 - **Startadresse:** <!-- z. B. https://www.example.de/ – kommt auch als BASE_URL in .env -->
 - **Umgebung:** <!-- Live / Staging / lokal -->
 - **Zugang nötig?** <!-- Basic Auth, IP-Freigabe … (Zugangsdaten in .env) -->
+- **GTM-Vorschau nötig?** <!-- nein (Live-Container) / ja: Vorschau-Link aus GTM („Vorschau teilen“) als GTM_VORSCHAU_LINK in .env -->
 
 ## Journey
 

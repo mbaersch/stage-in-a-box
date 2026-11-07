@@ -38,6 +38,8 @@ export interface ProxyRequest {
   /** sec-fetch-dest des Browsers: document, script, image, empty (fetch/XHR/Beacon) … */
   ziel: string;
   body?: string;
+  /** Referer bzw. Origin: von welcher Seite der Request kam */
+  herkunft?: string;
   aktion: ProxyAktion;
   status?: number;
   fehler?: string;
@@ -240,6 +242,7 @@ export class StageProxy {
       url,
       ziel: String(req.headers['sec-fetch-dest'] ?? ''),
       body: body.length ? (body.length <= MAX_BODY_TEXT ? body.toString('utf8') : `[${body.length} Bytes]`) : undefined,
+      herkunft: String(req.headers.referer ?? req.headers.origin ?? '') || undefined,
       aktion: entscheidung?.aktion ?? 'durchlassen',
       abgeschlossen: false,
     };

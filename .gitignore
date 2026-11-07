@@ -12,6 +12,9 @@
 !/vorlage/
 !/res/
 
+# Lokale Projekte mit Aufzeichnungen, .env und Reports: nie einchecken, auch wenn die Allowlist sich ändert
+/projects/
+
 # Erzeugte Dateien
 __pycache__/
 test/beispielausgabe.json
