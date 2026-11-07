@@ -117,9 +117,10 @@ export interface UtmBefund {
 /**
  * UTMs werden nicht gespeichert, sondern aus der URL des ersten Requests gelesen (z. B. GA4 über dl).
  * Geprüft wird deshalb je Dienst, ob sein erster Request nach der Landung alle UTM-Paare enthält –
- * in der URL, in einem Parameter wie dl oder im Body.
+ * in der URL, in einem Parameter wie dl oder im Body. Requests, die weder die Seite (host) noch utm_
+ * enthalten, zählen nicht.
  */
-export function utmBefunde(werte: Record<string, string>, treffer: TrefferLike[], ab: number): UtmBefund[] {
+export function utmBefunde(werte: Record<string, string>, treffer: TrefferLike[], ab: number, host?: string): UtmBefund[] {
   const paare = Object.entries(werte).filter(([k]) => k.startsWith('utm_')).map(([k, v]) => `${k}=${v}`);
   if (!paare.length) return [];
   const text = (t: TrefferLike) => {
@@ -128,7 +129,9 @@ export function utmBefunde(werte: Record<string, string>, treffer: TrefferLike[]
   };
   const fehlt = (t: TrefferLike) => paare.filter((p) => !text(t).includes(p));
   const nachDienst = new Map<string, TrefferLike[]>();
-  for (const t of treffer.filter((x) => x.zeit >= ab).sort((a, b) => a.zeit - b.zeit)) {
+  // Begleit-Requests ohne Seitenbezug (z. B. stats.g.doubleclick.net/g/collect bei GA4) können keine UTMs tragen
+  const kannTragen = (t: TrefferLike) => text(t).includes('utm_') || (!!host && text(t).includes(host));
+  for (const t of treffer.filter((x) => x.zeit >= ab && kannTragen(x)).sort((a, b) => a.zeit - b.zeit)) {
     if (!nachDienst.has(t.dienst)) nachDienst.set(t.dienst, []);
     nachDienst.get(t.dienst)!.push(t);
   }

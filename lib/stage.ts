@@ -656,7 +656,9 @@ export class Stage {
    * gespeichert, sondern aus der URL des ersten Requests gelesen (z. B. GA4 über dl).
    */
   utm(): UtmBefund[] {
-    return utmBefunde(this.landungsWerte, this.tracking.treffer, this.landungsZeit);
+    let host: string | undefined;
+    try { host = new URL(String(this.testInfo.project.use.baseURL)).host; } catch { /* ohne BASE_URL */ }
+    return utmBefunde(this.landungsWerte, this.tracking.treffer, this.landungsZeit, host);
   }
 
   /** Erwartet, dass der erste Request des Dienstes nach der Landung alle UTM-Paare enthält. */
