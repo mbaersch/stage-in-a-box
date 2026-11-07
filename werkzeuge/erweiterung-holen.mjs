@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const wurzel = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,6 +43,42 @@ function ohneCrxHeader(buf) {
   if (version === 3) return buf.subarray(12 + buf.readUInt32LE(8));
   if (version === 2) return buf.subarray(16 + buf.readUInt32LE(8) + buf.readUInt32LE(12));
   throw new Error(`Unbekannte CRX-Version ${version}`);
+}
+
+/** ID einer Extension aus ihrem öffentlichen Schlüssel: SHA-256, erste 16 Bytes, Hex-Ziffern als a–p. */
+function idAusSchluessel(schluessel) {
+  return [...crypto.createHash('sha256').update(schluessel).digest().subarray(0, 16).toString('hex')]
+    .map((z) => String.fromCharCode(97 + parseInt(z, 16))).join('');
+}
+
+/**
+ * Öffentlicher Schlüssel aus dem CRX3-Header (Protobuf CrxFileHeader → AsymmetricKeyProof.public_key),
+ * passend zur ID. Ohne "key" im Manifest leitet Chromium die ID aus dem Ordnerpfad ab; Websites wie
+ * tagassistant.google.com sprechen ihre Extension aber über die Store-ID an.
+ */
+function crxSchluessel(buf, id) {
+  if (buf.subarray(0, 4).toString('latin1') !== 'Cr24' || buf.readUInt32LE(4) !== 3) return undefined;
+  const felder = (b) => {
+    const liste = [];
+    let pos = 0;
+    const varint = () => { let wert = 0, faktor = 1, byte; do { byte = b[pos++]; wert += (byte & 0x7f) * faktor; faktor *= 128; } while (byte & 0x80); return wert; };
+    while (pos < b.length) {
+      const tag = varint();
+      const typ = tag & 7;
+      if (typ === 2) { const laenge = varint(); liste.push({ nr: Math.floor(tag / 8), wert: b.subarray(pos, pos + laenge) }); pos += laenge; }
+      else if (typ === 0) varint();
+      else if (typ === 5) pos += 4;
+      else if (typ === 1) pos += 8;
+      else break;
+    }
+    return liste;
+  };
+  const header = buf.subarray(12, 12 + buf.readUInt32LE(8));
+  for (const beweis of felder(header).filter((f) => f.nr === 2 || f.nr === 3)) {
+    const schluessel = felder(beweis.wert).find((f) => f.nr === 1)?.wert;
+    if (schluessel && idAusSchluessel(schluessel) === id) return schluessel.toString('base64');
+  }
+  return undefined;
 }
 
 /** Minimaler ZIP-Entpacker (Methoden 0 und 8), damit keine Abhängigkeit nötig ist. */
@@ -86,11 +123,22 @@ try {
   // Signatur des Web Stores; Chrome lehnt entpackte Extensions mit Namen ab "_" ab.
   fs.rmSync(path.join(inhalt, '_metadata'), { recursive: true, force: true });
   const manifest = JSON.parse(fs.readFileSync(manifestDatei, 'utf8').replace(/^﻿/, ''));
+  let idHinweis = '';
+  if (istStoreId && !manifest.key) {
+    const schluessel = crxSchluessel(daten, quelle);
+    if (schluessel) {
+      manifest.key = schluessel;
+      fs.writeFileSync(manifestDatei, JSON.stringify(manifest, null, 2));
+      idHinweis = `, ID ${quelle} wie im Store`;
+    } else {
+      idHinweis = ', Achtung: Schlüssel nicht gefunden, ID weicht vom Store ab';
+    }
+  }
   const name = nameArg ?? (istStoreId ? quelle : String(manifest.name ?? 'erweiterung').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
   const ziel = path.join(wurzel, 'erweiterungen', name);
   fs.rmSync(ziel, { recursive: true, force: true });
   fs.renameSync(inhalt, ziel);
-  console.log(`erweiterungen/${name}: ${manifest.name} ${manifest.version ?? ''} (Manifest V${manifest.manifest_version})`);
+  console.log(`erweiterungen/${name}: ${manifest.name} ${manifest.version ?? ''} (Manifest V${manifest.manifest_version}${idHinweis})`);
   console.log('Offene Sitzungen (npm run sitzung) laden sie automatisch.');
 } finally {
   fs.rmSync(tmp, { recursive: true, force: true });
