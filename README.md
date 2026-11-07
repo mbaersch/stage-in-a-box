@@ -16,6 +16,7 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 - **Consent-Varianten durchspielen**, ohne die CMP umzukonfigurieren.
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
 - **Eine geplante CSP testen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert.
+- **Änderungen im GTM-Workspace testen**, bevor sie veröffentlicht werden: Die Tests laufen dann über die GTM-Vorschau statt gegen den Live-Container.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
 
@@ -90,10 +91,15 @@ Der Agent füllt [`auftrag.md`](vorlage/auftrag.md) vor und markiert alles Abgel
 - Gibt es ein **Testkonto**, dessen Bestellungen automatisch storniert werden? Ist ein echter Kauf erlaubt?
 - Soll eine **Baseline** angelegt werden, und in welchem **Tempo**?
 - Welche **Varianten** willst Du (Consent abgelehnt, Dienst blockiert, CSP …)?
+- Ist eine **GTM-Vorschau** nötig, weil das zu Testende nur in einem Workspace oder einer Umgebung existiert?
 
 Dann setzt Du oben den Status auf **bestätigt**.
 
 **`.env` füllst nur Du aus.** Der Agent schreibt sie nie und gibt ihre Werte nicht aus. Er trägt die nötigen Variablennamen in `.env.example` ein (z. B. `TEST_LOGIN_EMAIL`, `TEST_LOGIN_PASSWORT`, `TEST_VORNAME`) und sagt Dir, was fehlt. Die Tests lesen die Werte zur Laufzeit.
+
+Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht gesetzt, dann greift die Vorgabe. Steht ein Wert in einer Zeile mit `#` davor, wirkt er nicht; der Testlauf warnt dann mit dem Namen der Variable.
+
+**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau* bzw. *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er als `GTM_VORSCHAU_LINK` in `.env`. Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Die Tests öffnen den Tag Assistant, starten die Verbindung und laufen im neuen Tab mit der Website weiter.
 
 ## 5. Tests bauen lassen
 
@@ -118,7 +124,7 @@ Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in `.env` se
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
-Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist.
+Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
 
 ### Baseline
 
