@@ -218,9 +218,9 @@ export interface CookieEintrag {
   amEnde: boolean;
 }
 
-/** Fasst Namen mit Kennungen zusammen: _ga_ABC123 → _ga_<ID>, lange Ziffern/Hex → # */
+/** Fasst Namen mit Kennungen zusammen: _ga_ABC123 → _ga_<ID>, lange Ziffern/Hex → #. Groß und mit Ziffer, sonst wird _uetmsclkid zu _uet<ID>. */
 export function cookieMuster(name: string) {
-  return name.replace(/^(_ga_|_gcl_|_uet)[A-Z0-9]{6,}$/i, '$1<ID>').replace(/[0-9a-f]{12,}/gi, '#').replace(/\d{4,}/g, '#');
+  return name.replace(/^(_ga_|_gcl_|_uet)(?=[A-Z]*\d)[A-Z0-9]{6,}$/, '$1<ID>').replace(/[0-9a-f]{12,}/gi, '#').replace(/\d{4,}/g, '#');
 }
 
 function laufzeit(expires: number) {
