@@ -1,7 +1,8 @@
-node_modules/
+# projects/ ist im Hauptrepo ausgeschlossen. Diese Datei schützt, falls ein Projekt eigenes Git bekommt.
+.env
+testdaten.aufzeichnung.env
 test-results/
 playwright-report/
-.env
 # Exporte können personenbezogene Daten enthalten (Modus "full"), deshalb nicht einchecken.
 aufzeichnungen/*
 !aufzeichnungen/LIESMICH.md

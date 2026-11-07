@@ -11,7 +11,10 @@
  *   - Tag-Assistant-Export (JSON) mit Recorder-Messages (__rec)
  *   - Konsolen-Mitschnitt des eigenständigen Recorders (Zeilen „[rec] {…}“)
  *
- * Aufruf: npm run analyse -- aufzeichnungen/kauf.json
+ * Aufruf: npm run analyse -- projects/<name>/aufzeichnungen/kauf.json [--testdaten]
+ *
+ * --testdaten übernimmt die Eingaben einer Aufzeichnung im Modus "full" nach
+ * projects/<name>/testdaten.aufzeichnung.env (Werte aus .env haben dort Vorrang).
  *
  * Exporte können über 100 MB groß sein; das npm-Script setzt deshalb mehr Speicher.
  * Das Format des Tag-Assistant-Exports ist nicht dokumentiert. Dieses Script stützt sich
@@ -48,6 +51,7 @@ function ohneDebugParameter(url) {
   try {
     const u = new URL(url);
     u.searchParams.delete('gtm_debug');
+    u.searchParams.delete('sib_rec');
     return u.href;
   } catch {
     return url;
@@ -172,7 +176,7 @@ function ausKonsole(roh) {
     let rec;
     try { rec = JSON.parse(zeile.slice(i + 6)); } catch { continue; }
     if (!seiteZuPageId.has(rec.pageId)) {
-      seiten.push({ nr: seiten.length + 1, url: rec.url, titel: rec.title ?? '' });
+      seiten.push({ nr: seiten.length + 1, url: ohneDebugParameter(rec.url ?? ''), titel: rec.title ?? '' });
       seiteZuPageId.set(rec.pageId, seiten.length);
     }
     eintraege.push({ art: 'aktion', seite: seiteZuPageId.get(rec.pageId), rec });
@@ -492,7 +496,7 @@ function markdown(a, z, dateiname) {
   if (z.requests.length) p(`- **Google-Requests:** ${z.requests.map((r) => `${r.request}${r.anzahl > 1 ? ` (${r.anzahl}×)` : ''}`).join('; ')}`);
   if (z.fluechtig.length) p(`- **Werte, die sich bei jedem Lauf ändern (Kandidaten):** ${z.fluechtig.join(', ')}`);
   if (z.felder.length) {
-    p('- **Testdaten für `.env`:**');
+    p(`- **Testdaten für \`.env\`:**${modus === 'full' ? ' (Klartext aufgezeichnet: mit `--testdaten` nach `testdaten.aufzeichnung.env` übernehmbar)' : ''}`);
     for (const f of z.felder) p(`  - \`${f.env}\` – ${f.feld}${f.autocomplete ? ` (autocomplete: ${f.autocomplete})` : ''}, aufgezeichnet: \`${f.aufgezeichnet ?? ''}\`${f.modus ? ` (${f.modus})` : ''}`);
   }
   if (z.auffaellig.length) {
@@ -580,9 +584,47 @@ function markdown(a, z, dateiname) {
 /* Start                                                              */
 /* ------------------------------------------------------------------ */
 
-const datei = process.argv[2];
+/** Wert für eine .env-Zeile; Anführungszeichen, damit "#" und Leerzeichen erhalten bleiben. */
+function envWert(wert) {
+  const s = String(wert).replace(/\r?\n/g, ' ');
+  for (const q of ["'", '"', '`']) if (!s.includes(q)) return `${q}${s}${q}`;
+  return `'${s.replace(/'/g, '')}'`;
+}
+
+/**
+ * Schreibt die Klartext-Eingaben nach <projekt>/testdaten.aufzeichnung.env. Variablen aus
+ * früheren Aufzeichnungen bleiben erhalten, gleichnamige werden ersetzt. Gibt nur Namen aus.
+ */
+function schreibeTestdaten(datei, felder) {
+  const projekt = path.dirname(path.dirname(path.resolve(datei)));
+  const ziel = path.join(projekt, 'testdaten.aufzeichnung.env');
+  const uebernommen = felder.filter((f) => f.modus === 'full' && f.aufgezeichnet && f.aufgezeichnet !== '[redacted]');
+  const fehlen = felder.filter((f) => !uebernommen.includes(f)).map((f) => f.env);
+  if (!uebernommen.length) {
+    console.error('--testdaten: keine Klartext-Eingaben gefunden. Nur Aufzeichnungen mit ?sib_rec=full enthalten echte Werte.');
+    return;
+  }
+  const werte = new Map();
+  if (fs.existsSync(ziel)) {
+    for (const zeile of fs.readFileSync(ziel, 'utf8').split(/\r?\n/)) {
+      const m = zeile.match(/^([A-Z][A-Z0-9_]*)=(.*)$/);
+      if (m) werte.set(m[1], m[2]);
+    }
+  }
+  for (const f of uebernommen) werte.set(f.env, envWert(f.aufgezeichnet));
+  const kopf = [
+    '# Eingaben aus Aufzeichnungen im Modus "full", erzeugt von werkzeuge/analysiere-aufzeichnung.mjs.',
+    '# Werte aus .env haben Vorrang. Nicht einchecken.',
+  ];
+  fs.writeFileSync(ziel, [...kopf, ...[...werte].map(([k, v]) => `${k}=${v}`), ''].join('\n'));
+  console.log(`${path.relative(process.cwd(), ziel)}: ${uebernommen.map((f) => f.env).join(', ')} übernommen`);
+  if (fehlen.length) console.log(`Ohne Klartext in der Aufzeichnung, bitte in .env eintragen: ${[...new Set(fehlen)].join(', ')}`);
+}
+
+const argumente = process.argv.slice(2);
+const datei = argumente.find((a) => !a.startsWith('--'));
 if (!datei) {
-  console.error('Aufruf: npm run analyse -- aufzeichnungen/<datei>');
+  console.error('Aufruf: npm run analyse -- projects/<name>/aufzeichnungen/<datei> [--testdaten]');
   process.exit(1);
 }
 const aufzeichnung = lies(datei);
@@ -593,3 +635,4 @@ fs.writeFileSync(`${basis}.analyse.json`, JSON.stringify({ ...aufzeichnung, ausw
 fs.writeFileSync(`${basis}.zeitleiste.md`, markdown(aufzeichnung, ergebnis, path.basename(datei)));
 console.log(`${basis}.zeitleiste.md und ${basis}.analyse.json erzeugt`);
 console.log(`${aufzeichnung.seiten.length} Seiten, ${ergebnis.schritte.length} Schritte, Conversion: ${ergebnis.conversion ?? 'nicht erkannt'}`);
+if (argumente.includes('--testdaten')) schreibeTestdaten(datei, ergebnis.felder);

@@ -1,6 +1,25 @@
 # Anweisungen für Agents: Tracking-Tests aus einer Aufzeichnung bauen
 
-Du baust in diesem Projekt aus einer Aufzeichnung einer Website-Journey eine Playwright-Testsuite, die das Tracking-Setup prüft (dataLayer, Consent, Requests an Dienste). Die Testumgebung („Stage in a Box“) ist in `lib/` fertig vorhanden, ein Analyse-Script in `werkzeuge/`. Deine Aufgabe ist die Übersetzung von Aufzeichnung und Auftrag in Tests – nicht der Bau neuer Infrastruktur.
+Du baust aus einer Aufzeichnung einer Website-Journey eine Playwright-Testsuite, die das Tracking-Setup prüft (dataLayer, Consent, Requests an Dienste). Die Testumgebung („Stage in a Box“) ist in `lib/` fertig vorhanden, Scripts in `werkzeuge/`. Deine Aufgabe ist die Übersetzung von Aufzeichnung und Auftrag in Tests – nicht der Bau neuer Infrastruktur.
+
+## Aufbau: gemeinsame Umgebung, ein Ordner pro Projekt
+
+Die Session läuft immer im Hauptordner. Testumgebung, Abhängigkeiten (`node_modules`) und diese Anleitung gibt es nur einmal; jede Website ist ein Projekt unter `projects/<name>/`:
+
+| Datei / Ordner | Inhalt |
+|---|---|
+| `projekt.md` | Anweisungen und Erkenntnisse nur für dieses Projekt – **vor jeder Arbeit am Projekt lesen**, gilt zusätzlich zu dieser Datei |
+| `auftrag.md` | Was der Mensch will: Journey, Conversion, Testkonto, Baseline, Varianten, Grenzen |
+| `aufzeichnungen/` | Tag-Assistant-Exporte (`*.json`) oder Konsolen-Mitschnitte (`*.log`/`*.txt`, Zeilen `[rec] {...}`), daneben die Analysen |
+| `tests/`, `baselines/` | Tests und gespeicherte Baselines des Projekts |
+| `.env`, `.env.example` | Zugangsdaten und Testdaten (siehe unten) |
+| `testdaten.aufzeichnung.env` | optional: Eingaben aus einer Aufzeichnung im Modus `full` |
+
+- Neues Projekt: `npm run neu -- <name>` (kopiert `vorlage/`). Nicht von Hand aus einem anderen Projekt kopieren.
+- Nennt der Mensch kein Projekt und gibt es mehrere, nachfragen.
+- `projects/` ist nicht im Git des Repos. Nichts aus einem Projekt in Dateien außerhalb von `projects/` übernehmen (keine Domains, Selektoren, Testdaten).
+
+**Erkenntnisse festhalten:** Was nur diese Website betrifft (CMP-Eigenheiten, eigene Request-Formate, Bot-Schutz, Stolperstellen), trägst Du in `projekt.md` ein. Was für alle Projekte gilt (Fehler in `lib/` oder im Analyse-Script, fehlende Anweisung hier), schlägst Du dem Menschen als Änderung an `AGENTS.md`, `lib/` oder `werkzeuge/` vor – allgemein formuliert, ohne Projektdaten.
 
 Die Arbeit hat **zwei Phasen**. Zwischen beiden bestätigt der Mensch den Auftrag.
 
@@ -9,22 +28,15 @@ Die Arbeit hat **zwei Phasen**. Zwischen beiden bestätigt der Mensch den Auftra
 | 1. Analyse | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
 | 2. Bau | Tests, ggf. Baseline, Bericht | Abschlussbericht |
 
-Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1.
+Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1. Pfade in dieser Anleitung ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
 
-## Eingaben
-
-| Quelle | Inhalt |
-|---|---|
-| `auftrag.md` | Was der Mensch will: Journey, Conversion, Testkonto, Baseline, Varianten, Grenzen |
-| `aufzeichnungen/*.json` | Tag-Assistant-Export mit Recorder-Einträgen und Tracking-Events |
-| `aufzeichnungen/*.log` / `*.txt` | Alternativ: Konsolen-Mitschnitt des eigenständigen Recorders (Zeilen `[rec] {...}`) |
-| `.env` | Zugangsdaten und Testdaten – **nur lesen, nie schreiben, Werte nie ausgeben** |
-
-## Umgang mit `.env`
+## Umgang mit `.env` und Testdaten
 
 - `.env` füllt ausschließlich der Mensch aus. Du schreibst sie nie, auch nicht teilweise, und gibst ihre Werte nie aus (auch nicht in Logs oder Berichten).
+- `testdaten.aufzeichnung.env` schreibt nur das Analyse-Script (`--testdaten`), Du bearbeitest sie nicht und gibst ihre Werte nie aus. Die Tests laden zuerst `.env`, dann diese Datei; was in `.env` steht, hat Vorrang.
 - Braucht ein Test Zugangs- oder Testdaten, ergänzt Du in `.env.example` den Variablennamen mit kurzem Kommentar und nennst ihn dem Menschen. Variablen stehen dort nicht auskommentiert und ohne Wert (`NAME=`); leere Einträge gelten als nicht gesetzt. Kommentare nur in eigenen Zeilen, damit niemand den Wert hinter ein `#` schreibt (`playwright.config.ts` warnt dann, ohne Werte zu nennen).
-- Ob eine Variable gesetzt ist, nur mit einem Script prüfen, das ausschließlich Namen ausgibt (z. B. `gesetzt`/`FEHLT`).
+- Ob eine Variable gesetzt ist, nur mit einem Script prüfen, das ausschließlich Namen ausgibt (z. B. `gesetzt`/`FEHLT`), und beide Dateien berücksichtigen.
+- `BASE_URL` ist Pflicht; ohne sie bricht jeder Testlauf des Projekts mit einer Meldung ab.
 - Im Code nur `process.env.NAME`. Fehlt eine Variable, soll der Test mit klarer Meldung abbrechen:
   ```ts
   const passwort = process.env.TEST_LOGIN_PASSWORT ?? test.skip(true, 'TEST_LOGIN_PASSWORT in .env fehlt') as never;
@@ -37,8 +49,10 @@ Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst 
 ### Aufzeichnung auswerten
 
 ```sh
-npm run analyse -- aufzeichnungen/<datei>
+npm run analyse -- projects/<name>/aufzeichnungen/<datei>
 ```
+
+Pfade immer mit `/`, auch unter Windows (gilt ebenso für `npm test`, weil Playwright Pfade als RegExp liest).
 
 Das Script erzeugt neben dem Export:
 
@@ -92,9 +106,18 @@ Vollständige Beschreibung: `docs/aufzeichnungsformat.md`.
 - Fehlt etwas, das sich nicht ableiten lässt (echte Bestellung erlaubt? Baseline gewünscht?), lass das Feld leer.
 - Ergänze `.env.example` um die nötigen Variablen (Login, Formularfelder mit `[redacted]` oder maskierten Werten).
 
+### Eingaben aus der Aufzeichnung übernehmen
+
+Steht in der Zeitleiste `Werte-Modus des Recorders: full`, enthält die Aufzeichnung die echten Eingaben des Testlaufs. Der Mensch kann sie direkt als Testdaten verwenden, statt sie in `.env` abzutippen:
+
+- Steht im Auftrag unter „Eingaben aus der Aufzeichnung übernehmen?“ **ja**, rufe `npm run analyse -- projects/<name>/aufzeichnungen/<datei> --testdaten` auf.
+- Ist das Feld leer, biete es in der Rückfrage an und führe es erst nach Zustimmung aus.
+- Das Script schreibt `testdaten.aufzeichnung.env` und nennt nur Variablennamen: welche übernommen wurden und welche trotzdem in `.env` fehlen (Passwörter zeichnet der Recorder nie auf).
+- Bei maskierten Aufzeichnungen nicht anbieten; das Script bricht dann ohnehin ab.
+
 ### Rückfrage
 
-Beende Phase 1 mit einer kurzen Nachricht: was Du vorausgefüllt hast, welche Felder offen sind, welche Variablen in `.env` gebraucht werden. Bitte darum, den Auftrag zu prüfen und den Status auf **bestätigt** zu setzen. **Schreibe in Phase 1 keine Tests.**
+Beende Phase 1 mit einer kurzen Nachricht: was Du vorausgefüllt hast, welche Felder offen sind, welche Variablen in `.env` gebraucht werden (abzüglich der aus der Aufzeichnung übernommenen). Bitte darum, den Auftrag zu prüfen und den Status auf **bestätigt** zu setzen. **Schreibe in Phase 1 keine Tests.**
 
 ---
 
@@ -134,7 +157,7 @@ Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben o
 - `hashchange` nach Klick auf Anker-Link → Folge des Klicks.
 - Doppelklicks, Fehlklicks, Umwege der aufzeichnenden Person weglassen, wenn sie für das Ziel keine Rolle spielen. Im Zweifel nachfragen.
 
-**Werte:** Maskierte Werte zeigen nur Format und Länge, `[redacted]` gar nichts. Echte Werte immer aus `.env`. Auch Klartextwerte aus Aufzeichnungen im Modus `full` gehören nicht in Testcode, sondern als Variable in `.env.example`.
+**Werte:** Maskierte Werte zeigen nur Format und Länge, `[redacted]` gar nichts. Echte Werte immer über `process.env`. Auch Klartextwerte aus Aufzeichnungen im Modus `full` gehören nicht in Testcode, sondern als Variable in `.env.example` (Wert ggf. über `testdaten.aufzeichnung.env`).
 
 **Login:** Ist im Auftrag ein Testkonto genannt, wird der Login ein eigener `test.step` mit Werten aus `TEST_LOGIN_EMAIL` und `TEST_LOGIN_PASSWORT` (bzw. den in `.env.example` ergänzten Namen).
 
@@ -161,7 +184,7 @@ Zwischen den Schritten steht `await stage.denkpause(<ms>)` mit dem aufgezeichnet
 1. **Feste Erwartungen** (Modus `abfangen`, nichts geht raus): prüfen gezielt, was im Auftrag steht. Hier laufen auch die Varianten.
 2. **Baseline-Vergleich** (Modus `durchlassen`, echte Requests): nur wenn der Auftrag eine Baseline will. Vergleicht den kompletten Lauf mit dem gespeicherten Ist-Zustand.
 
-Beide nutzen dieselbe `journey()`-Funktion. Vorbild für beides: `tests/beispiel-demo.spec.ts`.
+Beide nutzen dieselbe `journey()`-Funktion. Vorbild für beides: `beispiel/tests/beispiel-demo.spec.ts`.
 
 ### Feste Erwartungen
 
@@ -187,15 +210,15 @@ test.describe('Baseline', () => {
 ```
 
 - **Immer Modus `durchlassen`.** Abgefangene Requests bekommen keine echte Antwort: Weiterleitungsketten (z. B. Google-Ads-Conversions) und von einem sGTM ausgelöste Folge-Requests fehlen dann. `vergleicheMitBaseline` bricht in anderen Modi ab.
-- **Mit oder ohne Proxy** wie im Auftrag; mit Proxy entsteht eine eigene Datei `baselines/<name>.proxy.json`.
+- **Mit oder ohne Proxy** wie im Auftrag; mit Proxy entsteht eine eigene Datei `baselines/<journey>.proxy.json`.
 - **Gleiches Tempo** für Baseline und Vergleich; sonst bricht der Vergleich ab. Welches Tempo, steht im Auftrag oder wird mit dem Menschen geklärt (`aufzeichnung` kommt echtem Verhalten am nächsten, dauert aber so lange wie die Aufzeichnung).
 - Vor der Momentaufnahme verlässt `vergleicheMitBaseline` die letzte Seite, damit Requests beim Verlassen (z. B. `user_engagement`) enthalten sind. Ohne Proxy sieht Playwright solche Beacons nicht; die Stage holt sie aus dem NetLog des Browsers (Quelle `netlog`, ohne Body). Mit Proxy kommen sie vollständig (Quelle `proxy`).
-- Der erste Lauf speichert `baselines/<name>.json`, jeder weitere vergleicht dagegen. Der Bericht steht als `baseline-vergleich.md` im Report und in `test-results/`.
+- Der erste Lauf speichert `baselines/<journey>.json` im Projektordner, jeder weitere vergleicht dagegen. Der Bericht steht als `baseline-vergleich.md` im Report und in `test-results/`.
 - **Rot** (Test schlägt fehl): Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; CSP-Verstoß.
 - **Info** (nur Bericht): neue Requests, Hosts, Parameter; geänderte Parameterwerte; neue Events oder Keys außerhalb von `ecommerce`; geänderte Reihenfolge.
 - Werte, die sich bei jedem Lauf ändern (aus dem Auftrag oder beim zweiten Lauf als „geändert“ sichtbar), als `fluechtigeKeys` bzw. `fluechtigeParameter` angeben. Gängige sind schon in `lib/baseline.ts` hinterlegt.
 - Nach dem Anlegen: Test **zweimal** laufen lassen. Der zweite Lauf zeigt, welche Werte flüchtig sind.
-- **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu` nur auf ausdrücklichen Wunsch des Menschen.
+- **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu -- projects/<name>` nur auf ausdrücklichen Wunsch des Menschen.
 - Bei echten Käufen nur mit Testkonto bzw. Testprodukt laut Auftrag.
 
 ### Varianten
@@ -239,22 +262,27 @@ Weitere Möglichkeiten:
 
 ### Struktur
 
-- Eine Datei pro Journey in `tests/`, z. B. `tests/kauf.spec.ts`.
-- Immer `import { test, expect } from '../lib/stage';` – nie direkt aus `@playwright/test`, sonst fehlt die Stage.
+- Eine Datei pro Journey in `projects/<name>/tests/`, z. B. `kauf.spec.ts`.
+- Immer `import { test, expect } from '../../../lib/stage';` – nie direkt aus `@playwright/test`, sonst fehlt die Stage.
 - Journey als Funktion `journey(page, stage, …)` mit `test.step` pro Abschnitt (deutsche Namen).
 - Kein `waitForTimeout`. Warten über `expect(…)`, `toHaveURL`, `erwarteEvent`, `erwarteGa4`.
-- `lib/` nur ändern, wenn es nicht anders geht, und dann im Bericht begründen. Neue Dienste als `regeln` in den Tests ergänzen.
-- `tests/beispiel-demo.spec.ts`, `demo/` und `baselines/demo-lead-journey.json` nicht ändern. Die Beispiele werden bei gesetzter `BASE_URL` übersprungen und dienen als Referenz.
+- Projektspezifisches (Regeln, Dekodier-Logik, Helfer) bleibt im Projektordner, z. B. `tests/hilfen.ts`.
+- `lib/` gilt für alle Projekte. Nur ändern, wenn es nicht anders geht, im Bericht begründen und danach `npm test` (Beispiel) laufen lassen. Neue Dienste als `regeln` in den Tests ergänzen.
+- `beispiel/` nicht ändern. Es dient als Referenz und läuft bei `npm test` ohne Projekt.
 
 ### Ausführen und stabilisieren
 
+Abhängigkeiten sind im Hauptordner einmal installiert (`npm install`, `npx playwright install chromium`); in Projektordnern nie `npm install` ausführen.
+
 ```sh
-npm install
-npx playwright install chromium
-npm run pruefen        # TypeScript-Prüfung
-npm test               # alle Tests
-npx playwright test tests/kauf.spec.ts --headed   # sichtbar
+npm run pruefen                                     # TypeScript-Prüfung, alle Projekte
+npm test -- projects/<name>                         # alle Tests des Projekts
+npx playwright test projects/<name>/tests/kauf.spec.ts --headed   # eine Datei, sichtbar
+npm run report -- projects/<name>/playwright-report
+npm test                                            # ohne Projekt: das Beispiel
 ```
+
+Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`. Report und `test-results/` liegen im Projektordner.
 
 - Bei Fehlern zuerst die Anhänge (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`), Trace und Screenshot im Report ansehen.
 - Fehlt ein erwarteter Request, zuerst in `weitere-requests.json` nachsehen, ob er über einen eigenen Pfad oder ein anderes Format rausging (siehe „Requests über eigene Pfade und Formate“).
@@ -281,3 +309,4 @@ Kurz und konkret:
 5. Auffälligkeiten im Tracking (mögliche Fehler der Website).
 6. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
 7. Offene Fragen und noch fehlende Einträge in `.env`.
+8. Was Du in `projekt.md` festgehalten hast, und Vorschläge für `AGENTS.md`, `lib/` oder `werkzeuge/`, die allen Projekten helfen würden.

@@ -83,12 +83,15 @@ Vor dem Recorder-Script setzen:
 ```js
 window.__recConfig = {
   enabled: true,          // false = nichts tun
-  values: 'masked',       // 'masked' | 'full'
+  param: 'sib_rec',       // nur aktiv nach Aufruf mit ?sib_rec=masked|full (GTM-Tag)
+  values: 'masked',       // 'masked' | 'full'; mit param: Vorgabe für ?sib_rec ohne Wert
   console: false,         // jeden Eintrag zusätzlich in die Konsole schreiben
   dataLayerName: 'dataLayer',
   key: '__rec'
 };
 ```
+
+Mit `param` schaltet der Parameter in der URL die Aufzeichnung für den Tab ein (`sessionStorage`), auch auf allen folgenden Seiten. `?sib_rec=aus` schaltet sie wieder ab. Ohne Parameter und ohne gespeicherte Aktivierung bricht das Script sofort ab.
 
 ## Bekannte Grenzen
 

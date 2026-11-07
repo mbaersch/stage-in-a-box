@@ -375,7 +375,8 @@ function dateiname(journey: string, mitProxy: boolean) {
 
 export async function vergleicheMitBaseline(stage: Stage, journey: string, optionen: BaselineOptionen = {}) {
   const { testInfo } = stage;
-  const projekt = path.dirname(testInfo.config.configFile ?? testInfo.config.rootDir);
+  // testDir ist <projekt>/tests; die Baselines liegen daneben
+  const projekt = path.dirname(testInfo.project.testDir);
   const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey, stage.mitProxy));
   const lauf = momentaufnahme(stage, journey);
   const neu = !fs.existsSync(datei)

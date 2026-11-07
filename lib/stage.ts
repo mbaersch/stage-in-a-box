@@ -15,7 +15,7 @@
  *   Verlassen einer Seite und Service Worker (lib/proxy.ts)
  *
  * Verwendung in Tests:
- *   import { test, expect } from '../lib/stage';
+ *   import { test, expect } from '../../../lib/stage';   // aus projects/<name>/tests/
  *   test('...', async ({ page, stage }) => { ... });
  *
  * Varianten pro describe-Block:

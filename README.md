@@ -4,7 +4,7 @@
 
 CMP, Consent Mode, GTM, serverseitiges Tagging, CSP – moderne Tracking-Setups bestehen aus vielen Teilen, die sauber zusammenspielen müssen. Nach jedem Deployment, jeder CMP-Änderung oder jedem neuen Tag per Hand durch den Kaufprozess zu klicken, reicht dafür nicht mehr. Automatisierte Tests scheitern bisher meist daran, dass sie jemand schreiben muss, der sowohl Tracking als auch Testautomatisierung versteht.
 
-Dieses Repo verkürzt den Weg: Ein GTM-Tag zeichnet beim Durchklicken alles auf, was ein Agent für den Nachbau braucht. Ein Analyse-Script macht daraus eine lesbare Zeitleiste und einen Auftragsentwurf. Eine Vorlage liefert die fertige Testumgebung, eine Anleitung sagt dem Agent, wie aus allem Tests werden.
+Dieses Repo verkürzt den Weg: Ein GTM-Tag zeichnet beim Durchklicken alles auf, was ein Agent für den Nachbau braucht. Ein Analyse-Script macht daraus eine lesbare Zeitleiste und einen Auftragsentwurf. Das Repo liefert die fertige Testumgebung, eine Anleitung sagt dem Agent, wie aus allem Tests werden. Jede Website wird darin ein eigenes Projekt; Umgebung, Anleitung und alles, was der Agent dabei lernt, teilen sich alle Projekte.
 
 ## Was Du davon hast
 
@@ -25,7 +25,7 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
 ```
  1. Recorder-Tag im GTM anlegen         (einmalig, 5 Minuten)
  2. Journey im Preview durchklicken      → Tag-Assistant-Export
- 3. Agent: Analyse und Auftragsentwurf   → auftrag.md, Liste für .env
+ 3. Projekt anlegen, Agent: Analyse      → auftrag.md, Liste für .env, ggf. Testdaten
  4. Du: Auftrag prüfen, .env ausfüllen   → Status „bestätigt“
  5. Agent: Tests und Baseline bauen      → Testsuite
  6. Tests laufen lassen                  (jederzeit, mit Varianten)
@@ -41,51 +41,58 @@ Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das 
 
 ## 1. Recorder-Tag einrichten
 
-1. Im GTM unter *Variablen → Integrierte Variablen konfigurieren* die Variable **Debug Mode** aktivieren.
-2. Neues Tag vom Typ **Benutzerdefiniertes HTML** anlegen und den Inhalt von [`dist/gtm-recorder-tag.html`](dist/gtm-recorder-tag.html) einfügen.
-3. Trigger: **Consent Initialization – All Pages**.
-4. Speichern, **nicht veröffentlichen.** Das Tag wird nur im Preview gebraucht. Würde es versehentlich veröffentlicht, macht es außerhalb des Previews nichts.
+1. Neues Tag vom Typ **Benutzerdefiniertes HTML** anlegen und den Inhalt von [`dist/gtm-recorder-tag.html`](dist/gtm-recorder-tag.html) einfügen.
+2. Trigger: **Consent Initialization – All Pages**.
+3. Speichern. Veröffentlichen ist nicht nötig, schadet aber auch nicht: Das Tag zeichnet nur auf, wenn die Seite mit dem Parameter `sib_rec` aufgerufen wurde. Für alle anderen Besucher bricht es sofort ab; es kostet dann nur die rund 16 KB im Container.
 
 ![Recorder-Tag im GTM: benutzerdefiniertes HTML mit Trigger Consent Initialization – All Pages](res/tag-konfiguration.png)
 
-Optional im Tag oben einstellen:
+Der Wert des Parameters bestimmt, wie Eingaben in Formularen aufgezeichnet werden:
 
-- `values: 'masked'` (Vorgabe): Eingaben in Formularen werden nur mit Format und Länge aufgezeichnet, z. B. `Xxx.Xxxxxxxxxx@xxxxxxx.xx`.
-- `values: 'full'`: Eingaben im Klartext. Nötig, wenn Hashing oder Enhanced Conversions geprüft werden sollen. Dann nur mit Testdaten aufzeichnen.
+- `?sib_rec=masked` (auch `?sib_rec` ohne Wert): nur Format und Länge, z. B. `Xxx.Xxxxxxxxxx@xxxxxxx.xx`.
+- `?sib_rec=full`: Eingaben im Klartext. Nötig, wenn Hashing oder Enhanced Conversions geprüft werden sollen, und praktisch, weil die Eingaben dann direkt als Testdaten übernommen werden können (siehe [4.](#4-auftrag-prüfen-und-env-ausfüllen)). Dann nur mit Testdaten aufzeichnen.
+- `?sib_rec=aus` beendet die Aufzeichnung im Tab.
 
-Passwörter und Kartendaten werden in beiden Modi nie aufgezeichnet.
+Die Aufzeichnung gilt ab dem Aufruf mit Parameter für alle folgenden Seiten im selben Tab (über `sessionStorage`) und endet, wenn der Tab geschlossen wird. Passwörter und Kartendaten werden in keinem Modus aufgezeichnet.
 
 Das Tag schreibt seine Einträge als Messages ohne Event in den dataLayer. Der Tag Assistant zeigt sie als „Nachricht“. Für GTM selbst sind sie unsichtbar: Es werden keine Trigger ausgewertet, und kein vorhandenes Tag kann dadurch auslösen.
 
 ## 2. Journey aufzeichnen
 
 1. **Frisch starten:** Cookies und Website-Daten der Seite löschen oder ein neues Inkognito-Fenster verwenden, damit der Consent-Banner erscheint.
-2. **Preview starten** und die Website im Tag Assistant öffnen.
+2. **Preview starten** und die Website im Tag Assistant mit Parameter öffnen, z. B. `https://www.example.de/?sib_rec=full`. Der Parameter wird bei der Analyse aus der Startadresse entfernt.
 3. **Den Ablauf einmal vollständig durchklicken**, inklusive Consent-Banner, so wie ein normaler Besucher. Ohne Umwege, ohne Neuladen, ohne parallele Tabs. Dein Tempo wird mit aufgezeichnet und kann später nachgespielt werden.
 4. Bei einem Kauf: nur mit Testkonto, Testprodukt, Gutschein oder Testzahlart, und nur wenn das abgesprochen ist.
 5. Im Tag Assistant die Aufzeichnung **exportieren**.
 
 Tipp: Lieber mehrere kurze Aufzeichnungen (z. B. „Consent akzeptieren + Kauf“ und „Consent ablehnen + Kauf“) als eine lange mit allem.
 
-## 3. Testprojekt anlegen und Analyse starten
+## 3. Projekt anlegen und Analyse starten
+
+Einmalig im Hauptordner des Repos:
 
 ```sh
-cp -r vorlage mein-shop-tests
-cd mein-shop-tests
-cp .env.example .env
 npm install
 npx playwright install chromium
 ```
 
-Export nach `aufzeichnungen/` legen und den Agent im Projektordner starten, zum Beispiel mit:
+Dann pro Website ein Projekt:
 
-> Lies AGENTS.md. Analysiere die Aufzeichnung in aufzeichnungen/ und fülle den Auftrag vor.
+```sh
+npm run neu -- mein-shop
+```
 
-Der Agent ruft dafür `npm run analyse -- aufzeichnungen/<datei>` auf. Das Script erzeugt neben dem Export eine Zeitleiste (`.zeitleiste.md`) mit allem, was passiert ist: Aktionen, Events, Consent, gefeuerte Tags, Google-Requests, Auffälligkeiten und bereits fertige Playwright-Schritte. Du kannst die Zeitleiste auch selbst lesen; sie ist oft schon für sich ein guter Überblick über ein Setup.
+Das legt `projects/mein-shop/` mit Auftrag, `projekt.md`, `.env` und leeren Ordnern an. Abhängigkeiten werden dort nicht noch einmal installiert. `projects/` ist von Git ausgeschlossen. Trag `BASE_URL` in `projects/mein-shop/.env` ein, leg den Export nach `projects/mein-shop/aufzeichnungen/` und starte den Agent **im Hauptordner**, zum Beispiel mit:
+
+> Projekt mein-shop: Analysiere die Aufzeichnung und fülle den Auftrag vor.
+
+Die Session gehört immer in den Hauptordner, nicht in den Projektordner. So hat der Agent bei jedem Projekt dieselbe Anleitung und dieselben Erinnerungen, und was er bei einem Projekt lernt, steht beim nächsten zur Verfügung. Was nur eine Website betrifft, hält er in `projects/<name>/projekt.md` fest.
+
+Der Agent ruft dafür `npm run analyse -- projects/mein-shop/aufzeichnungen/<datei>` auf. Das Script erzeugt neben dem Export eine Zeitleiste (`.zeitleiste.md`) mit allem, was passiert ist: Aktionen, Events, Consent, gefeuerte Tags, Google-Requests, Auffälligkeiten und bereits fertige Playwright-Schritte. Du kannst die Zeitleiste auch selbst lesen; sie ist oft schon für sich ein guter Überblick über ein Setup.
 
 ## 4. Auftrag prüfen und `.env` ausfüllen
 
-Der Agent füllt [`auftrag.md`](vorlage/auftrag.md) vor und markiert alles Abgeleitete mit *(aus Aufzeichnung)*. Du prüfst:
+Der Agent füllt den [Auftrag](vorlage/auftrag.md) vor und markiert alles Abgeleitete mit *(aus Aufzeichnung)*. Du prüfst:
 
 - Stimmt die **Conversion-Aktion**? Was muss passieren, was darf auf keinen Fall passieren?
 - Gibt es ein **Testkonto**, dessen Bestellungen automatisch storniert werden? Ist ein echter Kauf erlaubt?
@@ -97,30 +104,35 @@ Dann setzt Du oben den Status auf **bestätigt**.
 
 **`.env` füllst nur Du aus.** Der Agent schreibt sie nie und gibt ihre Werte nicht aus. Er trägt die nötigen Variablennamen in `.env.example` ein (z. B. `TEST_LOGIN_EMAIL`, `TEST_LOGIN_PASSWORT`, `TEST_VORNAME`) und sagt Dir, was fehlt. Die Tests lesen die Werte zur Laufzeit.
 
+**Testdaten aus der Aufzeichnung:** Wurde mit `?sib_rec=full` aufgezeichnet, bietet der Agent an, die Eingaben 1:1 zu übernehmen. So gibst Du die Testdaten nur einmal ein, beim Aufzeichnen. Das Analyse-Script (`--testdaten`) schreibt sie nach `projects/<name>/testdaten.aufzeichnung.env`; `.env` bleibt unberührt und hat Vorrang. Willst Du einen Wert ändern, trägst Du ihn einfach in `.env` ein. Passwörter fehlen dort immer, weil der Recorder sie nie aufzeichnet.
+
 Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht gesetzt, dann greift die Vorgabe. Steht ein Wert in einer Zeile mit `#` davor, wirkt er nicht; der Testlauf warnt dann mit dem Namen der Variable.
 
 **Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau* bzw. *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er als `GTM_VORSCHAU_LINK` in `.env`. Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Die Tests öffnen den Tag Assistant, starten die Verbindung und laufen im neuen Tab mit der Website weiter.
 
 ## 5. Tests bauen lassen
 
-> Der Auftrag ist bestätigt. Baue die Tests.
+> Projekt mein-shop: Der Auftrag ist bestätigt. Baue die Tests.
 
-Der Agent baut die Tests, legt bei Bedarf die Baseline an und schließt mit einem Bericht: welche Tests es gibt, welche Erwartungen er aus dem Ist-Zustand übernommen hat (zur Bestätigung), Auffälligkeiten und offene Punkte.
+Der Agent baut die Tests, legt bei Bedarf die Baseline an und schließt mit einem Bericht: welche Tests es gibt, welche Erwartungen er aus dem Ist-Zustand übernommen hat (zur Bestätigung), Auffälligkeiten, offene Punkte und was er in `projekt.md` festgehalten hat.
 
-Die Anweisungen für den Agent stehen in [`vorlage/AGENTS.md`](vorlage/AGENTS.md). Claude Code liest sie über `CLAUDE.md` automatisch ein, andere Agents über `AGENTS.md`.
+Die Anweisungen für den Agent stehen in [`AGENTS.md`](AGENTS.md). Claude Code liest sie über `CLAUDE.md` automatisch ein, andere Agents über `AGENTS.md`.
 
 ## 6. Tests ausführen
 
+Alle Befehle im Hauptordner; das Projekt ergibt sich aus dem Pfad:
+
 ```sh
-npm test                                  # alle Tests, unsichtbar
-npm run test:sichtbar                     # mit sichtbarem Browser
-npm run report                            # HTML-Report öffnen
-npm run baseline:neu                      # Baselines bewusst neu erstellen
-TEMPO=aufzeichnung npm test               # im Tempo der Aufzeichnung
-PROXY=ein npm test                        # über den Proxy (siehe unten)
+npm test -- projects/mein-shop                            # alle Tests, unsichtbar
+npm run test:sichtbar -- projects/mein-shop               # mit sichtbarem Browser
+npx playwright test projects/mein-shop/tests/kauf.spec.ts # eine Datei
+npm run report -- projects/mein-shop/playwright-report    # HTML-Report öffnen
+npm run baseline:neu -- projects/mein-shop                # Baselines bewusst neu erstellen
+TEMPO=aufzeichnung npm test -- projects/mein-shop         # im Tempo der Aufzeichnung
+PROXY=ein npm test -- projects/mein-shop                  # über den Proxy (siehe unten)
 ```
 
-Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in `.env` setzen.
+Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
@@ -130,7 +142,7 @@ Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Reques
 
 Baseline-Tests laufen immer mit **echten Requests**. Nur dann entstehen Weiterleitungsketten (z. B. bei Google-Ads-Conversions) und Folge-Requests, die ein Server-Container auslöst. Plane deshalb ein, wie Testtraffic erkannt oder gefiltert wird (Testkonto, IP-Filter o. Ä.).
 
-Der erste Lauf speichert `baselines/<journey>.json`. Jeder weitere vergleicht dagegen und legt einen Bericht `baseline-vergleich.md` in den Report.
+Der erste Lauf speichert `projects/<name>/baselines/<journey>.json`. Jeder weitere vergleicht dagegen und legt einen Bericht `baseline-vergleich.md` in den Report.
 
 | Rot – Test schlägt fehl | Nur Hinweis im Bericht |
 |---|---|
@@ -169,10 +181,10 @@ Dafür bricht der Proxy HTTPS mit eigenen Zertifikaten auf, denen nur der Testbr
 
 ### Ausprobieren ohne eigene Website
 
-Die Vorlage bringt eine kleine Demo-Seite mit Consent-Banner, Seitenwechsel, Conversion-Button und einem simulierten Server-Container mit. Ohne `BASE_URL` laufen die Beispieltests dagegen:
+Das Repo bringt in `beispiel/` eine kleine Demo-Seite mit Consent-Banner, Seitenwechsel, Conversion-Button und einem simulierten Server-Container mit. `npm test` ohne Projekt lässt die Beispieltests dagegen laufen:
 
 ```sh
-cd vorlage && npm install && npx playwright install chromium && npm test
+npm install && npx playwright install chromium && npm test
 ```
 
 Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://atomkraftwerke24.de/), ein WooCommerce-Demoshop, in dem Bestellungen nicht ausgeführt werden.
@@ -194,28 +206,32 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ## Datenschutz
 
 - Im Modus `full` enthält der Export echte Eingaben. Nur mit Testdaten aufzeichnen.
-- `aufzeichnungen/` und `.env` sind in der Vorlage von Git ausgeschlossen. Baselines werden eingecheckt; sie enthalten Request-Parameter und damit ggf. gehashte Testdaten.
+- `projects/` ist komplett von Git ausgeschlossen. Bekommt ein Projekt ein eigenes Repo, schließt dessen `.gitignore` Aufzeichnungen, `.env` und `testdaten.aufzeichnung.env` aus. Baselines enthalten Request-Parameter und damit ggf. gehashte Testdaten.
 - Tests mit festen Erwartungen senden keine Tracking-Daten (ohne Proxy bis auf die oben genannten Beacons). Baseline-Tests senden echte Requests.
 
 ## Aufbau
 
 ```
+AGENTS.md                 Anweisungen für den Agent (für alle Projekte)
+CLAUDE.md                 bindet AGENTS.md für Claude Code ein
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy
+werkzeuge/                Analyse-Script, Anlegen neuer Projekte
+docs/                     Aufzeichnungsformat
+beispiel/                 Demo-Seite mit Beispieltests und Baselines
+vorlage/                  Gerüst für neue Projekte (npm run neu)
+projects/                 Deine Projekte, nicht in Git
+  <name>/
+    projekt.md            Anweisungen und Erkenntnisse nur für dieses Projekt
+    auftrag.md            Auftrag (vom Agent vorausgefüllt, von Dir bestätigt)
+    .env                  Zugangs- und Testdaten (nur Du)
+    testdaten.aufzeichnung.env   optional: Eingaben aus der Aufzeichnung
+    aufzeichnungen/       Exporte und Analysen
+    tests/ baselines/     Tests und Baselines
 dist/
   gtm-recorder-tag.html   Inhalt für das GTM-Tag
   recorder.js             eigenständige Variante (ohne GTM)
 src/
   recorder-core.js        Quellcode des Recorders (hier ändern, dann build.sh)
-vorlage/                  Testprojekt zum Kopieren
-  AGENTS.md               Anweisungen für den Agent
-  CLAUDE.md               bindet AGENTS.md für Claude Code ein
-  auftrag.md              Auftrag (vom Agent vorausgefüllt, von Dir bestätigt)
-  aufzeichnungen/         Ablage für Exporte und Analysen
-  werkzeuge/              Analyse-Script für Aufzeichnungen
-  lib/                    die Testumgebung: stage, baseline, tempo, netlog, proxy
-  tests/                  Tests; enthält ein Beispiel gegen die Demo-Seite
-  baselines/              gespeicherte Baselines (Beispiel: Demo-Seite)
-  demo/                   Demo-Seite für das Beispiel
-  docs/                   Aufzeichnungsformat
 test/                     Smoke-Test für den Recorder
 ```
 
@@ -227,13 +243,14 @@ test/                     Smoke-Test für den Recorder
 
 ```sh
 sh build.sh                 # dist/ aus src/recorder-core.js erzeugen
-python3 test/run_test.py    # Smoke-Test des Recorders (Python, Playwright)
-cd vorlage && npm test      # Beispieltests der Vorlage gegen die Demo-Seite
+npm run test:recorder       # Smoke-Test des Recorders
+npm test                    # Beispieltests gegen die Demo-Seite
+npm run pruefen             # TypeScript-Prüfung, auch aller Projekte
 ```
 
-Die Versionen der Vorlage sind über `vorlage/package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
+Die Versionen sind über `package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
 
-Eigene Testprojekte am besten außerhalb dieses Repos anlegen. Liegen sie doch darin, verhindert die `.gitignore` im Hauptverzeichnis, dass sie eingecheckt werden: Sie lässt nur die bekannten Ordner und Dateien zu. So gelangen keine Aufzeichnungen oder Baselines aus eigenen Tests ins öffentliche Repo.
+Die `.gitignore` im Hauptverzeichnis lässt nur die bekannten Ordner und Dateien zu und schließt `projects/` ausdrücklich aus. So gelangen keine Aufzeichnungen oder Baselines aus eigenen Tests ins öffentliche Repo.
 
 ## Lizenz
 

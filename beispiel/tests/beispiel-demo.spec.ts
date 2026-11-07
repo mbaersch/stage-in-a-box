@@ -13,7 +13,7 @@
  *
  * Für eine echte Website (BASE_URL gesetzt) werden diese Tests übersprungen.
  */
-import { test, expect, type Stage } from '../lib/stage';
+import { test, expect, type Stage } from '../../lib/stage';
 import type { Page } from '@playwright/test';
 import fs from 'node:fs';
 

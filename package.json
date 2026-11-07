@@ -1,14 +1,16 @@
 {
-  "name": "tracking-tests",
+  "name": "stage-in-a-box",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "playwright test",
     "test:sichtbar": "playwright test --headed",
+    "neu": "node werkzeuge/neues-projekt.mjs",
     "analyse": "node --max-old-space-size=4096 werkzeuge/analysiere-aufzeichnung.mjs",
     "baseline:neu": "playwright test --update-snapshots",
     "report": "playwright show-report",
-    "pruefen": "tsc -p ."
+    "pruefen": "tsc -p .",
+    "test:recorder": "node test/recorder-smoke.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -8,7 +8,9 @@
 > korrigiere sie, dann setze den Status auf **bestätigt**.
 >
 > Zugangsdaten und Testdaten gehören **nicht** in diese Datei, sondern in `.env`.
-> Die füllst nur Du aus; der Agent nennt Dir die nötigen Variablennamen.
+> Die füllst nur Du aus; der Agent nennt Dir die nötigen Variablennamen. Eingaben aus einer
+> Aufzeichnung im Modus `full` kann das Analyse-Script auf Wunsch in `testdaten.aufzeichnung.env`
+> übernehmen; `.env` hat Vorrang.
 
 ## Website
 
@@ -38,6 +40,7 @@
 - **Login nötig?** <!-- ja / nein. Wenn ja: Zugangsdaten in .env (TEST_LOGIN_EMAIL, TEST_LOGIN_PASSWORT) -->
 - **Testkonto, dessen Bestellungen automatisch storniert werden?** <!-- ja / nein -->
 - **Formulardaten:** <!-- Welche Felder braucht die Journey (Adresse, Telefon …)? Werte in .env -->
+- **Eingaben aus der Aufzeichnung übernehmen?** <!-- ja (nur bei Aufzeichnung im Modus full) / nein -->
 - **Testprodukt / Gutschein / Testzahlart:** <!-- für echte Käufe nötig -->
 - **Echte Bestellung erlaubt?** <!-- ja (nur mit Testkonto/Testprodukt) / nein (Test endet vor dem Absenden) -->
 
