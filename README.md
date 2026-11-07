@@ -160,7 +160,8 @@ Der erste Lauf speichert `projects/<name>/baselines/<journey>.json`. Jeder weite
 
 | Rot – Test schlägt fehl | Nur Hinweis im Bericht |
 |---|---|
-| Request fehlt, ist mehrfach da, wurde blockiert oder scheiterte | neue Requests, neue Hosts |
+| Request fehlt, ist mehrfach da, wurde blockiert oder scheiterte | neue Requests eines bekannten Dienstes |
+| neuer Dienst, der in der Baseline gar nicht vorkam (z. B. nach Rollback oder durch ein fremdes Tag) | neue Domains und neue Requests ohne Regel (eigener Abschnitt „Neu im Netzwerk“) |
 | Consent-Parameter geändert (`gcs`, `gcd`, `npa`, `dma`) | neue oder geänderte Request-Parameter |
 | dataLayer-Event fehlt oder ist mehrfach da | neue Events, neue Keys |
 | Key fehlt, der in der Baseline vorhanden war | geänderte Werte außerhalb von `ecommerce`; neue oder weggefallene Requests ohne Regel |

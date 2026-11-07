@@ -127,9 +127,13 @@ export interface Baseline {
 
 export interface Befund {
   stufe: 'rot' | 'info';
-  bereich: 'dataLayer' | 'Consent' | 'Requests' | 'Hosts' | 'CSP';
+  /** "Neu im Netzwerk": neue Domains und Requests ohne Regel – mögliches neues Tracking, im Bericht eigener Abschnitt */
+  bereich: 'dataLayer' | 'Consent' | 'Requests' | 'Hosts' | 'CSP' | 'Neu im Netzwerk';
   text: string;
 }
+
+/** Grobe Näherung an die registrierbare Domain (letzte zwei Labels). */
+const basisDomain = (host: string) => host.split(':')[0].split('.').slice(-2).join('.');
 
 /* ------------------------------------------------------------------ */
 /* Momentaufnahme aus einem Lauf                                      */
@@ -337,8 +341,7 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
       }
       if (!b) return;
       // Wechsel zwischen Hosts derselben Domain (z. B. Clarity: a.clarity.ms, o.clarity.ms) ist Lastverteilung
-      const domain = (h: string) => h.split('.').slice(-2).join('.');
-      if (domain(a.host) !== domain(b.host)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: Host geändert: ${b.host} → ${a.host}` });
+      if (basisDomain(a.host) !== basisDomain(b.host)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: Host geändert: ${b.host} → ${a.host}` });
       // Flüchtige Parameter kommen und gehen auch (z. B. Timings, Sitzungs-IDs); Consent-Parameter nie flüchtig
       const fluechtig = (p: string) => !rotParameter.has(p) && (fluechtigeParameter.has(p) || FLUECHTIGE_MUSTER.some((m) => m.test(p)));
       for (const p of Object.keys(b.parameter)) {
@@ -357,17 +360,27 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
     });
   }
 
-  // Hosts
-  const hostsVorher = new Set(basis.hosts);
-  const hostsJetzt = new Set(lauf.hosts);
-  for (const h of hostsJetzt) if (!hostsVorher.has(h)) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Neuer Host: ${h}` });
-  for (const h of hostsVorher) if (!hostsJetzt.has(h)) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Host nicht mehr angefragt: ${h}` });
+  // Dienste, die in der Baseline gar nicht vorkamen (z. B. nach einem Rollback oder ein fremdes Tag)
+  const diensteVorher = new Set(basis.anfragen.map((a) => a.dienst));
+  for (const [dienst, liste] of gruppiere(lauf.anfragen, (a) => a.dienst)) {
+    if (!diensteVorher.has(dienst)) befunde.push({ stufe: 'rot', bereich: 'Requests', text: `Neuer Dienst: ${dienst} (${liste.length} Request(s), in der Baseline nicht vorhanden)` });
+  }
+
+  // Hosts; Wechsel innerhalb derselben Domain (Lastverteilung, z. B. a.clarity.ms → p.clarity.ms) ist kein Befund
+  const domainsVorher = new Set(basis.hosts.map(basisDomain));
+  const domainsJetzt = new Set(lauf.hosts.map(basisDomain));
+  for (const h of lauf.hosts) {
+    if (!domainsVorher.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neue Domain: ${h}` });
+  }
+  for (const h of basis.hosts) {
+    if (!domainsJetzt.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Domain nicht mehr angefragt: ${h}` });
+  }
 
   // Requests ohne Regel: nur Hinweise, aber ein Grund, über eine neue Regel nachzudenken
   const weitereVorher = gruppiere(basis.weitere ?? [], (w) => w);
   const weitereJetzt = gruppiere(lauf.weitere ?? [], (w) => w);
   for (const [k, liste] of weitereJetzt) {
-    if (!weitereVorher.has(k)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `Neuer Request ohne Regel: ${k} (${liste.length}×)` });
+    if (!weitereVorher.has(k)) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neuer Request ohne Regel: ${k} (${liste.length}×)` });
   }
   for (const [k] of weitereVorher) {
     if (!weitereJetzt.has(k)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `Request ohne Regel nicht mehr vorhanden: ${k}` });
@@ -385,7 +398,8 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
 
 export function bericht(basis: Baseline, lauf: Baseline, befunde: Befund[]): string {
   const rot = befunde.filter((b) => b.stufe === 'rot');
-  const info = befunde.filter((b) => b.stufe === 'info');
+  const neuImNetz = befunde.filter((b) => b.stufe === 'info' && b.bereich === 'Neu im Netzwerk');
+  const info = befunde.filter((b) => b.stufe === 'info' && b.bereich !== 'Neu im Netzwerk');
   const liste = (bs: Befund[]) => bs.map((b) => `- **${b.bereich}:** ${b.text.replace(/\n/g, '\n  ')}`).join('\n');
   return [
     `# Baseline-Vergleich: ${basis.journey}`,
@@ -398,6 +412,9 @@ export function bericht(basis: Baseline, lauf: Baseline, befunde: Befund[]): str
     '',
     rot.length ? liste(rot) : 'Keine.',
     '',
+    ...(neuImNetz.length
+      ? ['## Neu im Netzwerk', '', 'Neue Domains und Requests ohne Regel: prüfen, ob hier neues Tracking dazugekommen ist.', '', liste(neuImNetz), '']
+      : []),
     '## Hinweise',
     '',
     info.length ? liste(info) : 'Keine.',

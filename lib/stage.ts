@@ -186,6 +186,7 @@ export const STANDARD_DIENSTE: Regel[] = [
   { name: 'Microsoft Ads Insights', muster: /bat\.bing\.(com|net)\/p\/insights/, nichtProtokollieren: true },
   { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/action/ },
   { name: 'Microsoft Clarity', muster: /clarity\.ms\/collect/ },
+  { name: 'OpenAI Ads', muster: /bzr\.openai\.com\/v\d+\/sdk\/events/ },
   { name: 'Piwik PRO', muster: /\/ppms\.php(\?|$)/ },
   { name: 'LinkedIn', muster: /px\.ads\.linkedin\.com\/(collect|wa)/ },
   { name: 'TikTok', muster: /analytics\.tiktok\.com\/api\/v\d\/(pixel|track)/ },
