@@ -62,15 +62,29 @@ export const FLUECHTIGE_PARAMETER = [
   // GA4
   'cid', 'sid', 'sct', 'seg', '_p', '_s', '_et', '_fv', '_ss', '_nsi', '_c', '_ee', '_z', '_gaz', 'tfd', 'gtm',
   'ep.transaction_id', 'ep.event_id', 'uaa', 'uab', 'uafvl', 'uamb', 'uam', 'uap', 'uapv', 'uaw', 'frm', 'pscdl',
+  'rcb', 'tag_exp', 'ecid', 'epn.config_timing', 'epn.event_timing',
   // Google Ads / Floodlight
   'rnd', 'random', 'ord', 'auid', 'gclid', 'gclaw', 'num', 'u_tz', 'u_his', 'u_h', 'u_w', 'u_ah', 'u_aw', 'u_cd',
-  'bttype', 'fst', 'oid', 'transaction_id',
+  'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2',
+  // Microsoft Ads (UET)
+  'mid', 'vid', 'rn', 'lt',
+  // Piwik PRO (Zeit-, Zufalls- und Besucherwerte; Timings t_* über FLUECHTIGE_MUSTER)
+  'r', 'h', 'm', 's', '_id', '_idts', '_viewts', 'gt_ms', 'pv_id', 'cdt',
   // Meta und andere
   'ts', 'eid', 'it', 'coo', 'rqm', 'ec', 'o', 'timestamp',
 ];
 
+/** Wie FLUECHTIGE_PARAMETER, für Familien von Parametern. */
+export const FLUECHTIGE_MUSTER = [/^t_[a-z]{2}$/];
+
 /** Request-Parameter, deren Änderung als rot gilt: Consent-Signale. */
 export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
+
+/**
+ * Begleit-Requests (Cookie-Abgleich, Kopien über ccm, Weiterleitungs-Hops): Google sendet sie
+ * nicht bei jedem Lauf gleich oft. Abweichende Anzahl nur als Hinweis; Consent-Parameter bleiben rot.
+ */
+export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/];
 
 interface BaselineEvent { name: string; quelle: 'push' | 'gtag'; daten: Record<string, unknown> }
 
@@ -123,7 +137,8 @@ function sortiert(obj: unknown): unknown {
 }
 
 function bodyParameter(body?: string): Record<string, string> {
-  if (!body || /^\s*[[{]/.test(body) || !body.includes('=')) return {};
+  // JSON und Binär-Bodies (z. B. komprimiert bei Clarity) sind keine Formular-Parameter
+  if (!body || /^\s*[[{]/.test(body) || !body.includes('=') || /[\x00-\x08\x0e-\x1f�]/.test(body)) return {};
   try {
     return Object.fromEntries(new URLSearchParams(body));
   } catch {
@@ -134,6 +149,16 @@ function bodyParameter(body?: string): Record<string, string> {
 /** Name des Ereignisses in einem Request, unabhängig vom Dienst. */
 function ereignisname(p: Record<string, string>, pfad: string): string {
   return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.label ?? pfad;
+}
+
+const BEGLEIT = '(Begleit) ';
+
+/** Vergleichsschlüssel: Dienst, Ereignis und Pfad (Konto-IDs u. ä. als #). Wird beim Vergleich neu
+ * berechnet, damit ältere Baselines mit anderem Schlüssel vergleichbar bleiben. */
+function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'pfad' | 'umleitung'>): string {
+  const pfad = a.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#');
+  const begleit = a.umleitung || BEGLEIT_PFADE.some((m) => m.test(a.pfad));
+  return `${begleit ? BEGLEIT : ''}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}`;
 }
 
 function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
@@ -147,7 +172,7 @@ function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
     const zeilen = t.dienst === 'GA4' && t.body ? t.body.split(/\r?\n/).filter(Boolean) : [null];
     for (const zeile of zeilen) {
       const parameter = { ...t.parameter, ...(zeile === null ? bodyParameter(t.body) : bodyParameter(zeile)) };
-      out.push({ ...gemeinsam, parameter, schluessel: `${t.dienst} · ${ereignisname(parameter, t.pfad)}` });
+      out.push({ ...gemeinsam, parameter, schluessel: schluessel({ ...gemeinsam, parameter }) });
     }
   }
   return out;
@@ -221,9 +246,10 @@ function anzahlBefunde(
   const befunde: Befund[] = [];
   for (const [k, b] of basis) {
     const r = lauf.get(k)?.length ?? 0;
-    if (r === 0) befunde.push({ stufe: 'rot', bereich, text: `${art} fehlt: ${k}` });
-    else if (r < b.length) befunde.push({ stufe: 'rot', bereich, text: `${art} fehlt teilweise: ${k} (${r} statt ${b.length})` });
-    else if (r > b.length) befunde.push({ stufe: 'rot', bereich, text: `${art} mehrfach: ${k} (${r} statt ${b.length})` });
+    const stufe = k.startsWith(BEGLEIT) ? 'info' : 'rot';
+    if (r === 0) befunde.push({ stufe, bereich, text: `${art} fehlt: ${k}` });
+    else if (r < b.length) befunde.push({ stufe, bereich, text: `${art} fehlt teilweise: ${k} (${r} statt ${b.length})` });
+    else if (r > b.length) befunde.push({ stufe, bereich, text: `${art} mehrfach: ${k} (${r} statt ${b.length})` });
   }
   for (const [k, r] of lauf) {
     if (!basis.has(k)) befunde.push({ stufe: 'info', bereich, text: `Neu: ${k} (${r.length}×)` });
@@ -285,8 +311,8 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   }
 
   // Requests
-  const rqBasis = gruppiere(basis.anfragen, (a) => a.schluessel);
-  const rqLauf = gruppiere(lauf.anfragen, (a) => a.schluessel);
+  const rqBasis = gruppiere(basis.anfragen, schluessel);
+  const rqLauf = gruppiere(lauf.anfragen, schluessel);
   befunde.push(...anzahlBefunde('Requests', rqBasis, rqLauf, 'Request'));
   const gescheitert = (a: BaselineAnfrage) => !!a.fehler || (a.status !== undefined && a.status >= 400);
   for (const [k, liste] of rqLauf) {
@@ -298,11 +324,13 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
         befunde.push({ stufe: 'rot', bereich: 'Requests', text: `${k}${nr}: blockiert/gescheitert (${a.fehler ?? `HTTP ${a.status}`})` });
       }
       if (!b) return;
-      if (a.host !== b.host) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: Host geändert: ${b.host} → ${a.host}` });
+      // Wechsel zwischen Hosts derselben Domain (z. B. Clarity: a.clarity.ms, o.clarity.ms) ist Lastverteilung
+      const domain = (h: string) => h.split('.').slice(-2).join('.');
+      if (domain(a.host) !== domain(b.host)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: Host geändert: ${b.host} → ${a.host}` });
       for (const p of Object.keys(b.parameter)) {
         if (!(p in a.parameter)) {
           befunde.push({ stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests', text: `${k}${nr}: Parameter fehlt: ${p}` });
-        } else if (!fluechtigeParameter.has(p) && a.parameter[p] !== b.parameter[p]) {
+        } else if (!fluechtigeParameter.has(p) && !FLUECHTIGE_MUSTER.some((m) => m.test(p)) && a.parameter[p] !== b.parameter[p]) {
           befunde.push({
             stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests',
             text: `${k}${nr}: ${p} geändert: ${zeige(b.parameter[p])} → ${zeige(a.parameter[p])}`,

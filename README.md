@@ -126,7 +126,7 @@ Die Anweisungen für den Agent stehen in [`AGENTS.md`](AGENTS.md). Claude Code l
 
 > Projekt mein-shop: Zieh die Baseline.
 
-Sobald der vollständige Lauf grün ist, speichert der Agent den Ist-Zustand als Baseline: alle Requests, Consent-Parameter und dataLayer-Events der Journey. Er lässt den Baseline-Test zweimal laufen; der zweite Lauf zeigt, welche Werte sich bei jedem Lauf ändern. Ab dann meldet jeder Lauf Abweichungen, etwa nach einer Änderung im GTM. Baseline-Läufe senden echte Requests, auch Conversions (siehe [Baseline](#baseline)).
+Sobald der vollständige Lauf grün ist, speichert der Agent den Ist-Zustand als Baseline: alle Requests, Consent-Parameter und dataLayer-Events der Journey. Direkt danach gleicht er sie mit einem zweiten Lauf ab. Der zeigt, was sich ohne jede Änderung am Setup unterscheidet: Zufalls- und Zeitwerte, Begleit-Requests, deren Anzahl schwankt (z. B. Cookie-Abgleich bei Google Ads), und Rauschen wie Sitzungsaufzeichnungen. Der Agent ordnet jede Abweichung ein und wiederholt den Abgleich, bis kein Rot mehr bleibt und nur noch erklärbare Hinweise. Erst dann ist die Baseline fertig. Ab dann meldet jeder Lauf Abweichungen, etwa nach einer Änderung im GTM. Baseline-Läufe senden echte Requests, auch Conversions (siehe [Baseline](#baseline)).
 
 ## 7. Tests ausführen
 

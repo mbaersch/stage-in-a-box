@@ -182,7 +182,9 @@ export const STANDARD_DIENSTE: Regel[] = [
   { name: 'Google Ads', muster: /googleadservices\.com\/(pagead|ccm)\/conversion|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|google\.[a-z.]+\/rmkt\/collect|\/ccm\/(s\/)?collect|analytics\.google\.com\/measurement\/(1p-)?conversion/ },
   { name: 'Floodlight', muster: /fls\.doubleclick\.net\/activity|ad\.doubleclick\.net\/activity/ },
   { name: 'Meta', muster: /facebook\.com\/tr([/?]|$)/ },
-  { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/(action|p\/insights)/ },
+  // Insights (Sitzungsdaten von UET) schwanken in Pfad und Anzahl: steuern, aber nicht protokollieren
+  { name: 'Microsoft Ads Insights', muster: /bat\.bing\.(com|net)\/p\/insights/, nichtProtokollieren: true },
+  { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/action/ },
   { name: 'Microsoft Clarity', muster: /clarity\.ms\/collect/ },
   { name: 'Piwik PRO', muster: /\/ppms\.php(\?|$)/ },
   { name: 'LinkedIn', muster: /px\.ads\.linkedin\.com\/(collect|wa)/ },

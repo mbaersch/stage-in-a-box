@@ -223,7 +223,13 @@ test.describe('Baseline', () => {
 - **Rot** (Test schlägt fehl): Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; CSP-Verstoß.
 - **Info** (nur Bericht): neue Requests, Hosts, Parameter; geänderte Parameterwerte; neue Events oder Keys außerhalb von `ecommerce`; geänderte Reihenfolge.
 - Werte, die sich bei jedem Lauf ändern (aus dem Auftrag oder beim zweiten Lauf als „geändert“ sichtbar), als `fluechtigeKeys` bzw. `fluechtigeParameter` angeben. Gängige sind schon in `lib/baseline.ts` hinterlegt.
-- Nach dem Anlegen: Test **zweimal** laufen lassen. Der zweite Lauf zeigt, welche Werte flüchtig sind.
+- **Nach dem Ziehen abgleichen:** Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.md` durchgehen. Ziel: kein Rot und nur Hinweise, die sich erklären lassen. Jede Abweichung einordnen:
+  - **Flüchtiger Wert** (Zufall, Zeit, Sitzung, Client-ID): dienstübergreifend bekannte Parameter in `FLUECHTIGE_PARAMETER` bzw. `FLUECHTIGE_MUSTER` in `lib/baseline.ts`, nur hier vorkommende als `fluechtigeKeys`/`fluechtigeParameter` im Test.
+  - **Begleit-Request** mit schwankender Anzahl (Cookie-Abgleich, Kopien, Weiterleitungs-Hops): Muster in `BEGLEIT_PFADE`; Abweichungen in der Anzahl sind dann nur Hinweise, Consent-Parameter bleiben rot.
+  - **Rauschen ohne Aussage** (Sitzungsaufzeichnung, eigene Statistik der Website mit Zeitstempel im Parameter): Regel mit `nichtProtokollieren: true` – wird weiter gesteuert, aber nicht verglichen.
+  - **Echte Unsicherheit** (Tag feuert mal, mal nicht): nicht wegfiltern, sondern melden; oft ein Timing-Problem der Website oder ein zu schnelles Tempo.
+- Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Die Protokolle des letzten Laufs liegen in `test-results/`, `vergleiche()` aus `lib/baseline.ts` nimmt zwei Momentaufnahmen.
+- Erst wenn der Abgleich sauber ist, gilt die Baseline als fertig. Im Bericht nennen, was als flüchtig, Begleit-Request oder Rauschen eingestuft wurde.
 - **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu -- projects/<name>` nur auf ausdrücklichen Wunsch des Menschen.
 - Bei echten Käufen nur mit Testkonto bzw. Testprodukt laut Auftrag.
 
