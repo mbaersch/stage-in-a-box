@@ -1,8 +1,9 @@
 <script>
-  // Recorder-Einstellungen. Die integrierte Variable "Debug Mode" muss aktiviert sein.
+  // Recorder-Einstellungen. Aufzeichnen nur nach Aufruf der Startseite mit
+  // ?sib_rec=masked oder ?sib_rec=full; gilt im selben Tab bis ?sib_rec=aus.
   window.__recConfig = {
-    enabled: {{Debug Mode}},
-    values: 'masked', // 'masked' | 'full'
+    param: 'sib_rec',
+    values: 'masked', // Vorgabe für ?sib_rec ohne Wert: 'masked' | 'full'
     console: false
   };
 </script>
@@ -25,7 +26,8 @@
  *
  * Konfiguration (optional), vor diesem Script setzen:
  *   window.__recConfig = {
- *     enabled: true,          // false = nichts tun (im GTM: Variable Debug Mode)
+ *     enabled: true,          // false = nichts tun
+ *     param: 'sib_rec',       // nur aktiv nach Aufruf mit ?sib_rec=masked|full, bis ?sib_rec=aus
  *     values: 'masked',       // 'masked' | 'full' – Erfassung von Texteingaben
  *     console: false,         // jeden Eintrag zusätzlich in die Konsole schreiben
  *     dataLayerName: 'dataLayer',
@@ -41,12 +43,33 @@
   var VERSION = 1;
   var cfg = window.__recConfig || {};
   if (cfg.enabled === false || cfg.enabled === 'false') return;
+  var VALUE_MODE = cfg.values === 'full' ? 'full' : 'masked';
+
+  // Der Parameter steht nur in der ersten URL; sessionStorage trägt die Aktivierung
+  // über Seitenwechsel im selben Tab weiter.
+  if (cfg.param) {
+    var STORE_KEY = '__rec_' + cfg.param;
+    var match = new RegExp('[?&]' + cfg.param + '(?:=([^&#]*))?(?:[&#]|$)').exec(location.search);
+    var stored = null;
+    try { stored = window.sessionStorage.getItem(STORE_KEY); } catch (e) {}
+    if (match) {
+      var requested = decodeURIComponent(match[1] || '').toLowerCase();
+      if (requested === 'aus' || requested === 'off') {
+        try { window.sessionStorage.removeItem(STORE_KEY); } catch (e) {}
+        return;
+      }
+      stored = requested === 'full' || requested === 'masked' ? requested : VALUE_MODE;
+      try { window.sessionStorage.setItem(STORE_KEY, stored); } catch (e) {}
+    }
+    if (!stored) return;
+    VALUE_MODE = stored === 'full' ? 'full' : 'masked';
+  }
+
   if (window.__recActive) return; // Schutz vor doppelter Einbindung (z. B. GTM-Tag + Override)
   window.__recActive = true;
 
   var DL_NAME = cfg.dataLayerName || 'dataLayer';
   var KEY = cfg.key || '__rec';
-  var VALUE_MODE = cfg.values === 'full' ? 'full' : 'masked';
   var LOG = cfg.console === true;
   var TEXT_MAX = 80;
   var MAX_FORM_FIELDS = 50;

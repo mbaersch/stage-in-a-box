@@ -8,10 +8,11 @@ mkdir -p dist
 
 {
   echo '<script>'
-  echo '  // Recorder-Einstellungen. Die integrierte Variable "Debug Mode" muss aktiviert sein.'
+  echo '  // Recorder-Einstellungen. Aufzeichnen nur nach Aufruf der Startseite mit'
+  echo '  // ?sib_rec=masked oder ?sib_rec=full; gilt im selben Tab bis ?sib_rec=aus.'
   echo '  window.__recConfig = {'
-  echo '    enabled: {{Debug Mode}},'
-  echo "    values: 'masked', // 'masked' | 'full'"
+  echo "    param: 'sib_rec',"
+  echo "    values: 'masked', // Vorgabe für ?sib_rec ohne Wert: 'masked' | 'full'"
   echo '    console: false'
   echo '  };'
   echo '</script>'
