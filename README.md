@@ -50,7 +50,8 @@ Einmalig im Hauptordner des Repos:
 ```sh
 npm install
 npx playwright install chromium
-npm run erweiterung -- cngpoecoknpgfjfaafnekjoaeohaejpb   # optional: Tracking Auditor als Extension
+npm run erweiterung -- kejbdjndbnbjgmefkgdddjlbokphdefk   # optional: Tag Assistant (Google)
+npm run erweiterung -- cngpoecoknpgfjfaafnekjoaeohaejpb   # optional: Tracking Auditor
 ```
 
 Pro Website ein Projekt anlegen und `BASE_URL` in `projects/mein-shop/.env` eintragen:
@@ -64,7 +65,10 @@ Der Browser öffnet die Website, und Du bedienst sie selbst; schließt Du ihn, e
 
 **Mit GTM-Vorschau:** Link aus GTM *Vorschau teilen* als `SITZUNG_VORSCHAU_LINK` in `.env`, in Anführungszeichen. Dann verbindet sich zuerst der Tag Assistant mit Deinem Workspace und öffnet die Website in einem neuen Tab. Den Tab des Tag Assistant offen lassen.
 
-**Mit Extensions:** `npm run erweiterung -- <ID aus dem Chrome Web Store>` (oder eine ZIP-Datei bzw. ein entpackter Ordner) legt die Extension in `erweiterungen/` ab; jede Sitzung lädt alle Extensions von dort. Rechte wie den Zugriff auf Websites erteilst Du in der Sitzung wie gewohnt. Die ID steht in der Adresse der Extension im Web Store.
+**Mit Extensions:** `npm run erweiterung -- <ID aus dem Chrome Web Store>` (oder eine ZIP-Datei bzw. ein entpackter Ordner) legt die Extension in `erweiterungen/` ab; jede Sitzung lädt alle Extensions von dort. Die ID ist der 32-stellige Teil am Ende der Adresse im Web Store, z. B. `…/detail/tag-assistant/kejbdjndbnbjgmefkgdddjlbokphdefk`. Erneut aufgerufen, holt der Befehl die aktuelle Version; eine Extension entfernst Du, indem Du ihren Ordner in `erweiterungen/` löschst. Rechte wie den Zugriff auf Websites erteilst Du in der Sitzung wie gewohnt; weil jede Sitzung mit frischem Profil startet, auch jedes Mal neu. Bewährt haben sich:
+
+- **[Tag Assistant](https://chromewebstore.google.com/detail/kejbdjndbnbjgmefkgdddjlbokphdefk)** von Google: die Extension zum Tag Assistant für das Debugging von GTM und gtag.js; arbeitet mit der GTM-Vorschau der Sitzung zusammen.
+- **[Tracking Auditor](https://chromewebstore.google.com/detail/cngpoecoknpgfjfaafnekjoaeohaejpb)**: zeigt GA4-, Google-Ads- und weitere Marketing-Requests in einem eigenen Tab der DevTools.
 
 **Anpassungen bestellen:** Starte den Agent im Hauptordner und beschreib, was anders sein soll, zum Beispiel:
 
