@@ -169,6 +169,11 @@ Der erste Lauf speichert `projects/<name>/baselines/<journey>.json`. Jeder weite
 
 Werte, die sich bei jedem Lauf ändern (Transaktions-IDs, Session-IDs, Zeitstempel), werden nur auf Vorhandensein geprüft. Gängige sind hinterlegt, weitere trägt der Agent ein.
 
+Bei zwei Arten von Requests schwankt die Anzahl auch ohne jede Änderung am Setup. Sie stehen im Bericht mit eigener Kennzeichnung, und eine abweichende Anzahl ist nur ein Hinweis. Geänderte Consent-Parameter bleiben auch dort rot.
+
+- **(Timing):** hängen davon ab, wie lange jemand auf einer Seite bleibt, etwa GA4 `user_engagement` und Heartbeats von Matomo/Piwik PRO.
+- **(Begleit):** Cookie-Abgleich, Kopien und Weiterleitungen, die Dienste mal senden und mal nicht (z. B. Google Ads über `ccm` und `1p-conversion`), sowie Uploads von Sitzungsaufzeichnungen wie Clarity.
+
 Baseline und Vergleich laufen immer im selben **Tempo**. Am Ende verlässt der Test die letzte Seite, damit auch Requests beim Verlassen in der Baseline stehen.
 
 ### Tempo

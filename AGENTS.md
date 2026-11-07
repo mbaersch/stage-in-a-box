@@ -225,7 +225,9 @@ test.describe('Baseline', () => {
 - Werte, die sich bei jedem Lauf ändern (aus dem Auftrag oder beim zweiten Lauf als „geändert“ sichtbar), als `fluechtigeKeys` bzw. `fluechtigeParameter` angeben. Gängige sind schon in `lib/baseline.ts` hinterlegt.
 - **Nach dem Ziehen abgleichen:** Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.md` durchgehen. Ziel: kein Rot und nur Hinweise, die sich erklären lassen. Jede Abweichung einordnen:
   - **Flüchtiger Wert** (Zufall, Zeit, Sitzung, Client-ID): dienstübergreifend bekannte Parameter in `FLUECHTIGE_PARAMETER` bzw. `FLUECHTIGE_MUSTER` in `lib/baseline.ts`, nur hier vorkommende als `fluechtigeKeys`/`fluechtigeParameter` im Test.
-  - **Begleit-Request** mit schwankender Anzahl (Cookie-Abgleich, Kopien, Weiterleitungs-Hops): Muster in `BEGLEIT_PFADE`; Abweichungen in der Anzahl sind dann nur Hinweise, Consent-Parameter bleiben rot.
+  - **Timing-abhängig** (GA4 `user_engagement`, Heartbeats wie `ping` bei Matomo/Piwik PRO): Anzahl hängt an der Verweildauer und wird immer so eingestuft (`istTimingAbhaengig` in `lib/baseline.ts`, im Bericht „(Timing)“). Weitere solche Requests dort ergänzen.
+  - **Begleit-Request** mit schwankender Anzahl (Cookie-Abgleich, Kopien, Weiterleitungs-Hops, Uploads von Sitzungsaufzeichnungen): Muster für host + pfad in `BEGLEIT_PFADE`, im Bericht „(Begleit)“.
+  - Bei beiden ist eine abweichende Anzahl nur ein Hinweis; Consent-Parameter bleiben rot.
   - **Rauschen ohne Aussage** (Sitzungsaufzeichnung, eigene Statistik der Website mit Zeitstempel im Parameter): Regel mit `nichtProtokollieren: true` – wird weiter gesteuert, aber nicht verglichen.
   - **Echte Unsicherheit** (Tag feuert mal, mal nicht): nicht wegfiltern, sondern melden; oft ein Timing-Problem der Website oder ein zu schnelles Tempo.
 - Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Die Protokolle des letzten Laufs liegen in `test-results/`, `vergleiche()` aus `lib/baseline.ts` nimmt zwei Momentaufnahmen.

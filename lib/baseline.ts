@@ -65,7 +65,7 @@ export const FLUECHTIGE_PARAMETER = [
   'rcb', 'tag_exp', 'ecid', 'epn.config_timing', 'epn.event_timing',
   // Google Ads / Floodlight
   'rnd', 'random', 'ord', 'auid', 'gclid', 'gclaw', 'num', 'u_tz', 'u_his', 'u_h', 'u_w', 'u_ah', 'u_aw', 'u_cd',
-  'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2',
+  'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2', 'eoid', 'eitems', '_gsid',
   // Microsoft Ads (UET)
   'mid', 'vid', 'rn', 'lt',
   // Piwik PRO (Zeit-, Zufalls- und Besucherwerte; Timings t_* über FLUECHTIGE_MUSTER)
@@ -87,8 +87,11 @@ export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
  */
 export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/, /clarity\.ms\/collect/];
 
-/** Begleit-Requests, erkennbar an Parametern: Heartbeats von Matomo/Piwik PRO (ping=1). */
-const istHeartbeat = (p: Record<string, string>) => p.ping === '1';
+/**
+ * Timing-abhängige Requests: Heartbeats von Matomo/Piwik PRO (ping, Piwik PRO z. B. ping=5) und GA4
+ * user_engagement, das beim Verlassen nur nach genug Interaktionszeit kommt. Anzahl nur als Hinweis.
+ */
+const istTimingAbhaengig = (p: Record<string, string>) => p.ping !== undefined || p.en === 'user_engagement';
 
 interface BaselineEvent { name: string; quelle: 'push' | 'gtag'; daten: Record<string, unknown> }
 
@@ -157,13 +160,17 @@ function ereignisname(p: Record<string, string>, pfad: string): string {
 }
 
 const BEGLEIT = '(Begleit) ';
+const TIMING = '(Timing) ';
+/** Gruppen, deren Anzahl schwanken darf: Abweichungen nur als Hinweis. */
+const nurHinweis = (k: string) => k.startsWith(BEGLEIT) || k.startsWith(TIMING);
 
 /** Vergleichsschlüssel: Dienst, Ereignis und Pfad (Konto-IDs u. ä. als #). Wird beim Vergleich neu
  * berechnet, damit ältere Baselines mit anderem Schlüssel vergleichbar bleiben. */
 function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'host' | 'pfad' | 'umleitung'>): string {
   const pfad = a.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#');
-  const begleit = a.umleitung || istHeartbeat(a.parameter) || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad));
-  return `${begleit ? BEGLEIT : ''}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}`;
+  const art = istTimingAbhaengig(a.parameter) ? TIMING
+    : a.umleitung || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad)) ? BEGLEIT : '';
+  return `${art}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}`;
 }
 
 function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
@@ -251,7 +258,7 @@ function anzahlBefunde(
   const befunde: Befund[] = [];
   for (const [k, b] of basis) {
     const r = lauf.get(k)?.length ?? 0;
-    const stufe = k.startsWith(BEGLEIT) ? 'info' : 'rot';
+    const stufe = nurHinweis(k) ? 'info' : 'rot';
     if (r === 0) befunde.push({ stufe, bereich, text: `${art} fehlt: ${k}` });
     else if (r < b.length) befunde.push({ stufe, bereich, text: `${art} fehlt teilweise: ${k} (${r} statt ${b.length})` });
     else if (r > b.length) befunde.push({ stufe, bereich, text: `${art} mehrfach: ${k} (${r} statt ${b.length})` });
@@ -332,10 +339,12 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
       // Wechsel zwischen Hosts derselben Domain (z. B. Clarity: a.clarity.ms, o.clarity.ms) ist Lastverteilung
       const domain = (h: string) => h.split('.').slice(-2).join('.');
       if (domain(a.host) !== domain(b.host)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: Host geändert: ${b.host} → ${a.host}` });
+      // Flüchtige Parameter kommen und gehen auch (z. B. Timings, Sitzungs-IDs); Consent-Parameter nie flüchtig
+      const fluechtig = (p: string) => !rotParameter.has(p) && (fluechtigeParameter.has(p) || FLUECHTIGE_MUSTER.some((m) => m.test(p)));
       for (const p of Object.keys(b.parameter)) {
         if (!(p in a.parameter)) {
-          befunde.push({ stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests', text: `${k}${nr}: Parameter fehlt: ${p}` });
-        } else if (!fluechtigeParameter.has(p) && !FLUECHTIGE_MUSTER.some((m) => m.test(p)) && a.parameter[p] !== b.parameter[p]) {
+          if (!fluechtig(p)) befunde.push({ stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests', text: `${k}${nr}: Parameter fehlt: ${p}` });
+        } else if (!fluechtig(p) && a.parameter[p] !== b.parameter[p]) {
           befunde.push({
             stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests',
             text: `${k}${nr}: ${p} geändert: ${zeige(b.parameter[p])} → ${zeige(a.parameter[p])}`,
@@ -343,7 +352,7 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
         }
       }
       for (const p of Object.keys(a.parameter)) {
-        if (!(p in b.parameter)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: neuer Parameter: ${p}` });
+        if (!(p in b.parameter) && !fluechtig(p)) befunde.push({ stufe: 'info', bereich: 'Requests', text: `${k}${nr}: neuer Parameter: ${p}` });
       }
     });
   }
