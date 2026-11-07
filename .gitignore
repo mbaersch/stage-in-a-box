@@ -23,6 +23,8 @@
 
 # Projekte mit Aufzeichnungen, .env und Reports: nie einchecken, auch wenn die Allowlist sich ändert
 /projects/
+# Heruntergeladene Extensions (npm run erweiterung)
+/erweiterungen/
 
 # Erzeugte Dateien
 node_modules/

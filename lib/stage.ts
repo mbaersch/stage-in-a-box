@@ -23,6 +23,9 @@
  */
 import { test as base, expect, type BrowserContext, type Page, type Route, type Request, type TestInfo } from '@playwright/test';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
@@ -1076,6 +1079,46 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
     await ablegen('csp-inventar.json', stage.cspInventar());
+  },
+});
+
+const ERWEITERUNGEN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'erweiterungen');
+
+/** Entpackte Extensions in erweiterungen/ (npm run erweiterung). */
+function erweiterungsOrdner(): string[] {
+  if (!fs.existsSync(ERWEITERUNGEN)) return [];
+  return fs.readdirSync(ERWEITERUNGEN, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .map((e) => path.join(ERWEITERUNGEN, e.name))
+    .filter((ordner) => fs.existsSync(path.join(ordner, 'manifest.json')));
+}
+
+/**
+ * Für offene Sitzungen (Titel mit @sitzung, stage.offenHalten): eigener Browser mit frischem Profil,
+ * weil Chromium Extensions nur so lädt. Lädt alle Extensions aus erweiterungen/.
+ */
+export const sitzung = test.extend({
+  context: async ({
+    playwright, launchOptions, headless, contextOptions, baseURL, locale, timezoneId, httpCredentials,
+    proxy, ignoreHTTPSErrors, serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch,
+  }, use) => {
+    const erweiterungen = erweiterungsOrdner();
+    const args = [...(launchOptions.args ?? [])];
+    if (erweiterungen.length) {
+      args.push(`--disable-extensions-except=${erweiterungen.join(',')}`, `--load-extension=${erweiterungen.join(',')}`);
+    }
+    const profil = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-sitzung-'));
+    const kontext = await playwright.chromium.launchPersistentContext(profil, {
+      ...launchOptions, args, headless, ...contextOptions, baseURL, locale, timezoneId, httpCredentials,
+      proxy, ignoreHTTPSErrors, serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch,
+    });
+    await use(kontext);
+    await kontext.close().catch(() => { /* Fenster schon geschlossen */ });
+    try { fs.rmSync(profil, { recursive: true, force: true }); } catch { /* Windows hält Dateien kurz fest */ }
+  },
+  // Das Profil öffnet schon einen Tab; sonst gäbe es zwei
+  page: async ({ context }, use) => {
+    await use(context.pages()[0] ?? await context.newPage());
   },
 });
 

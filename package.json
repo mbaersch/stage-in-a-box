@@ -11,7 +11,8 @@
     "report": "playwright show-report",
     "pruefen": "tsc -p .",
     "test:recorder": "node test/recorder-smoke.mjs",
-    "sitzung": "playwright test --headed --workers=1 -g @sitzung"
+    "sitzung": "playwright test --headed --workers=1 -g @sitzung",
+    "erweiterung": "node werkzeuge/erweiterung-holen.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
