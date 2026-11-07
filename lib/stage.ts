@@ -80,6 +80,8 @@ export interface StageOptionen {
    * kann Funktionen der Website stören. Vorgabe: Umgebungsvariable UNBEKANNTE=abfangen.
    */
   unbekannteAbfangen?: boolean;
+  /** navigator.webdriver verbergen, damit CMPs den Testbrowser nicht als Bot behandeln. Vorgabe: true. */
+  automationVerbergen?: boolean;
 }
 
 /** CONVERSION=aus: Tests enden an stage.conversionPunkt(), z. B. solange sie eingerichtet werden. */
@@ -187,6 +189,8 @@ export const STANDARD_DIENSTE: Regel[] = [
   { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/action/ },
   { name: 'Microsoft Clarity', muster: /clarity\.ms\/collect/ },
   { name: 'OpenAI Ads', muster: /bzr\.openai\.com\/v\d+\/sdk\/events/ },
+  { name: 'Salesforce Pardot', muster: /pardot\.com\/analytics/ },
+  { name: 'Criteo', muster: /criteo\.(com|net)\/.*event/ },
   { name: 'Piwik PRO', muster: /\/ppms\.php(\?|$)/ },
   { name: 'LinkedIn', muster: /px\.ads\.linkedin\.com\/(collect|wa)/ },
   { name: 'TikTok', muster: /analytics\.tiktok\.com\/api\/v\d\/(pixel|track)/ },
@@ -564,6 +568,11 @@ export async function richteStageEin(
     dlName: optionen.dataLayerName ?? 'dataLayer',
     werkzeugSeiten: WERKZEUG_SEITEN.map((m) => m.source),
   });
+  // CMPs wie Usercentrics erkennen Automatisierung (isBot) und erteilen dann selbst Consent:
+  // sähe aus wie Tracking ohne Zustimmung. Gegenstück: Startargument in playwright.config.ts.
+  if (optionen.automationVerbergen !== false) {
+    await context.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
+  }
 
   if (proxy) {
     verbindeProxy(stage, proxy, regelMitTyp, modus, optionen);

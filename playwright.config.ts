@@ -61,6 +61,11 @@ if (!istBeispiel && !process.env.BASE_URL) {
 // Das Beispiel läuft gegen die mitgelieferte Demo-Seite.
 const DEMO_PORT = 4173;
 
+// Basic Auth (z. B. Staging hinter .htaccess)
+const httpCredentials = process.env.BASIC_AUTH_BENUTZER && process.env.BASIC_AUTH_PASSWORT
+  ? { username: process.env.BASIC_AUTH_BENUTZER, password: process.env.BASIC_AUTH_PASSWORT }
+  : undefined;
+
 export default defineConfig({
   testDir: path.join(PROJEKT, 'tests'),
   outputDir: path.join(PROJEKT, 'test-results'),
@@ -70,6 +75,7 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never', outputFolder: path.join(PROJEKT, 'playwright-report') }]],
   use: {
     baseURL: process.env.BASE_URL ?? `http://localhost:${DEMO_PORT}`,
+    httpCredentials,
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
     // Service Worker würden Requests am Routing vorbei senden.
@@ -78,7 +84,11 @@ export default defineConfig({
     // TEMPO verlangsamt jede Aktion etwas (siehe lib/tempo.ts)
     // NetLog erfasst Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts);
     // proxyArgumente lässt den Browser den Zertifikaten des optionalen Proxys vertrauen (lib/proxy.ts)
-    launchOptions: { slowMo: SLOW_MO[tempoAusUmgebung()], args: [...netlogArgumente(), ...proxyArgumente()] },
+    // AutomationControlled aus: CMPs sollen den Testbrowser nicht als Bot erkennen (siehe lib/stage.ts)
+    launchOptions: {
+      slowMo: SLOW_MO[tempoAusUmgebung()],
+      args: [...netlogArgumente(), ...proxyArgumente(), '--disable-blink-features=AutomationControlled'],
+    },
     screenshot: 'only-on-failure',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],

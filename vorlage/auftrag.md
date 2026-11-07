@@ -16,7 +16,7 @@
 
 - **Startadresse:** <!-- z. B. https://www.example.de/ – kommt auch als BASE_URL in .env -->
 - **Umgebung:** <!-- Live / Staging / lokal -->
-- **Zugang nötig?** <!-- Basic Auth, IP-Freigabe … (Zugangsdaten in .env) -->
+- **Zugang nötig?** <!-- Basic Auth (BASIC_AUTH_BENUTZER / BASIC_AUTH_PASSWORT in .env), IP-Freigabe … -->
 - **GTM-Vorschau nötig?** <!-- nein (Live-Container) / ja: Vorschau-Link aus GTM („Vorschau teilen“) als GTM_VORSCHAU_LINK in .env -->
 - **Consent-Banner:** <!-- Name der CMP oder Selektoren für Zustimmen/Ablehnen, dazu nötige Schritte bis zum Banner (z. B. erst nach Scrollen sichtbar). Pflicht, wenn GTM erst nach der Zustimmung lädt: Dann fehlt der Banner-Klick in der Aufzeichnung. -->
 

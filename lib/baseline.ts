@@ -168,13 +168,23 @@ const TIMING = '(Timing) ';
 /** Gruppen, deren Anzahl schwanken darf: Abweichungen nur als Hinweis. */
 const nurHinweis = (k: string) => k.startsWith(BEGLEIT) || k.startsWith(TIMING);
 
-/** Vergleichsschlüssel: Dienst, Ereignis und Pfad (Konto-IDs u. ä. als #). Wird beim Vergleich neu
+/**
+ * Konto bzw. Property, an das ein Request geht: GA4/Google tid, UET ti, Piwik idsite, LinkedIn pid, Meta id,
+ * sonst eine Konto-ID im Pfad (Google Ads /pagead/conversion/<id>/). Gehört in den Schlüssel, damit ein
+ * Wechsel des Empfängers als fehlender bzw. neuer Request auffällt und nicht nur als geänderter Parameter.
+ */
+function konto(p: Record<string, string>, pfad: string): string {
+  return p.tid ?? p.ti ?? p.idsite ?? p.pid ?? p.id ?? pfad.match(/\/(\d{6,})(\/|$)/)?.[1] ?? '';
+}
+
+/** Vergleichsschlüssel: Dienst, Ereignis, Pfad (IDs als #) und Konto. Wird beim Vergleich neu
  * berechnet, damit ältere Baselines mit anderem Schlüssel vergleichbar bleiben. */
 function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'host' | 'pfad' | 'umleitung'>): string {
   const pfad = a.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#');
   const art = istTimingAbhaengig(a.parameter) ? TIMING
     : a.umleitung || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad)) ? BEGLEIT : '';
-  return `${art}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}`;
+  const empfaenger = konto(a.parameter, a.pfad);
+  return `${art}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}${empfaenger ? ` · ${empfaenger}` : ''}`;
 }
 
 function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {

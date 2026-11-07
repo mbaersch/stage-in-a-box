@@ -220,7 +220,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 - **Ohne Proxy:** Beacons beim Verlassen einer Seite (z. B. `user_engagement`) laufen in Chromium am Abfangen vorbei. Im Modus „abfangen“ werden sie deshalb echt gesendet. Die Tests erkennen das und markieren sie als „entwischt“. Mit Proxy passiert das nicht.
 - **Eigene Pfade und Formate:** Tracking über Pfade der eigenen Domain, Custom Loader oder getunnelte Requests erkennen die Standardregeln nicht. Solche Requests erscheinen als „Requests ohne Regel“. Der Agent prüft sie vor dem Bauen und legt passende Regeln an.
 - **Hover-Menüs**, die sich nur bei Mouseover öffnen, werden nicht aufgezeichnet.
-- **Bot-Schutz, Captchas und 3-D-Secure** können automatisierte Abläufe stoppen.
+- **Bot-Schutz, Captchas und 3-D-Secure** können automatisierte Abläufe stoppen. Die Testumgebung verbirgt die Automatisierung des Browsers, weil manche CMPs (z. B. Usercentrics) einem erkannten Bot sonst selbst Consent erteilen. Das sähe aus wie Tracking ohne Zustimmung.
 - **Serverseitiges Tagging:** Geprüft wird, was der Browser an den Server-Container schickt und was dieser im Browser auslöst, nicht was er serverseitig weitersendet.
 
 ## Datenschutz

@@ -306,6 +306,8 @@ Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`.
 - Testfehler (Locator, Timing) beheben. Website- oder Tracking-Fehler **nicht wegtesten**: Erwartungen nicht aufweichen, damit es grün wird, sondern melden.
 - Tests mit festen Erwartungen mindestens dreimal hintereinander grün laufen lassen (`--repeat-each=3`). Baseline-Tests senden echte Requests: dort reichen zwei Läufe.
 - Bot-Schutz, Captchas, 3-D-Secure: nicht umgehen, sondern melden.
+- Tracking vor Consent, obwohl niemand geklickt hat: zuerst prüfen, ob die CMP den Testbrowser als Bot behandelt und selbst zustimmt (Usercentrics: `isBot`). Die Stage verbirgt `navigator.webdriver` und das Automation-Flag; abschalten nur mit `stageOptionen: { automationVerbergen: false }`.
+- Basic Auth (Staging): `BASIC_AUTH_BENUTZER` und `BASIC_AUTH_PASSWORT` in `.env`, die Config setzt sie für alle Tests.
 
 ## Grenzen und Sicherheit
 
