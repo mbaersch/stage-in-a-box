@@ -27,11 +27,13 @@ Ist die Journey einmal als Test angelegt, wird sie zur **Stage in a Box**. Du ka
  2. Journey im Preview durchklicken      → Tag-Assistant-Export
  3. Projekt anlegen, Agent: Analyse      → auftrag.md, Liste für .env, ggf. Testdaten
  4. Du: Auftrag prüfen, .env ausfüllen   → Status „bestätigt“
- 5. Agent: Tests und Baseline bauen      → Testsuite
- 6. Tests laufen lassen                  (jederzeit, mit Varianten)
+ 5. Agent: Tests bauen                   → Testsuite, bis vor die Conversion stabil,
+                                           dann ein vollständiger Lauf
+ 6. Agent: Baseline ziehen               → Ist-Zustand als Vergleichsbasis
+ 7. Tests laufen lassen                  (jederzeit, mit Varianten, nach jeder Änderung)
 ```
 
-Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das Eintragen der Testdaten. Den Rest erledigt der Agent.
+Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das Eintragen der Testdaten. Den Rest erledigt der Agent. Ab Schritt 6 meldet der Baseline-Vergleich jede Änderung am Setup, auch solche, an die beim Schreiben der festen Erwartungen niemand gedacht hat.
 
 ## Voraussetzungen
 
@@ -116,11 +118,17 @@ Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht ge
 
 > Projekt mein-shop: Der Auftrag ist bestätigt. Baue die Tests.
 
-Der Agent baut die Tests, legt bei Bedarf die Baseline an und schließt mit einem Bericht: welche Tests es gibt, welche Erwartungen er aus dem Ist-Zustand übernommen hat (zur Bestätigung), Auffälligkeiten, offene Punkte und was er in `projekt.md` festgehalten hat.
+Der Agent richtet die Tests mit `CONVERSION=aus` ein: Sie laufen bis direkt vor den Kauf bzw. das Absenden, es wird also nichts Echtes ausgelöst. Erst wenn das stabil läuft, folgt ein vollständiger Lauf mit Conversion. Danach berichtet er: welche Tests es gibt, welche Erwartungen er aus dem Ist-Zustand übernommen hat (zur Bestätigung), Auffälligkeiten, offene Punkte und was er in `projekt.md` festgehalten hat.
 
 Die Anweisungen für den Agent stehen in [`AGENTS.md`](AGENTS.md). Claude Code liest sie über `CLAUDE.md` automatisch ein, andere Agents über `AGENTS.md`.
 
-## 6. Tests ausführen
+## 6. Baseline ziehen
+
+> Projekt mein-shop: Zieh die Baseline.
+
+Sobald der vollständige Lauf grün ist, speichert der Agent den Ist-Zustand als Baseline: alle Requests, Consent-Parameter und dataLayer-Events der Journey. Er lässt den Baseline-Test zweimal laufen; der zweite Lauf zeigt, welche Werte sich bei jedem Lauf ändern. Ab dann meldet jeder Lauf Abweichungen, etwa nach einer Änderung im GTM. Baseline-Läufe senden echte Requests, auch Conversions (siehe [Baseline](#baseline)).
+
+## 7. Tests ausführen
 
 Alle Befehle im Hauptordner; das Projekt ergibt sich aus dem Pfad:
 
@@ -140,9 +148,9 @@ Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regu
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
-Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`.
+Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
 
-**Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
+**Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören.
 
 ### Baseline
 

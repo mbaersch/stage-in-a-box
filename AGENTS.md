@@ -26,7 +26,8 @@ Die Arbeit hat **zwei Phasen**. Zwischen beiden bestätigt der Mensch den Auftra
 | Phase | Ergebnis | Endet mit |
 |---|---|---|
 | 1. Analyse | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
-| 2. Bau | Tests, ggf. Baseline, Bericht | Abschlussbericht |
+| 2. Bau | Tests, stabil bis vor die Conversion, dann ein vollständiger Lauf | Abschlussbericht mit Angebot, die Baseline zu ziehen |
+| 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage |
 
 Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1. Pfade in dieser Anleitung ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
 
@@ -199,7 +200,9 @@ Beide nutzen dieselbe `journey()`-Funktion. Vorbild für beides: `beispiel/tests
 
 **Der Ist-Zustand ist nicht automatisch der Soll-Zustand.** Erwartungen, die nur aus der Aufzeichnung stammen und nicht im bestätigten Auftrag stehen, listest Du im Bericht auf. Auffälligkeiten (Event doppelt, Request mit `G111` vor Consent, fehlende Parameter) nicht in Erwartungen gießen, sondern melden.
 
-### Baseline
+### Baseline (Phase 3)
+
+Die Baseline ist der nächste Schritt, sobald die festen Erwartungen bis vor die Conversion stabil sind und ein vollständiger Lauf grün ist. Den Baseline-Test baust Du in Phase 2 gleich mit. Gezogen wird sie nach Rückfrage, weil sie echte Requests und Conversions sendet; einen Test einzeln startest Du mit `-g "Baseline"`.
 
 ```ts
 test.describe('Baseline', () => {
@@ -307,7 +310,7 @@ Kurz und konkret:
 
 1. Welche Tests es gibt und wie man sie startet.
 2. Welche Erwartungen aus dem Auftrag stammen und welche Du aus dem Ist-Zustand übernommen hast (zur Bestätigung).
-3. Baseline: angelegt ja/nein, mit welchem Tempo, mit oder ohne Proxy, welche Werte als flüchtig markiert sind und warum.
+3. Baseline: bereit zum Ziehen (Angebot an den Menschen) bzw. angelegt, mit welchem Tempo, mit oder ohne Proxy, welche Werte als flüchtig markiert sind und warum.
 4. Eigene Regeln für Requests über eigene Pfade oder Formate, falls nötig.
 5. Auffälligkeiten im Tracking (mögliche Fehler der Website).
 6. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
