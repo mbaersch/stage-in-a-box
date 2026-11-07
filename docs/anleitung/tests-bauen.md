@@ -58,6 +58,8 @@ Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben o
 
 **GTM-Vorschau:** Steht im Auftrag, dass getestet wird, was nur in einer GTM-Vorschau läuft: [`gtm-vorschau.md`](gtm-vorschau.md).
 
+**Prüfungen:** Was im Auftrag unter „Prüfungen“ angekreuzt ist (Durchgängigkeit, Cookies), kommt als `stageOptionen.pruefungen` in den Test der Journey: [`varianten.md`](varianten.md), „Prüfungen“.
+
 **Bedingungen:** Was im Auftrag unter „Bedingungen“ angekreuzt ist (Landung über eine Anzeige, wiederkehrender Besucher, Mobilgerät …), wird mit `stageOptionen` zu einer Variante derselben Journey, kein eigener Ablauf: [`varianten.md`](varianten.md), „Bedingungen für eine Journey“.
 
 **Iframes:** Zahlungsfelder und manche CMPs liegen in Cross-Origin-iframes; der Recorder sieht dort nichts. Wenn der Auftrag diesen Teil abdeckt, mit `frameLocator` arbeiten und Selektoren mit dem Menschen klären. Sonst den Test vor diesem Schritt enden lassen und das im Bericht erwähnen.

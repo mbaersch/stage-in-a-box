@@ -29,6 +29,17 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 - Uploads mit schwankender Anzahl: im Baseline-Vergleich „(Begleit)“ oder als Rauschen mit `nichtProtokollieren: true`.
 
+## Parameter für Conversion-Werte
+
+Woran die Durchgängigkeitsprüfung (`lib/pruefungen.ts`) Werte in Requests erkennt:
+
+| Dienst | Event | Wert | Währung | Transaktion | Artikel |
+|---|---|---|---|---|---|
+| GA4 | `en` | `epn.value` (`ep.value`) | `cu` | `ep.transaction_id` | `pr1`, `pr2` … (`id…~nm…`) |
+| Google Ads | `/pagead/conversion/…` mit `label` | `value` | `currency_code` | `oid` | – |
+| Meta | `ev` (z. B. `Purchase`) | `cd[value]` | `cd[currency]` | – | `cd[content_ids]` |
+| Microsoft Ads | Request mit `gv` | `gv` | `gc` | – | – |
+
 ## Klick-IDs
 
 Wo Dienste die Klick-ID aus der Landungs-URL üblicherweise speichern (`stage.klickIds()` sucht ohnehin überall):

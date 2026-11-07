@@ -36,6 +36,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Consent-Szenarien gezielt herstellen:** nur einzelne Dienste oder Kategorien, Widerruf auf der Seite, CMP nicht erreichbar. Für Usercentrics fertig vorbereitet.
 - **Im Tempo eines Menschen** oder exakt im Tempo der Aufzeichnung, damit auch zeitabhängige Requests wie `user_engagement` entstehen.
 - **Optional mit Proxy**, der wirklich alles im Netzwerk sieht und steuert: auch Beacons beim Verlassen einer Seite und Requests aus Service Workern.
+- **Mitlaufende Prüfungen** im Testkauf: Kommen Wert, Währung, Transaktions-ID und Artikel aus dem dataLayer unverändert bei GA4, Google Ads, Meta und Microsoft Ads an? Welche Cookies werden wann gesetzt, vor oder nach der Consent-Entscheidung, mit welcher Laufzeit?
 - **Unter weiteren Bedingungen**, als Zusatz zu einer bestehenden Journey: Landung über eine Anzeige (kommt die Klick-ID in der Conversion an?), wiederkehrender Besucher, Uhr vorspulen für Timer und Sitzungsende, langsames Netz und schwaches Gerät, Mobilgerät, andere Browser-Kennung, Zurück-Navigation aus dem bfcache. Im Auftrag sind das Kreuzchen.
 
 ## Voraussetzungen
@@ -235,6 +236,7 @@ Der erste Lauf speichert `projects/<name>/baselines/<journey>.json`. Jeder weite
 | Key fehlt, der in der Baseline vorhanden war | geänderte Werte außerhalb von `ecommerce`; neue oder weggefallene Requests ohne Regel |
 | jede Abweichung in `ecommerce` (z. B. `item_id`, `item_category`) | geänderte Reihenfolge der Events |
 | Consent-Befehle geändert, CSP-Verstoß | |
+| mit Cookie-Prüfung: neues Cookie vor der Consent-Entscheidung | neue oder weggefallene Cookies sonst |
 
 Werte, die sich bei jedem Lauf ändern (Transaktions-IDs, Session-IDs, Zeitstempel), werden nur auf Vorhandensein geprüft. Gängige sind hinterlegt, weitere trägt der Agent ein.
 
@@ -288,7 +290,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 - **Ohne Proxy:** Beacons beim Verlassen einer Seite (z. B. `user_engagement`) laufen in Chromium am Abfangen vorbei. Im Modus „abfangen“ werden sie deshalb echt gesendet. Die Tests erkennen das und markieren sie als „entwischt“. Mit Proxy passiert das nicht.
 - **Eigene Pfade und Formate:** Tracking über Pfade der eigenen Domain, Custom Loader oder getunnelte Requests erkennen die Standardregeln nicht. Solche Requests erscheinen als „Requests ohne Regel“. Der Agent prüft sie vor dem Bauen und legt passende Regeln an.
 - **Hover-Menüs**, die sich nur bei Mouseover öffnen, werden nicht aufgezeichnet.
-- **Bot-Schutz, Captchas und 3-D-Secure** können automatisierte Abläufe stoppen. Die Testumgebung verbirgt die Automatisierung des Browsers, weil manche CMPs (z. B. Usercentrics) einem erkannten Bot sonst selbst Consent erteilen. Das sähe aus wie Tracking ohne Zustimmung.
+- **Bot-Schutz, Captchas und 3-D-Secure** können automatisierte Abläufe stoppen. Die Testumgebung verbirgt die Automatisierung des Browsers (auch die Marke „HeadlessChrome“ in den Client Hints), weil manche CMPs (z. B. Usercentrics) einem erkannten Bot sonst selbst Consent erteilen. Das sähe aus wie Tracking ohne Zustimmung.
 - **Serverseitiges Tagging:** Geprüft wird, was der Browser an den Server-Container schickt und was dieser im Browser auslöst, nicht was er serverseitig weitersendet.
 
 ## Datenschutz
@@ -302,7 +304,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ```
 AGENTS.md                 Kern der Anweisungen für den Agent: Regeln und Wegweiser
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
-lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen, pruefungen
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/
   anleitung/              Anleitungen je Aufgabe (Staging, Aufzeichnung, Tests, Baseline, Varianten …)

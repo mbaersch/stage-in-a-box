@@ -1,7 +1,7 @@
 {
   "version": 1,
   "journey": "Demo Lead-Journey",
-  "erstellt": "2026-11-06T23:11:22.582Z",
+  "erstellt": "2026-11-07T18:45:32.058Z",
   "modus": "durchlassen",
   "tempo": "schnell",
   "proxy": true,
@@ -32,7 +32,7 @@
       "name": "generate_lead",
       "quelle": "push",
       "daten": {
-        "lead_id": "L-1794006681033",
+        "lead_id": "L-1794077127474",
         "lead_typ": "angebot",
         "value": 50,
         "currency": "EUR"
@@ -60,7 +60,7 @@
         "gcs": "G100",
         "dl": "http://localhost:4173/"
       },
-      "schluessel": "GA4 · page_view"
+      "schluessel": "GA4 · page_view · /g/collect · G-DEMO123"
     },
     {
       "dienst": "GA4",
@@ -76,7 +76,7 @@
         "gcs": "G111",
         "dl": "http://localhost:4173/"
       },
-      "schluessel": "GA4 · user_engagement"
+      "schluessel": "(Timing) GA4 · user_engagement · /g/collect · G-DEMO123"
     },
     {
       "dienst": "GA4",
@@ -92,7 +92,7 @@
         "gcs": "G111",
         "dl": "http://localhost:4173/angebot.html"
       },
-      "schluessel": "GA4 · page_view"
+      "schluessel": "GA4 · page_view · /g/collect · G-DEMO123"
     },
     {
       "dienst": "GA4",
@@ -111,7 +111,7 @@
         "ep.value": "50",
         "ep.currency": "EUR"
       },
-      "schluessel": "GA4 · generate_lead"
+      "schluessel": "GA4 · generate_lead · /g/collect · G-DEMO123"
     },
     {
       "dienst": "sGTM-Pixel",
@@ -123,7 +123,7 @@
       "parameter": {
         "quelle": "generate_lead"
       },
-      "schluessel": "sGTM-Pixel · /sgtm-pixel"
+      "schluessel": "(Begleit) sGTM-Pixel · /sgtm-pixel · /sgtm-pixel"
     },
     {
       "dienst": "GA4",
@@ -139,11 +139,21 @@
         "gcs": "G111",
         "dl": "http://localhost:4173/angebot.html"
       },
-      "schluessel": "GA4 · user_engagement"
+      "schluessel": "(Timing) GA4 · user_engagement · /g/collect · G-DEMO123"
     }
   ],
   "hosts": [
     "localhost:4173"
+  ],
+  "ausloeser": {
+    "localhost:4173": "Navigation"
+  },
+  "cookies": [
+    "_demo_analytics (localhost)",
+    "demo_sitzung (localhost)"
+  ],
+  "cookiesVorConsent": [
+    "demo_sitzung (localhost)"
   ],
   "weitere": [],
   "cspVerstoesse": []

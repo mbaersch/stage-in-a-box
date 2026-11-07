@@ -135,23 +135,53 @@ export function hatClientHints(ua: string): boolean {
   return /Chrome\/|Chromium\/|CriOS\//.test(ua);
 }
 
+/** Client Hints, die zu einer Chromium-Kennung passen (Plattform und Version aus dem String). */
+export function passendeClientHints(ua: string) {
+  const version = ua.match(/(?:Chrome|CriOS)\/([\d.]+)/)?.[1] ?? '0.0.0.0';
+  const haupt = version.split('.')[0];
+  const plattform = /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS'
+    : /CrOS/.test(ua) ? 'Chrome OS' : /Linux/.test(ua) ? 'Linux' : '';
+  const plattformVersion = ua.match(/Android (\d+(?:\.\d+)*)/)?.[1] ?? (plattform === 'Windows' ? '10.0.0' : '');
+  const marken = (v: string) => [
+    { brand: 'Not)A;Brand', version: v === haupt ? '8' : '8.0.0.0' },
+    { brand: 'Chromium', version: v },
+    { brand: 'Google Chrome', version: v },
+  ];
+  return {
+    brands: marken(haupt),
+    fullVersionList: marken(version),
+    fullVersion: version,
+    platform: plattform,
+    platformVersion: plattformVersion,
+    architecture: /arm|aarch64/i.test(ua) ? 'arm' : plattform === 'Android' ? '' : 'x86',
+    model: ua.match(/Android [^;]+; ([^)]+)\)/)?.[1] ?? '',
+    mobile: /Mobile|Android/.test(ua) && !/Tablet/.test(ua),
+    bitness: plattform === 'Android' ? '' : '64',
+  };
+}
+
 /**
- * Entfernt die Client Hints, wenn die Kennung zu einem Browser ohne Client Hints gehört (Safari,
- * Firefox): Marken leer statt "Chromium", navigator.userAgentData undefined. Chromium sendet den
- * Header Sec-CH-UA dann leer statt gar nicht – Skripte sehen keine Chromium-Marken mehr.
+ * Stimmt die Client Hints auf die Kennung ab, per CDP für jede Seite des Kontexts:
+ * - Chromium-Kennung: Marken wie bei Google Chrome statt "HeadlessChrome", Plattform aus dem String.
+ *   Sonst verrät der Header Sec-CH-UA den Testbrowser, obwohl der User-Agent nach Chrome aussieht.
+ * - Safari, Firefox: Marken leer, navigator.userAgentData undefiniert. Chromium sendet den Header
+ *   Sec-CH-UA dann leer statt gar nicht.
  */
-export async function clientHintsEntfernen(context: BrowserContext, ua: string) {
-  if (hatClientHints(ua)) return;
-  const leer = { brands: [], fullVersionList: [], platform: '', platformVersion: '', architecture: '', model: '', mobile: /Mobile|iPhone|Android/.test(ua) };
+export async function clientHintsAnpassen(context: BrowserContext, ua: string) {
+  const chromium = hatClientHints(ua);
+  const metadaten = chromium ? passendeClientHints(ua)
+    : { brands: [], fullVersionList: [], platform: '', platformVersion: '', architecture: '', model: '', mobile: /Mobile|iPhone|Android/.test(ua) };
   const anwenden = async (seite: Page) => {
     try {
       const cdp = await context.newCDPSession(seite);
-      await cdp.send('Emulation.setUserAgentOverride', { userAgent: ua, userAgentMetadata: leer });
+      await cdp.send('Emulation.setUserAgentOverride', { userAgent: ua, userAgentMetadata: metadaten });
     } catch { /* Seite schon geschlossen */ }
   };
   for (const p of context.pages()) await anwenden(p);
   context.on('page', (p) => { void anwenden(p); });
-  await context.addInitScript(() => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined, configurable: true }));
+  if (!chromium) {
+    await context.addInitScript(() => Object.defineProperty(Navigator.prototype, 'userAgentData', { get: () => undefined, configurable: true }));
+  }
 }
 
 /** Gerät aus der Liste von Playwright (z. B. "iPhone 15", "Pixel 7"). */

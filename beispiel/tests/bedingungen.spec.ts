@@ -81,6 +81,16 @@ test.describe('Browser-Kennung', () => {
   });
 });
 
+test('Standard-Kennung: Client Hints wie bei Chrome, ohne HeadlessChrome', async ({ page }) => {
+  const anfrage = page.waitForRequest((r) => r.resourceType() === 'document');
+  await page.goto('/');
+  const headers = await (await anfrage).allHeaders();
+  expect(headers['sec-ch-ua']).toContain('"Google Chrome"');
+  expect(headers['sec-ch-ua']).not.toContain('Headless');
+  expect(headers['sec-ch-ua-platform']).toBe('"Windows"');
+  expect(await page.evaluate(() => (navigator as any).userAgentData.platform)).toBe('Windows');
+});
+
 test.describe('Zurück-Navigation', () => {
   test.use({ stageOptionen: { bfcache: true } });
 

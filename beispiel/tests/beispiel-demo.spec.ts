@@ -107,6 +107,8 @@ test.describe('Baseline', () => {
     stageOptionen: {
       trackingModus: 'durchlassen',
       regeln: [{ name: 'sGTM-Pixel', muster: /\/sgtm-pixel/ }],
+      // Laufen mit: Werte der Conversion kommen bei GA4 an; Cookies vor der Consent-Entscheidung in der Baseline
+      pruefungen: { durchgaengigkeit: ['generate_lead'], cookies: true },
     },
   });
 
@@ -126,6 +128,17 @@ test.describe('Baseline', () => {
     // Erwartet rot: zeigt, dass der Vergleich doppelte Events meldet.
     test.fail();
     await page.addInitScript(() => { (window as any).__demoFehler = 'doppelt'; });
+    await journey(page, stage, 'akzeptieren');
+    await stage.vergleicheMitBaseline('Demo Lead-Journey', { fluechtigeKeys: ['lead_id'] });
+  });
+
+  test('Abweichung wird erkannt: neues Cookie vor der Consent-Entscheidung', async ({ page, stage }, testInfo) => {
+    const datei = `../baselines/demo-lead-journey${stage.mitProxy ? '.proxy' : ''}.json`;
+    const vorhanden = fs.existsSync(new URL(datei, import.meta.url));
+    test.skip(!vorhanden || ['all', 'changed'].includes(testInfo.config.updateSnapshots), 'nur Vergleich gegen bestehende Baseline');
+    // Erwartet rot: ein Tracker setzt schon vor der Zustimmung ein Cookie.
+    test.fail();
+    await page.addInitScript(() => { document.cookie = 'tracker_vor_consent=1; path=/; max-age=86400'; });
     await journey(page, stage, 'akzeptieren');
     await stage.vergleicheMitBaseline('Demo Lead-Journey', { fluechtigeKeys: ['lead_id'] });
   });

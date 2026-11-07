@@ -13,6 +13,8 @@
  * - NetLog-Abgleich: Requests beim Verlassen einer Seite, die Playwright nicht sieht (lib/netlog.ts)
  * - Optional Proxy (PROXY=ein): alle Requests im Netzwerk sehen und steuern, auch Beacons beim
  *   Verlassen einer Seite und Service Worker (lib/proxy.ts)
+ * - Prüfungen, die in einer Journey mitlaufen: Durchgängigkeit dataLayer → Requests, Cookies
+ *   mit Zeitpunkt zur Consent-Entscheidung (lib/pruefungen.ts)
  * - Bedingungen: Landung über eine Anzeige (Klick-IDs), wiederkehrender Besucher, Uhr vorstellen,
  *   Netz/CPU drosseln, Gerät und Browser-Kennung, Zurück-Navigation mit bfcache (lib/bedingungen.ts)
  *
@@ -33,9 +35,13 @@ import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
 import {
-  clientHintsEntfernen, drossele, geraetAus, klickIdBefunde, landungsParameter, userAgentAus,
+  clientHintsAnpassen, drossele, geraetAus, hatClientHints as hatClientHintsUa, klickIdBefunde, landungsParameter, userAgentAus,
   type KlickIdBefund, type Landung, type Netz,
 } from './bedingungen';
+import {
+  cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeDurchgaengigkeit,
+  type CookieEintrag, type CookieEreignis, type DurchgaengigkeitsBefund, type Pruefungen,
+} from './pruefungen';
 
 export type { Tempo } from './tempo';
 
@@ -132,6 +138,9 @@ export interface StageOptionen {
    * (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet.
    */
   bfcache?: boolean;
+
+  /** Prüfungen, die in der Journey mitlaufen (lib/pruefungen.ts): durchgaengigkeit, cookies. */
+  pruefungen?: Pruefungen;
 }
 
 /** Ordner des Projekts (bzw. des Beispiels), in dem der Test liegt. */
@@ -411,6 +420,11 @@ export class Stage {
   /** true, wenn der Browser dieses Tests den bfcache erlaubt (stageOptionen.bfcache). */
   bfcacheAktiv = false;
   uhrAktiv = false;
+  /** Gesetzte Cookies (ohne Werte), wenn stageOptionen.pruefungen.cookies an ist. */
+  readonly cookieEreignisse: CookieEreignis[] = [];
+  cookieProtokollAktiv = false;
+  /** Bericht für die Baseline, gefüllt von vergleicheMitBaseline. */
+  cookieEintraege?: CookieEintrag[];
   /** Alle Ressourcen nach CSP-Direktive, Host und Kontext (Seite, iframe, Service Worker), mit Anzahl. */
   readonly ressourcen = new Map<string, { direktive: string; host: string; origin: string; kontext: string; anzahl: number }>();
 
@@ -652,6 +666,29 @@ export class Stage {
   }
 
   /**
+   * Prüft, ob Wert, Währung, Transaktions-ID und Artikel des Events bei GA4, Google Ads, Meta und
+   * Microsoft Ads ankommen. Läuft mit stageOptionen.pruefungen.durchgaengigkeit automatisch am
+   * Testende; hier für eigene Aufrufe.
+   */
+  async pruefeDurchgaengigkeit(ereignis = 'purchase', ausnahmen: string[] = []): Promise<DurchgaengigkeitsBefund[]> {
+    await this.warteAufRuhe();
+    const pushes = this.dataLayer.eintraege
+      .filter((e) => (e.daten?.event === ereignis) || (Array.isArray(e.daten) && e.daten[0] === 'event' && e.daten[1] === ereignis))
+      .map((e) => ({ zeit: e.zeit, daten: Array.isArray(e.daten) ? e.daten[2] : e.daten }));
+    return pruefeDurchgaengigkeit(pushes, this.tracking.treffer, ereignis, ausnahmen);
+  }
+
+  /**
+   * Cookies je Muster: wann zuerst gesetzt (vor oder nach der Consent-Entscheidung), von Skript
+   * oder per HTTP, Domain, Laufzeit am Ende. Braucht stageOptionen.pruefungen.cookies.
+   */
+  async cookies(): Promise<CookieEintrag[]> {
+    if (!this.cookieProtokollAktiv) throw new Error('stageOptionen.pruefungen.cookies fehlt');
+    const entscheidung = this.dataLayer.consent('update')[0]?.zeit;
+    return cookieBericht(this.context, this.cookieEreignisse, entscheidung);
+  }
+
+  /**
    * Speichert Cookies und localStorage unter zustaende/<name>.json im Projekt. Ein späterer Test
    * startet damit über stageOptionen.startZustand als wiederkehrender Besucher.
    */
@@ -702,6 +739,7 @@ export class Stage {
     await this.warteAufRuhe(3000, 30_000);
     if (optionen.seiteVerlassen !== false) await this.seiteVerlassen();
     await this.warteAufRuhe();
+    if (this.cookieProtokollAktiv) this.cookieEintraege = await this.cookies();
     return vergleicheMitBaseline(this, name, optionen);
   }
 }
@@ -865,6 +903,8 @@ async function erfasseAusloeser(context: BrowserContext, stage: Stage) {
 
 export async function richteStageEin(
   context: BrowserContext, testInfo: TestInfo, optionen: StageOptionen = {}, proxy?: StageProxy,
+  /** Kennung des Kontexts (Fixture userAgent), für passende Client Hints */
+  kennung?: string,
 ): Promise<Stage> {
   const modus: Modus = optionen.trackingModus
     ?? (process.env.TRACKING_MODUS as Modus | undefined)
@@ -883,10 +923,11 @@ export async function richteStageEin(
     stage.uhrAktiv = true;
   }
   await drossele(context, { netz: optionen.netz, cpu: optionen.cpu });
+  // Client Hints passend zur Kennung: sonst meldet Sec-CH-UA "HeadlessChrome" (Bot-Signal) bzw.
+  // Chromium-Marken trotz Safari- oder Firefox-Kennung.
   const ua = optionen.userAgent ? userAgentAus(optionen.userAgent)
-    : optionen.geraet ? geraetAus(optionen.geraet).userAgent : undefined;
-  // Safari und Firefox kennen keine Client Hints; Skripte, die sie lesen, sollen keinen Widerspruch sehen.
-  if (ua) await clientHintsEntfernen(context, ua);
+    : optionen.geraet ? geraetAus(optionen.geraet).userAgent : kennung;
+  if (ua && (optionen.automationVerbergen !== false || !hatClientHintsUa(ua))) await clientHintsAnpassen(context, ua);
   await context.exposeFunction('__stageSeitenAnzeige', (v: string) => {
     stage.seitenAnzeigen.push({ zeit: Date.now(), ...JSON.parse(v) });
   });
@@ -896,6 +937,32 @@ export async function richteStageEin(
       try { (window as any).__stageSeitenAnzeige(JSON.stringify({ url: location.href, persisted: e.persisted })); } catch { /* ignorieren */ }
     });
   });
+
+  // Cookie-Protokoll (stageOptionen.pruefungen.cookies): Skripte und Set-Cookie, nie die Werte
+  if (optionen.pruefungen?.cookies) {
+    stage.cookieProtokollAktiv = true;
+    await context.exposeFunction('__stageCookie', (v: string) => {
+      const e = JSON.parse(v);
+      if (!e.name) return;
+      stage.cookieEreignisse.push({ zeit: Date.now(), quelle: 'skript', loeschen: istLoeschung(e.attribute ?? ''), ...e });
+    });
+    await context.addInitScript(cookieBeobachter);
+    context.on('response', async (antwort) => {
+      try {
+        const zeit = Date.now();
+        const host = zerlege(antwort.url()).host;
+        for (const h of await antwort.headersArray()) {
+          if (h.name.toLowerCase() !== 'set-cookie') continue;
+          for (const zeile of h.value.split('\n')) {
+            const [paar, ...attr] = zeile.split(';');
+            const name = paar.split('=')[0].trim();
+            const attribute = attr.map((a) => a.trim()).join('; ');
+            if (name) stage.cookieEreignisse.push({ zeit, name, quelle: 'http', host, attribute, loeschen: istLoeschung(attribute) });
+          }
+        }
+      } catch { /* Antwort nicht mehr verfügbar */ }
+    });
+  }
 
   // Offene Sitzungen: Requests an den Server-Container in dessen Vorschau schicken (Header aus der
   // sGTM-Vorschau, "Requests manuell senden"). Nur Sitzungen, damit Tests den echten Ablauf sehen.
@@ -1267,8 +1334,8 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     await use(stageProxy ? 'allow' : serviceWorkers);
   },
 
-  stage: async ({ context, stageOptionen, stageProxy }, use, testInfo) => {
-    const stage = await richteStageEin(context, testInfo, stageOptionen, stageProxy);
+  stage: async ({ context, stageOptionen, stageProxy, userAgent }, use, testInfo) => {
+    const stage = await richteStageEin(context, testInfo, stageOptionen, stageProxy, userAgent);
     await use(stage);
     stage.netzwerkAbgleich();
     const entwischt = stage.tracking.treffer.filter((t) => t.entwischt);
@@ -1299,6 +1366,16 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     await ablegen('csp-inventar.json', stage.cspInventar());
     if (Object.keys(stage.landungsWerte).length) await ablegen('klick-ids.json', await stage.klickIds().catch(() => []));
     if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
+    if (stage.cookieProtokollAktiv) await ablegen('cookies.json', await stage.cookies().catch(() => []));
+    // Durchgängigkeit: nur wenn der Test bis zum Ende lief (nicht bei CONVERSION=aus übersprungen)
+    const { ereignisse, ausnahmen } = ereignisseAus(stageOptionen.pruefungen?.durchgaengigkeit);
+    if (ereignisse.length && testInfo.status === 'passed') {
+      const befunde: DurchgaengigkeitsBefund[] = [];
+      for (const e of ereignisse) befunde.push(...await stage.pruefeDurchgaengigkeit(e, ausnahmen));
+      await ablegen('durchgaengigkeit.json', befunde);
+      const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis} → ${b.dienst}: ${b.text}`);
+      expect(rot, 'Durchgängigkeit dataLayer → Requests (Details: durchgaengigkeit.json)').toEqual([]);
+    }
   },
 });
 

@@ -1,4 +1,4 @@
-# Varianten, Bedingungen und Anpassungen
+# Varianten, Bedingungen, Prüfungen und Anpassungen
 
 Gilt für Varianten in Tests und für Anpassungen in Sitzungen ([`staging.md`](staging.md)). In Tests nur bauen, was der Auftrag verlangt. Varianten laufen über `test.use` in eigenen `describe`-Blöcken, im Modus `abfangen`; in Sitzungen stehen dieselben Optionen in `sitzung.use(…)`.
 
@@ -49,8 +49,31 @@ Bedingungen sind keine eigenen Tests, sondern Zusätze für eine bestehende Jour
 
 - **Klick-IDs** bekommen Testwerte der Form `TEST-sib-<id>-<Zeit>`. `stage.klickIds()` sucht sie in Cookies, localStorage und allen Tracking-Requests; am Testende liegt das Ergebnis als `klick-ids.json` bei. Wo die Dienste sie üblicherweise speichern: [`../wissen/dienste.md`](../wissen/dienste.md).
 - **Uhr:** Betrifft die Uhr der Seite (Timer, `Date`). Cookie-Laufzeiten verwaltet der Browser selbst; deren Ablauf lässt sich so nicht testen. Sitzungsende bei GA4 funktioniert, weil es auf Zeitstempeln in Cookie-Werten beruht.
-- **Gerät und Kennung:** Die Engine bleibt Chromium. Für Safari und Firefox werden die Client Hints entfernt (Marken leer, `navigator.userAgentData` undefiniert). Der Header `Sec-CH-UA` kommt dann leer statt gar nicht – Skripte, die exakt darauf prüfen, sehen den Unterschied. Mobile Layouts brauchen ein `<meta name="viewport">` der Seite, sonst rendert sie 980 px breit.
+- **Gerät und Kennung:** Die Engine bleibt Chromium. Die Client Hints (`Sec-CH-UA`, `navigator.userAgentData`) passt die Stage immer an die Kennung an: Bei Chrome-Kennungen stehen dort Marken und Plattform wie bei Google Chrome statt „HeadlessChrome“ (sonst ein Bot-Signal; abschaltbar mit `automationVerbergen: false`). Für Safari und Firefox werden die Client Hints entfernt (Marken leer, `navigator.userAgentData` undefiniert). Der Header `Sec-CH-UA` kommt dann leer statt gar nicht – Skripte, die exakt darauf prüfen, sehen den Unterschied. Mobile Layouts brauchen ein `<meta name="viewport">` der Seite, sonst rendert sie 980 px breit.
 - **bfcache:** Startet einen eigenen Browser (vollständiges Chromium statt Headless-Shell), weil Playwright den bfcache sonst abschaltet. Nach `zurueck` nicht auf `load` warten: Aus dem bfcache kommt keiner.
+
+## Prüfungen, die in einer Journey mitlaufen
+
+Ebenfalls keine eigenen Tests: `stageOptionen.pruefungen` schaltet zusätzliche Auswertungen für eine bestehende Journey ein (z. B. den Testkauf), angekreuzt im Auftrag unter „Prüfungen“. Code: `lib/pruefungen.ts`, Beispiele: `beispiel/tests/pruefungen.spec.ts`.
+
+```ts
+test.use({ stageOptionen: { pruefungen: {
+  durchgaengigkeit: ['purchase'],   // oder true (= purchase), oder { ereignisse, ausnahmen: ['Google Ads:value'] }
+  cookies: true,
+} } });
+```
+
+**Durchgängigkeit:** Am Testende wird für jedes genannte Event geprüft, ob Wert, Währung, Transaktions-ID und Artikel-IDs aus dem dataLayer-Push in den Requests nach dem Push ankommen: GA4 (`epn.value`, `cu`, `ep.transaction_id`, `pr1…`), Google Ads (`value`, `currency_code`, `oid`), Meta (`cd[value]`, `cd[currency]`, `cd[content_ids]`), Microsoft Ads (`gv`, `gc`).
+
+- Rot: Wert, Währung oder Transaktions-ID weichen ab oder fehlen; Artikel-IDs bei GA4.
+- Hinweis: Artikel-IDs bei Werbediensten (oft bewusst anderes ID-Schema, z. B. Feed-IDs); Dienst ohne passenden Request.
+- Bewusste Unterschiede (z. B. Ads bekommt den Nettowert) als `ausnahmen: ['Google Ads:value']` eintragen und im Bericht begründen.
+- Läuft nur, wenn der Test bis zum Ende kommt – mit `CONVERSION=aus` also nicht. Ergebnis in `durchgaengigkeit.json`; `stage.pruefeDurchgaengigkeit(event)` auch für eigene Aufrufe.
+
+**Cookies:** Protokolliert jedes Setzen (per Skript oder `Set-Cookie`), nie die Werte. `stage.cookies()` bzw. `cookies.json` liefern je Cookie-Muster (`_ga_<ID>` statt Kennung): zuerst gesetzt vor oder nach der Consent-Entscheidung (erster `consent update` im dataLayer), Quelle, Domain, Laufzeit am Ende.
+
+- In der Baseline: ein Cookie, das neu **vor** der Consent-Entscheidung gesetzt wird, ist rot; sonst Hinweis.
+- Ohne `consent update` im dataLayer (manche CMPs melden nur über ihre eigene API) steht „ohne Entscheidung“; die Rot-Regel greift dann nicht. Das im Bericht erwähnen.
 
 ## Consent-Varianten
 

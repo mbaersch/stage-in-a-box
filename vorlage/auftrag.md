@@ -82,6 +82,13 @@
 - [ ] Hashing / Enhanced Conversions prüfen (Aufzeichnung im Modus `full` nötig)
 - [ ] Sonstiges:
 
+## Prüfungen
+
+<!-- Laufen im Test der Journey mit, keine eigenen Tests. Ankreuzen und ergänzen. -->
+
+- [ ] Durchgängigkeit der Conversion-Werte: <!-- welche Events (Vorgabe: purchase)? Bewusste Unterschiede, z. B. „Google Ads bekommt den Nettowert“ -->
+- [ ] Cookies: <!-- welche Cookies wann gesetzt werden, vor oder nach der Consent-Entscheidung; in der Baseline ist ein neues Cookie vor der Entscheidung rot -->
+
 ## Bedingungen
 
 <!-- Zusätzliche Bedingungen für die Journey (z. B. den Testkauf), keine eigenen Tests. Ankreuzen und ergänzen. -->

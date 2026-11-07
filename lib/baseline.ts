@@ -125,6 +125,11 @@ export interface Baseline {
   ausloeser?: Record<string, string>;
   /** Cookies am Ende der Journey, als „Name (Domain)“ */
   cookies?: string[];
+  /**
+   * Nur mit stageOptionen.pruefungen.cookies: Cookies, die vor der Consent-Entscheidung gesetzt
+   * wurden, als „Muster (Domain)“. Ein neues Cookie hier ist rot.
+   */
+  cookiesVorConsent?: string[];
   /** Requests ohne Regel (Fetch/XHR/Beacon), als „METHODE host/pfad“ mit # für Ziffernfolgen */
   weitere?: string[];
   cspVerstoesse: string[];
@@ -241,6 +246,8 @@ export function momentaufnahme(stage: Stage, journey: string, cookies?: string[]
     hosts: [...stage.tracking.hosts].sort(),
     ausloeser: Object.fromEntries([...(stage.tracking.ausloeser ?? new Map())].sort()),
     cookies,
+    cookiesVorConsent: stage.cookieEintraege
+      ?.filter((c) => c.zuerstGesetzt === 'vor Consent').map((c) => `${c.muster} (${c.domain})`).sort(),
     weitere: stage.tracking.weitere.map((w) => `${w.methode} ${w.host}${w.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#')}`),
     cspVerstoesse: [...new Set(stage.cspVerstoesse.map((v) => `${v.direktive}: ${v.blockiert}`))],
   };
@@ -414,6 +421,17 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
     const vorher = new Set(basis.cookies), jetzt = new Set(lauf.cookies);
     for (const c of jetzt) if (!vorher.has(c)) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neues Cookie: ${c}` });
     for (const c of vorher) if (!jetzt.has(c)) befunde.push({ stufe: 'info', bereich: 'Cookies', text: `Cookie nicht mehr gesetzt: ${c}` });
+  }
+  // Cookies vor der Consent-Entscheidung (nur wenn beide Läufe das Cookie-Protokoll hatten)
+  if (basis.cookiesVorConsent && lauf.cookiesVorConsent) {
+    const vorher = new Set(basis.cookiesVorConsent);
+    for (const c of lauf.cookiesVorConsent) {
+      if (!vorher.has(c)) befunde.push({ stufe: 'rot', bereich: 'Cookies', text: `Neues Cookie vor der Consent-Entscheidung: ${c}` });
+    }
+    const jetzt = new Set(lauf.cookiesVorConsent);
+    for (const c of basis.cookiesVorConsent) {
+      if (!jetzt.has(c)) befunde.push({ stufe: 'info', bereich: 'Cookies', text: `Cookie nicht mehr vor der Consent-Entscheidung gesetzt: ${c}` });
+    }
   }
 
   // CSP

@@ -11,6 +11,7 @@
  * - gclid aus der URL wird wie beim Conversion Linker im Cookie _gcl_aw gespeichert und bei der
  *   Conversion mitgesendet (Landung über eine Anzeige)
  * - nach 30 s auf einer Seite ein Event verweildauer_30s (Timer-Trigger, mit stage.zeitVorstellen testbar)
+ * - Cookies: demo_sitzung sofort (technisch nötig), _demo_analytics erst nach Zustimmung
  * - window.__demoFehler = 'doppelt' (vor dem Laden gesetzt) pusht die Conversion zweimal,
  *   um zu zeigen, dass der Baseline-Vergleich das erkennt
  * Es geht nie etwas an echte Dienste.
@@ -18,6 +19,8 @@
 (function () {
   window.dataLayer = window.dataLayer || [];
   function gtag() { dataLayer.push(arguments); }
+
+  document.cookie = 'demo_sitzung=1; path=/';
 
   var SPEICHER = 'demo_consent';
   var gespeichert = null;
@@ -66,6 +69,7 @@
     function entscheide(ja) {
       try { localStorage.setItem(SPEICHER, ja ? 'ja' : 'nein'); } catch (e) { /* ignorieren */ }
       gtag('consent', 'update', consentWerte(ja));
+      if (ja) document.cookie = '_demo_analytics=GA1.1.' + Date.now() + '; path=/; max-age=34128000';
       dataLayer.push({ event: 'cmp_entscheidung', cmp_status: ja ? 'akzeptiert' : 'abgelehnt' });
       host.remove();
     }

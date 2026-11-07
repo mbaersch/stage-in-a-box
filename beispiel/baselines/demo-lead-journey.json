@@ -1,7 +1,7 @@
 {
   "version": 1,
   "journey": "Demo Lead-Journey",
-  "erstellt": "2026-11-06T23:11:15.260Z",
+  "erstellt": "2026-11-07T18:44:59.172Z",
   "modus": "durchlassen",
   "tempo": "schnell",
   "proxy": false,
@@ -32,7 +32,7 @@
       "name": "generate_lead",
       "quelle": "push",
       "daten": {
-        "lead_id": "L-1794006673699",
+        "lead_id": "L-1794077094575",
         "lead_typ": "angebot",
         "value": 50,
         "currency": "EUR"
@@ -60,7 +60,7 @@
         "gcs": "G100",
         "dl": "http://localhost:4173/"
       },
-      "schluessel": "GA4 · page_view"
+      "schluessel": "GA4 · page_view · /g/collect · G-DEMO123"
     },
     {
       "dienst": "GA4",
@@ -76,7 +76,7 @@
         "gcs": "G111",
         "dl": "http://localhost:4173/angebot.html"
       },
-      "schluessel": "GA4 · page_view"
+      "schluessel": "GA4 · page_view · /g/collect · G-DEMO123"
     },
     {
       "dienst": "GA4",
@@ -95,7 +95,7 @@
         "ep.value": "50",
         "ep.currency": "EUR"
       },
-      "schluessel": "GA4 · generate_lead"
+      "schluessel": "GA4 · generate_lead · /g/collect · G-DEMO123"
     },
     {
       "dienst": "sGTM-Pixel",
@@ -107,42 +107,21 @@
       "parameter": {
         "quelle": "generate_lead"
       },
-      "schluessel": "sGTM-Pixel · /sgtm-pixel"
-    },
-    {
-      "dienst": "GA4",
-      "methode": "POST",
-      "host": "localhost:4173",
-      "pfad": "/g/collect",
-      "status": 204,
-      "umleitung": false,
-      "parameter": {
-        "v": "2",
-        "tid": "G-DEMO123",
-        "en": "user_engagement",
-        "gcs": "G111",
-        "dl": "http://localhost:4173/"
-      },
-      "schluessel": "GA4 · user_engagement"
-    },
-    {
-      "dienst": "GA4",
-      "methode": "POST",
-      "host": "localhost:4173",
-      "pfad": "/g/collect",
-      "umleitung": false,
-      "parameter": {
-        "v": "2",
-        "tid": "G-DEMO123",
-        "en": "user_engagement",
-        "gcs": "G111",
-        "dl": "http://localhost:4173/angebot.html"
-      },
-      "schluessel": "GA4 · user_engagement"
+      "schluessel": "(Begleit) sGTM-Pixel · /sgtm-pixel · /sgtm-pixel"
     }
   ],
   "hosts": [
     "localhost:4173"
+  ],
+  "ausloeser": {
+    "localhost:4173": "Navigation"
+  },
+  "cookies": [
+    "_demo_analytics (localhost)",
+    "demo_sitzung (localhost)"
+  ],
+  "cookiesVorConsent": [
+    "demo_sitzung (localhost)"
   ],
   "weitere": [],
   "cspVerstoesse": []

@@ -17,7 +17,7 @@ Selektoren für über 120 CMPs stehen im Repo [mbaersch/tracking-auditor](https:
 
 ## Bot-Erkennung
 
-Manche CMPs erteilen einem erkannten Bot selbst Consent. Das sieht aus wie Tracking vor Consent, obwohl niemand geklickt hat. Die Stage verbirgt deshalb `navigator.webdriver` und das Automation-Flag; abschalten nur mit `stageOptionen: { automationVerbergen: false }`.
+Manche CMPs erteilen einem erkannten Bot selbst Consent. Das sieht aus wie Tracking vor Consent, obwohl niemand geklickt hat. Die Stage verbirgt deshalb `navigator.webdriver`, das Automation-Flag und die Marke „HeadlessChrome“ in den Client Hints; abschalten nur mit `stageOptionen: { automationVerbergen: false }`.
 
 ## Usercentrics
 
