@@ -10,7 +10,8 @@
  *   wenn die Seite wirklich verlassen wird
  * - gclid aus der URL wird wie beim Conversion Linker im Cookie _gcl_aw gespeichert und bei der
  *   Conversion mitgesendet (Landung über eine Anzeige)
- * - nach 30 s auf einer Seite ein Event verweildauer_30s (Timer-Trigger, mit stage.zeitVorstellen testbar)
+ * - window.__demoTimerMs = n (vor dem Laden gesetzt) pusht nach n ms das Event timer_abgelaufen
+ *   (Timer-Trigger, mit stage.zeitVorstellen testbar); ohne die Variable kein Timer
  * - Cookies: demo_sitzung sofort (technisch nötig), _demo_analytics erst nach Zustimmung
  * - window.__demoFehler = 'doppelt' (vor dem Laden gesetzt) pusht die Conversion zweimal,
  *   um zu zeigen, dass der Baseline-Vergleich das erkennt
@@ -83,7 +84,7 @@
     dataLayer.push({ event: 'seite_geladen', seitentyp: document.body.getAttribute('data-seitentyp') });
     sendeGa4('page_view', {});
     if (!gespeichert) zeigeBanner();
-    setTimeout(function () { dataLayer.push({ event: 'verweildauer_30s' }); }, 30000);
+    if (window.__demoTimerMs) setTimeout(function () { dataLayer.push({ event: 'timer_abgelaufen' }); }, window.__demoTimerMs);
 
     var cta = document.querySelector('[data-testid="cta-anfrage"]');
     if (cta) {

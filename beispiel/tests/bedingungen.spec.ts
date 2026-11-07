@@ -67,10 +67,11 @@ test.describe('Uhr vorstellen', () => {
   test.use({ stageOptionen: { uhr: true } });
 
   test('Timer-Trigger nach 30 Sekunden, ohne zu warten', async ({ page, stage }) => {
+    await page.addInitScript(() => { (window as any).__demoTimerMs = 30_000; });
     await page.goto('/');
-    expect(stage.dataLayer.events('verweildauer_30s')).toHaveLength(0);
+    expect(stage.dataLayer.events('timer_abgelaufen')).toHaveLength(0);
     await stage.zeitVorstellen('31s');
-    await stage.dataLayer.erwarteEvent('verweildauer_30s');
+    await stage.dataLayer.erwarteEvent('timer_abgelaufen');
   });
 });
 
