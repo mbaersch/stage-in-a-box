@@ -18,3 +18,4 @@
 # Erzeugte Dateien
 __pycache__/
 test/beispielausgabe.json
+*.stackdump
