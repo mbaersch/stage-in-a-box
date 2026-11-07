@@ -157,10 +157,13 @@ export const STANDARD_DIENSTE: Regel[] = [
   // Pfad statt Host, damit auch serverseitiges Tagging auf eigener Domain erfasst wird
   { name: 'GA4', muster: /\/g\/collect(\?|$)/ },
   { name: 'GA4 Measurement Protocol', muster: /google-analytics\.com\/mp\/collect/ },
-  { name: 'Google Ads', muster: /googleadservices\.com\/pagead\/conversion|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|\/ccm\/collect/ },
+  // measurement/conversion: Conversion aus GA4 für Google Ads; ohne Regel ginge sie auch im Modus "abfangen" raus
+  { name: 'Google Ads', muster: /googleadservices\.com\/(pagead|ccm)\/conversion|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|google\.[a-z.]+\/rmkt\/collect|\/ccm\/(s\/)?collect|analytics\.google\.com\/measurement\/(1p-)?conversion/ },
   { name: 'Floodlight', muster: /fls\.doubleclick\.net\/activity|ad\.doubleclick\.net\/activity/ },
   { name: 'Meta', muster: /facebook\.com\/tr([/?]|$)/ },
-  { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/action/ },
+  { name: 'Microsoft Ads', muster: /bat\.bing\.(com|net)\/(action|p\/insights)/ },
+  { name: 'Microsoft Clarity', muster: /clarity\.ms\/collect/ },
+  { name: 'Piwik PRO', muster: /\/ppms\.php(\?|$)/ },
   { name: 'LinkedIn', muster: /px\.ads\.linkedin\.com\/(collect|wa)/ },
   { name: 'TikTok', muster: /analytics\.tiktok\.com\/api\/v\d\/(pixel|track)/ },
   { name: 'Pinterest', muster: /ct\.pinterest\.com\/(v3|user)/ },
