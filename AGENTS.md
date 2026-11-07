@@ -1,11 +1,44 @@
-# Anweisungen für Agents: Staging im Browser und Tracking-Tests
+# Anweisungen für Agents
 
-Die Umgebung („Stage in a Box“) in `lib/` verändert eine Website im Testbrowser (dataLayer, HTML, Skripte, Requests, CSP, GTM-Vorschau) und prüft das Tracking-Setup (dataLayer, Consent, Requests an Dienste). Scripts liegen in `werkzeuge/`. Es gibt zwei Arten von Arbeit:
+Die Umgebung („Stage in a Box“) in `lib/` verändert eine Website im Testbrowser (dataLayer, HTML, Skripte, Requests, CSP, GTM-Vorschau) und prüft das Tracking-Setup (dataLayer, Consent, Requests an Dienste). Scripts liegen in `werkzeuge/`. Deine Aufgabe ist die Übersetzung des Wunsches in Projektdateien – nicht der Bau neuer Infrastruktur.
 
-- **Staging im Browser** (siehe [unten](#staging-im-browser-offene-sitzung)): Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Keine Aufzeichnung, kein Auftrag, keine Phasen.
-- **Tracking-Tests:** Du baust aus einer Aufzeichnung (oder für einen Container-Umbau) eine Playwright-Testsuite. Dafür gelten die Phasen unten.
+Diese Datei enthält nur, was immer gilt, und den Wegweiser. Die Anleitungen zu den einzelnen Aufgaben liegen in `docs/anleitung/`, gesammeltes Wissen über CMPs, Dienste und Loader in `docs/wissen/`. Lies vor der Arbeit die Dateien, die zur Aufgabe gehören – nicht alle.
 
-In beiden Fällen ist Deine Aufgabe die Übersetzung des Wunsches in Projektdateien – nicht der Bau neuer Infrastruktur.
+## Wegweiser
+
+| Aufgabe | Lies |
+|---|---|
+| Website mit Anpassungen selbst bedienen lassen („in der Sitzung soll …“) | [`docs/anleitung/staging.md`](docs/anleitung/staging.md) |
+| Aufzeichnung analysieren, Auftrag vorausfüllen (Phase 1) | [`docs/anleitung/aufzeichnung.md`](docs/anleitung/aufzeichnung.md) |
+| Tests bauen und stabilisieren (Phase 2) | [`docs/anleitung/tests-bauen.md`](docs/anleitung/tests-bauen.md) |
+| Baseline ziehen und abgleichen (Phase 3) | [`docs/anleitung/baseline.md`](docs/anleitung/baseline.md) |
+| Varianten: Dienste blockieren oder verzögern, CSP, Website anpassen, dataLayer ändern, Consent-Varianten, Proxy | [`docs/anleitung/varianten.md`](docs/anleitung/varianten.md) |
+| Tests oder Sitzung gegen eine GTM-Vorschau | [`docs/anleitung/gtm-vorschau.md`](docs/anleitung/gtm-vorschau.md) |
+| Auftragsart Container-Umbau | [`docs/anleitung/container-umbau.md`](docs/anleitung/container-umbau.md) |
+
+Wissen, bei Bedarf:
+
+| Datei | Inhalt |
+|---|---|
+| [`docs/wissen/cmp.md`](docs/wissen/cmp.md) | Consent-Banner, die der Recorder nicht sieht, CMP-Bibliothek, Eigenheiten einzelner CMPs |
+| [`docs/wissen/eigene-formate.md`](docs/wissen/eigene-formate.md) | Tracking über eigene Pfade und Formate (sGTM, Stape-Tunnel), Requests ohne Regel |
+| [`docs/wissen/gtm.md`](docs/wissen/gtm.md) | GTM und Google-Tag: Debug Mode, Hüllen-Objekte, Tag feuert ohne Request |
+| [`docs/wissen/dienste.md`](docs/wissen/dienste.md) | Besonderheiten einzelner Dienste (GA4, Google Ads, Meta, Enhanced Conversions) |
+| [`docs/wissen/tag-assistant-export.md`](docs/wissen/tag-assistant-export.md) | Was ein Tag-Assistant-Export enthält und was nicht |
+| [`docs/aufzeichnungsformat.md`](docs/aufzeichnungsformat.md) | Format der Recorder-Einträge (Referenz) |
+
+## Zwei Arten von Arbeit
+
+- **Staging im Browser:** Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Keine Aufzeichnung, kein Auftrag, keine Phasen.
+- **Tracking-Tests:** Du baust aus einer Aufzeichnung (oder für einen Container-Umbau) eine Playwright-Testsuite in drei Phasen. Zwischen Phase 1 und 2 bestätigt der Mensch den Auftrag.
+
+| Phase | Ergebnis | Endet mit |
+|---|---|---|
+| 1. Analyse | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
+| 2. Bau | Tests, stabil bis vor die Conversion, dann ein vollständiger Lauf | Abschlussbericht mit Angebot, die Baseline zu ziehen |
+| 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage |
+
+Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1.
 
 ## Aufbau: gemeinsame Umgebung, ein Ordner pro Projekt
 
@@ -13,7 +46,7 @@ Die Session läuft immer im Hauptordner. Testumgebung, Abhängigkeiten (`node_mo
 
 | Datei / Ordner | Inhalt |
 |---|---|
-| `projekt.md` | Anweisungen und Erkenntnisse nur für dieses Projekt – **vor jeder Arbeit am Projekt lesen**, gilt zusätzlich zu dieser Datei |
+| `projekt.md` | Anweisungen und Erkenntnisse nur für dieses Projekt – **vor jeder Arbeit am Projekt lesen**, gilt zusätzlich zu den Anleitungen |
 | `auftrag.md` | Was der Mensch will: Journey, Conversion, Testkonto, Baseline, Varianten, Grenzen |
 | `aufzeichnungen/` | Tag-Assistant-Exporte (`*.json`) oder Konsolen-Mitschnitte (`*.log`/`*.txt`, Zeilen `[rec] {...}`), daneben die Analysen |
 | `tests/`, `baselines/` | Tests und gespeicherte Baselines des Projekts |
@@ -23,32 +56,20 @@ Die Session läuft immer im Hauptordner. Testumgebung, Abhängigkeiten (`node_mo
 - Neues Projekt: `npm run neu -- <name>` (kopiert `vorlage/`). Nicht von Hand aus einem anderen Projekt kopieren.
 - Nennt der Mensch kein Projekt und gibt es mehrere, nachfragen.
 - `projects/` ist nicht im Git des Repos. Nichts aus einem Projekt in Dateien außerhalb von `projects/` übernehmen (keine Domains, Selektoren, Testdaten).
+- Pfade in den Anleitungen ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
 
-**Erkenntnisse festhalten:** Was nur diese Website betrifft (CMP-Eigenheiten, eigene Request-Formate, Bot-Schutz, Stolperstellen), trägst Du in `projekt.md` ein. Was für alle Projekte gilt (Fehler in `lib/` oder im Analyse-Script, fehlende Anweisung hier), schlägst Du dem Menschen als Änderung an `AGENTS.md`, `lib/` oder `werkzeuge/` vor – allgemein formuliert, ohne Projektdaten.
+## Wissen festhalten
 
-## Staging im Browser (offene Sitzung)
+Damit das, was ein Projekt lehrt, beim nächsten zur Verfügung steht:
 
-Jedes neue Projekt hat `tests/sitzung.spec.ts`. `npm run sitzung -- projects/<name>` öffnet damit die Website (`BASE_URL`) im sichtbaren Browser, mit den `stageOptionen` dieser Datei und allen Extensions aus `erweiterungen/`; mit `SITZUNG_VORSCHAU_LINK` in `.env` verbindet sich vorher der Tag Assistant. Die Sitzung endet, wenn der Mensch den Browser schließt.
+| Was | Wohin |
+|---|---|
+| Betrifft nur diese Website (CMP-Konfiguration, Selektoren, eigene Request-Formate, Bot-Schutz, Stolperstellen) | `projects/<name>/projekt.md` |
+| Fakt über eine CMP, einen Dienst, einen Loader, GTM, ein Werkzeug – gilt für jede Website damit | `docs/wissen/` (passende Datei oder neue Datei, dann im Wegweiser eintragen) |
+| Ablauf oder Vorgehen bei einer Aufgabe | `docs/anleitung/` |
+| Fehler oder fehlende Fähigkeit in Code | `lib/`, `werkzeuge/` |
 
-- Wünsche des Menschen („in der Sitzung soll der CMP-Push zusätzlich … enthalten“, „Dienst X blockieren“, „neuen Loader einsetzen“) setzt Du als `stageOptionen` in `tests/sitzung.spec.ts` um: `dataLayerAnpassen`, `anpassungen`, `regeln`, `csp` (Details unter „Varianten“). Längere Logik in `tests/hilfen.ts`.
-- Kein `auftrag.md`, keine Phasen. Bei Unklarheit (welcher Push, welcher Wert, welche Seite) kurz nachfragen.
-- Prüfe eine Anpassung vor der Übergabe ohne Sitzung: kurzer Test im Modus `abfangen` bis zu der Stelle, an der sie wirkt (z. B. `consent_ready` im dataLayer bzw. im GTM-Datenmodell `google_tag_manager[<ID>].dataLayer.get(…)`), danach löschen. Echte Formulare nicht absenden.
-- Die Sitzung startest Du für den Menschen im Hintergrund (`npm run sitzung -- projects/<name>`); der Browser erscheint auf seinem Bildschirm.
-- Mehrere Sitzungen in einem Projekt: weitere `sitzung(…)`-Tests mit `@sitzung` im Titel, dann mit `-g` auswählen.
-- `trackingModus` ist in Sitzungen `durchlassen` (wie ein echter Besuch). `abfangen` nur auf Wunsch.
-- Extensions: `npm run erweiterung -- <Web-Store-ID | zip | ordner>` legt sie entpackt in `erweiterungen/` (nicht in Git). Benötigte Rechte (z. B. Host-Zugriff) erteilt der Mensch in der Sitzung selbst; das Profil ist bei jeder Sitzung frisch.
-
-## Tracking-Tests
-
-Die Arbeit hat **zwei Phasen**. Zwischen beiden bestätigt der Mensch den Auftrag.
-
-| Phase | Ergebnis | Endet mit |
-|---|---|---|
-| 1. Analyse | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
-| 2. Bau | Tests, stabil bis vor die Conversion, dann ein vollständiger Lauf | Abschlussbericht mit Angebot, die Baseline zu ziehen |
-| 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage |
-
-Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1. Pfade in dieser Anleitung ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
+Änderungen außerhalb von `projects/` schlägst Du dem Menschen vor – allgemein formuliert, ohne Projektdaten (keine Domains, Konto-IDs, Selektoren, Testdaten).
 
 ## Umgang mit `.env` und Testdaten
 
@@ -61,278 +82,9 @@ Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst 
   ```ts
   const passwort = process.env.TEST_LOGIN_PASSWORT ?? test.skip(true, 'TEST_LOGIN_PASSWORT in .env fehlt') as never;
   ```
+- Basic Auth (Staging): `BASIC_AUTH_BENUTZER` und `BASIC_AUTH_PASSWORT` in `.env`, die Config setzt sie für alle Tests.
 
----
-
-## Phase 1: Analyse und Auftragsentwurf
-
-### Aufzeichnung auswerten
-
-```sh
-npm run analyse -- projects/<name>/aufzeichnungen/<datei>
-```
-
-Pfade immer mit `/`, auch unter Windows (gilt ebenso für `npm test`, weil Playwright Pfade als RegExp liest).
-
-Das Script erzeugt neben dem Export:
-
-- `<datei>.zeitleiste.md` – **Deine Hauptquelle.** Vorschlag für den Auftrag (Startadresse, Seiten, vermutete Conversion, Events, Google-Requests, flüchtige Werte, Testdaten-Felder mit Variablennamen, Auffälligkeiten), Tags pro Event, vorgeschlagene Playwright-Schritte mit aufgezeichneten Pausen und die Zeitleiste pro Seite.
-- `<datei>.analyse.json` – dieselben Daten strukturiert, falls Du Details brauchst (z. B. alle Parameter eines Google-Requests).
-
-Den Roh-Export (oft über 100 MB) nicht in den Kontext laden. Nur wenn das Script scheitert: Struktur mit einem kurzen Script untersuchen (`data.containers[].messages`, `tagsFired`, `pageSummaries`, `hitInfo`) und den Fehler im Bericht nennen.
-
-Was der Tag-Assistant-Export enthält und was nicht:
-
-- dataLayer-Messages, Consent-Stand pro Message, gefeuerte Tags pro Message
-- Requests nur von Google-Tags (GA4, Ads, Floodlight) mit allen Parametern
-- **keine** Requests anderer Dienste (Meta, TikTok …) – nur, dass deren Tag gefeuert hat
-
-### Requests über eigene Pfade und Formate
-
-Ein Request, der zu fehlen scheint, fehlt nicht unbedingt. Er kann über einen Pfad auf der eigenen Domain und in einem ganz anderen Format rausgehen: serverseitiges Tagging mit eigenem Pfad, Custom Loader, getunnelte und kodierte Requests (z. B. bei Stape), umbenannte Parameter. Die Standardregeln in `lib/stage.ts` erkennen nur gängige Endpunkte.
-
-Deshalb zu Beginn von Phase 2, bevor Erwartungen entstehen, einmal prüfen:
-
-1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen, mit `stage.conversionPunkt()`) mit `CONVERSION=aus` laufen lassen, am besten mit `PROXY=ein`.
-2. In `projects/<name>/test-results/<test>/` die Dateien `hosts.json` (mit dem Auslöser des ersten Requests je Host: Skript oder HTML der Seite), `tracking-treffer.json` und `weitere-requests.json` ansehen. Requests ohne Regel werden nie abgefangen, auch nicht im Modus `abfangen`; ein Tracking-Endpunkt ohne Regel geht also echt raus. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören. Weitere Requests prüfen: Fetch-, XHR- und Beacon-Requests ohne passende Regel. Tracking-Kandidaten (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
-3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten.
-
-Typisches Muster eines Stape-Custom-Loaders: Script- und Tracking-Requests gehen an eine eigene Subdomain mit verschleiertem Pfad und einem einzigen Parameter, dessen Wert der Base64-kodierte Originalpfad ist, z. B. `https://stp.example.de/abcdef/239?0355ae1a=L2d0YWcvanM…` → `/gtag/js?id=G-…`. Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel darauf fängt im Modus `abfangen` auch die Scripts ab. Deshalb dekodieren und nur passende Pfade (z. B. `/g/collect`) als Tracking werten. Dekodier-Logik gehört in den Test des jeweiligen Projekts, nicht nach `lib/`.
-
-Tag feuert laut Tag Assistant, aber es kommt kein Request: Im Browser `google_tag_data.tidr` prüfen. `container[<ID>].state` 2 heißt registriert, Ziele in `pending` warten auf ein Google-Tag, das nie geladen bzw. registriert wurde (z. B. bei gemischtem Setup aus Google-Tag und Ereignis-Tags). `scriptSource` zeigt, woher ein Container geladen wurde; `Object.keys(google_tag_manager)` listet alle geladenen Container und Ziele. Das ist ein Befund über die Website, kein Testfehler.
-
-Referenz dafür ist der [Tracking Auditor](https://github.com/mbaersch/tracking-auditor): `tracking-vendors.json` (Skripte und Endpunkte bekannter Dienste) und `lib/tracking-classify.js` mit Erkennung von First-Party-Collect-Endpunkten und Stape-Tunneln (`extractFirstPartyCollectMatches`, `extractStapeMatches`, `tryDecodeStapeTransport`). Nicht alles daraus übernehmen: Ziel ist nicht, jeden denkbaren Loader zu erkennen, sondern die Requests dieser einen Website richtig zuzuordnen.
-
-Recorder-Einträge (Key `__rec`) haben diese wichtigsten Felder:
-
-| Feld | Bedeutung |
-|---|---|
-| `type` | `init`, `click`, `change`, `submit`, `key`, `route` |
-| `pageId` | wechselt bei jedem vollständigen Seitenaufruf |
-| `seq` | Reihenfolge innerhalb einer Seite |
-| `element.selectors` | Selektor-Kandidaten nach Robustheit, jeweils mit `unique` |
-| `element.role`, `element.name` | Rolle und Accessible Name, für `getByRole()` |
-| `element.shadowHosts` | Element liegt in (offenem) Shadow DOM |
-| `field` | Wert bei `change`/`submit`, maskiert (`mode: "masked"`), im Klartext (`"full"`) oder `[redacted]` |
-| `isTrusted` | `false` = vom Browser/Script ausgelöst, nicht vom Menschen |
-
-Vollständige Beschreibung: `docs/aufzeichnungsformat.md`.
-
-
-### Auftrag vorausfüllen
-
-- Fülle in `auftrag.md` alle Felder, die sich aus der Zeitleiste ableiten lassen: Startadresse, Ablauf in Worten, vermutete Conversion, Events mit wichtigen Werten, Tags pro Aktion, Felder mit Testdaten, sich ändernde Werte. Übernimm die Auffälligkeiten unter „Hinweise“.
-- Markiere alles Abgeleitete mit *(aus Aufzeichnung)*. Was der Mensch schon eingetragen hat, bleibt unverändert; Widersprüche zur Aufzeichnung notierst Du unter „Hinweise“.
-- Fehlt etwas, das sich nicht ableiten lässt (echte Bestellung erlaubt? Baseline gewünscht?), lass das Feld leer.
-- Ergänze `.env.example` um die nötigen Variablen (Login, Formularfelder mit `[redacted]` oder maskierten Werten).
-
-### Eingaben aus der Aufzeichnung übernehmen
-
-Steht in der Zeitleiste `Werte-Modus des Recorders: full`, enthält die Aufzeichnung die echten Eingaben des Testlaufs. Der Mensch kann sie direkt als Testdaten verwenden, statt sie in `.env` abzutippen:
-
-- Steht im Auftrag unter „Eingaben aus der Aufzeichnung übernehmen?“ **ja**, rufe `npm run analyse -- projects/<name>/aufzeichnungen/<datei> --testdaten` auf.
-- Ist das Feld leer, biete es in der Rückfrage an und führe es erst nach Zustimmung aus.
-- Das Script schreibt `testdaten.aufzeichnung.env` und nennt nur Variablennamen: welche übernommen wurden und welche trotzdem in `.env` fehlen (Passwörter zeichnet der Recorder nie auf).
-- Bei maskierten Aufzeichnungen nicht anbieten; das Script bricht dann ohnehin ab.
-
-### Rückfrage
-
-Beende Phase 1 mit einer kurzen Nachricht: was Du vorausgefüllt hast, welche Felder offen sind, welche Variablen in `.env` gebraucht werden (abzüglich der aus der Aufzeichnung übernommenen). Bitte darum, den Auftrag zu prüfen und den Status auf **bestätigt** zu setzen. **Schreibe in Phase 1 keine Tests.**
-
----
-
-## Phase 2: Tests bauen
-
-### Aktionen ableiten
-
-**Conversion-Punkt:** Direkt vor der Aktion, die die Conversion auslöst (Kauf, Absenden), steht `await stage.conversionPunkt();`. Alles, was ohne Conversion feststeht (Consent, Requests bis dahin), wird davor geprüft. Mit `CONVERSION=aus` endet der Test dort und gilt als übersprungen. Beim Einrichten und Stabilisieren immer mit `CONVERSION=aus` arbeiten; vollständige Läufe nur gezielt und nur, wenn der Auftrag echte Conversions erlaubt. Im Bericht nennen, wie viele vollständige Läufe es gab.
-
-**Ausgangspunkt** sind die „Vorgeschlagenen Playwright-Schritte“ aus der Zeitleiste. Sie sind schon bereinigt (Fokus-Klicks, Script-Klicks, doppelte Submits entfernt) und enthalten die aufgezeichneten Pausen. Prüfe sie, ergänze Warte-Bedingungen nach Navigationen (`toHaveURL`) und gliedere sie in `test.step`s.
-
-**Locator-Wahl** – das Script wählt in dieser Reihenfolge, jeweils nur bei in der Aufzeichnung geprüfter Eindeutigkeit; halte Dich bei Änderungen daran:
-
-1. Test-Attribut (`kind: "testAttr"`) → `page.getByTestId()` bzw. `page.locator('[data-qa="…"]')`
-2. `id` (nicht `idGenerated`), dann `name`
-3. Rolle + Name → `page.getByRole('button', { name: '…' })`
-4. `aria-label`, `href`
-5. `cssPath` nur als letzte Möglichkeit, mit Kommentar warum
-
-Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben oder Zählern nicht als exakten Namen, sondern als RegExp oder gar nicht. Rolle + Name ist nicht auf Eindeutigkeit geprüft: Bei Formularen mit wiederholten Feldern (Rechnungs- und Lieferadresse) eher `id`/`name` nehmen.
-
-**Zuordnung:**
-
-| Recorder | Playwright |
-|---|---|
-| `click` | `locator.click()` |
-| `click` auf Link mit `opensNewTab` | `const [neu] = await Promise.all([page.context().waitForEvent('page'), locator.click()])` |
-| `change` an Text-/E-Mail-/Telefonfeld | `locator.fill(wert)` |
-| `change` an `select` | `locator.selectOption(value)` |
-| `change` an Checkbox/Radio | `locator.check()` / `uncheck()` |
-| `key` Enter | `locator.press('Enter')` |
-| `route` | keine Aktion, sondern Ergebnis: `await expect(page).toHaveURL(…)` |
-| neuer `pageId` mit `init` | Ergebnis einer Navigation: URL prüfen |
-
-**Bereinigen:**
-
-- Klick auf `label` + `change` an zugehöriger Checkbox → ein `check()`.
-- `click` mit `isTrusted: false` direkt nach `key` Enter ist der implizite Submit → nicht nachspielen.
-- `hashchange` nach Klick auf Anker-Link → Folge des Klicks.
-- Doppelklicks, Fehlklicks, Umwege der aufzeichnenden Person weglassen, wenn sie für das Ziel keine Rolle spielen. Im Zweifel nachfragen.
-
-**Werte:** Maskierte Werte zeigen nur Format und Länge, `[redacted]` gar nichts. Echte Werte immer über `process.env`. Auch Klartextwerte aus Aufzeichnungen im Modus `full` gehören nicht in Testcode, sondern als Variable in `.env.example` (Wert ggf. über `testdaten.aufzeichnung.env`).
-
-**Login:** Ist im Auftrag ein Testkonto genannt, wird der Login ein eigener `test.step` mit Werten aus `TEST_LOGIN_EMAIL` und `TEST_LOGIN_PASSWORT` (bzw. den in `.env.example` ergänzten Namen).
-
-**Consent-Banner:**
-
-- Klick im offenen Shadow DOM: Playwright-Locators durchdringen offene Shadow Roots, `getByTestId`/CSS funktionieren direkt.
-- Kein Recorder-Klick, aber ein `consent update` im dataLayer (die Zeitleiste nennt das unter „Auffälligkeiten“), hat zwei mögliche Ursachen: GTM und damit der Recorder laden erst nach der Zustimmung, oder der Banner liegt in einem iframe oder geschlossenen Shadow DOM. In beiden Fällen gilt, was im Auftrag unter „Consent-Banner“ steht: CMP-Name oder Selektoren und nötige Schritte (z. B. Scrollen, bis der Banner erscheint). Fehlt die Angabe, in Phase 1 danach fragen.
-- Lädt GTM erst nach der Zustimmung, entstehen beim Ablehnen womöglich gar keine Tracking-Requests und kein dataLayer-Eintrag. Die Variante „Consent abgelehnt“ prüft dann genau das: nichts darf feuern. Prüfe die CMP-Bibliothek im Repo [mbaersch/tracking-auditor](https://github.com/mbaersch/tracking-auditor), Datei `cmp-library.json`: Dort stehen für über 120 CMPs `accept`, `reject`, ggf. `rejectSteps` (zweistufiges Ablehnen), `detect` (Container zum Erkennen) und `shadowDom`. Bei iframe-Bannern `page.frameLocator(…)` verwenden.
-- Jeder Test startet in einem frischen Browser-Kontext ohne Cookies, der Banner erscheint also immer.
-
-**GTM-Vorschau statt Live-Container:** Steht im Auftrag, dass getestet wird, was nur in einer GTM-Vorschau läuft (Workspace oder Umgebung), reicht `GTM_VORSCHAU_LINK` in `.env` (in Anführungszeichen). Die Stage hängt dann `gtm_auth`, `gtm_preview` und `gtm_cookies_win` an jedes Laden des Containers mit dieser ID (Injection), in allen Tests des Projekts. Der Test braucht dafür nichts Besonderes.
-- Der Link muss aus GTM kommen („Vorschau teilen“, mit `id`, `gtm_auth` und `gtm_preview`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces.
-- Eigener Loader ohne `id=GTM-…` in der URL (Stape u. a.): `stageOptionen: { vorschauLoader: /\/<pfad>\/<datei>\.js\?/ }`.
-- Prüfen, dass die Vorschau wirklich geladen ist (z. B. ein Event oder Tag, das nur im Workspace existiert), bevor Erwartungen entstehen.
-- **Grenze der Injection:** Ohne Tag Assistant ist *Debug Mode* `false`. Hängen Tags an einem Blocker wie „Nicht-Live-Umgebung und nicht Debug Mode“, feuern sie nicht. Dann den Tag Assistant nutzen: Die Journey beginnt mit `const website = await stage.vorschauStarten(page)` und läuft danach im Tab `website` weiter, nicht in `page`. Folgende Punkte gelten nur für diesen Weg:
-  - Im frischen Browser erscheint der Dialog „Verbinden“; `vorschauStarten` klickt `#domain-start-button` und wartet auf den neuen Tab. Der Tab mit dem Tag Assistant bleibt offen, sonst endet die Vorschau.
-  - Eigener dataLayer und eigene GA4-Requests des Tag Assistant werden nicht protokolliert (`WERKZEUG_SEITEN` in `lib/stage.ts`).
-
-**Iframes:** Zahlungsfelder und manche CMPs liegen in Cross-Origin-iframes; der Recorder sieht dort nichts. Wenn der Auftrag diesen Teil abdeckt, mit `frameLocator` arbeiten und Selektoren mit dem Menschen klären. Sonst den Test vor diesem Schritt enden lassen und das im Bericht erwähnen.
-
-### Tempo
-
-Zwischen den Schritten steht `await stage.denkpause(<ms>)` mit dem aufgezeichneten Abstand. Wie lange tatsächlich gewartet wird, bestimmt `TEMPO` (in `.env` oder als Umgebungsvariable): `schnell` (Vorgabe, keine Pausen), `mittel`, `langsam` oder `aufzeichnung` (Pausen wie aufgezeichnet). Zeitabhängige Requests wie GA4 `user_engagement`, Timer- oder Scroll-Trigger hängen davon ab. Die Pausen also immer im Code lassen, auch wenn sie bei `schnell` nichts tun.
-
-### Zwei Arten von Tests
-
-1. **Feste Erwartungen** (Modus `abfangen`, nichts geht raus): prüfen gezielt, was im Auftrag steht. Hier laufen auch die Varianten.
-2. **Baseline-Vergleich** (Modus `durchlassen`, echte Requests): nur wenn der Auftrag eine Baseline will. Vergleicht den kompletten Lauf mit dem gespeicherten Ist-Zustand.
-
-Beide nutzen dieselbe `journey()`-Funktion. Vorbild für beides: `beispiel/tests/beispiel-demo.spec.ts`.
-
-### Feste Erwartungen
-
-- **Welche Events zählen:** die im Auftrag genannten, dazu alle Events, die in der Aufzeichnung direkt auf eine Aktion folgen (Ecommerce-Events, Conversion, Consent).
-- **Exakt prüfen:** Event-Namen, feste Parameter (Item-IDs eines festen Testprodukts, Währung), Consent-Werte.
-- **Nur Format prüfen:** Transaktions-IDs, Zeitstempel, Zufallswerte (`toMatch(/…/)`, `typeof`).
-- **Reihenfolge:** Mit `const ab = stage.dataLayer.eintraege.length` vor einer Aktion und `erwarteEvent(name, { ab })` nur Events nach dieser Aktion prüfen.
-- **Requests:** `stage.tracking.erwarteGa4('purchase')` liefert alle Parameter (`en`, `gcs`, `ep.*`, `epn.*`, `pr1` …). `gcs`: `G100` = kein Consent, `G111` = voller Consent. Für andere Dienste `stage.tracking.erwarteTreffer('Meta', { passt: … })`.
-
-**Der Ist-Zustand ist nicht automatisch der Soll-Zustand.** Erwartungen, die nur aus der Aufzeichnung stammen und nicht im bestätigten Auftrag stehen, listest Du im Bericht auf. Auffälligkeiten (Event doppelt, Request mit `G111` vor Consent, fehlende Parameter) nicht in Erwartungen gießen, sondern melden.
-
-### Baseline (Phase 3)
-
-Die Baseline ist der nächste Schritt, sobald die festen Erwartungen bis vor die Conversion stabil sind und ein vollständiger Lauf grün ist. Den Baseline-Test baust Du in Phase 2 gleich mit. Gezogen wird sie nach Rückfrage, weil sie echte Requests und Conversions sendet; einen Test einzeln startest Du mit `-g "Baseline"`.
-
-```ts
-test.describe('Baseline', () => {
-  test.use({ stageOptionen: { trackingModus: 'durchlassen' } });
-
-  test('Kauf entspricht der Baseline', async ({ page, stage }) => {
-    await journey(page, stage);
-    await stage.vergleicheMitBaseline('Kauf', { fluechtigeKeys: ['cart_id'] });
-  });
-});
-```
-
-- **Immer Modus `durchlassen`.** Abgefangene Requests bekommen keine echte Antwort: Weiterleitungsketten (z. B. Google-Ads-Conversions) und von einem sGTM ausgelöste Folge-Requests fehlen dann. `vergleicheMitBaseline` bricht in anderen Modi ab.
-- **Mit oder ohne Proxy** wie im Auftrag; mit Proxy entsteht eine eigene Datei `baselines/<journey>.proxy.json`.
-- **Gleiches Tempo** für Baseline und Vergleich; sonst bricht der Vergleich ab. Welches Tempo, steht im Auftrag oder wird mit dem Menschen geklärt (`aufzeichnung` kommt echtem Verhalten am nächsten, dauert aber so lange wie die Aufzeichnung).
-- Vor der Momentaufnahme verlässt `vergleicheMitBaseline` die letzte Seite, damit Requests beim Verlassen (z. B. `user_engagement`) enthalten sind. Ohne Proxy sieht Playwright solche Beacons nicht; die Stage holt sie aus dem NetLog des Browsers (Quelle `netlog`, ohne Body). Mit Proxy kommen sie vollständig (Quelle `proxy`).
-- Der erste Lauf speichert `baselines/<journey>.json` im Projektordner, jeder weitere vergleicht dagegen. Der Bericht steht als `baseline-vergleich.md` im Report und in `test-results/`.
-- **Rot** (Test schlägt fehl): neuer Dienst, der in der Baseline nicht vorkam; Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; CSP-Verstoß.
-- **Info** (nur Bericht): neue Requests bekannter Dienste, neue Parameter; geänderte Parameterwerte; neue Events oder Keys außerhalb von `ecommerce`; geänderte Reihenfolge.
-- **Neu im Netzwerk** (eigener Abschnitt): neue Domains und Requests ohne Regel. Immer prüfen, ob dahinter Tracking steckt; wenn ja, Regel anlegen (bei bekannten Diensten in `STANDARD_DIENSTE`), damit es abgefangen und als Dienst verglichen wird.
-- Werte, die sich bei jedem Lauf ändern (aus dem Auftrag oder beim zweiten Lauf als „geändert“ sichtbar), als `fluechtigeKeys` bzw. `fluechtigeParameter` angeben. Gängige sind schon in `lib/baseline.ts` hinterlegt.
-- **Nach dem Ziehen abgleichen:** Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.md` durchgehen. Ziel: kein Rot und nur Hinweise, die sich erklären lassen. Jede Abweichung einordnen:
-  - **Flüchtiger Wert** (Zufall, Zeit, Sitzung, Client-ID): dienstübergreifend bekannte Parameter in `FLUECHTIGE_PARAMETER` bzw. `FLUECHTIGE_MUSTER` in `lib/baseline.ts`, nur hier vorkommende als `fluechtigeKeys`/`fluechtigeParameter` im Test.
-  - **Timing-abhängig** (GA4 `user_engagement`, Heartbeats wie `ping` bei Matomo/Piwik PRO): Anzahl hängt an der Verweildauer und wird immer so eingestuft (`istTimingAbhaengig` in `lib/baseline.ts`, im Bericht „(Timing)“). Weitere solche Requests dort ergänzen.
-  - **Begleit-Request** mit schwankender Anzahl (Cookie-Abgleich, Kopien, Weiterleitungs-Hops, Uploads von Sitzungsaufzeichnungen): Muster für host + pfad in `BEGLEIT_PFADE`, im Bericht „(Begleit)“.
-  - Bei beiden ist eine abweichende Anzahl nur ein Hinweis; Consent-Parameter bleiben rot.
-  - **Rauschen ohne Aussage** (Sitzungsaufzeichnung, eigene Statistik der Website mit Zeitstempel im Parameter): Regel mit `nichtProtokollieren: true` – wird weiter gesteuert, aber nicht verglichen.
-  - **Echte Unsicherheit** (Tag feuert mal, mal nicht): nicht wegfiltern, sondern melden; oft ein Timing-Problem der Website oder ein zu schnelles Tempo.
-- Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Jeder Vergleichslauf legt seine Momentaufnahme als `momentaufnahme.json` in `test-results/<test>/` ab, `vergleiche()` aus `lib/baseline.ts` nimmt sie zusammen mit der Baseline-Datei.
-- Erst wenn der Abgleich sauber ist, gilt die Baseline als fertig. Im Bericht nennen, was als flüchtig, Begleit-Request oder Rauschen eingestuft wurde.
-- **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu -- projects/<name>` nur auf ausdrücklichen Wunsch des Menschen.
-- Bei echten Käufen nur mit Testkonto bzw. Testprodukt laut Auftrag.
-
-### Varianten
-
-Nur bauen, was der Auftrag verlangt. Varianten laufen über `test.use` in eigenen `describe`-Blöcken, im Modus `abfangen`:
-
-```ts
-// Dienst blockiert (Adblocker): Seite und Conversion-Event müssen trotzdem funktionieren
-test.use({ stageOptionen: { regeln: [{ name: 'Meta', muster: /facebook\.com\/tr/, modus: 'blockieren' }] } });
-
-// Ladereihenfolge: GTM 3 s verzögern, Script echt laden, nicht als Tracking-Request zählen
-test.use({ stageOptionen: { regeln: [
-  { name: 'GTM-Script', muster: /googletagmanager\.com\/gtm\.js/, modus: 'durchlassen', verzoegerungMs: 3000, nichtProtokollieren: true },
-] } });
-
-// Geplante CSP testen; Verstöße stehen in stage.cspVerstoesse
-test.use({ stageOptionen: { csp: "default-src 'self'; script-src 'self' https://www.googletagmanager.com" } });
-
-// Geplante Änderung an der Website vorwegnehmen: neuer Loader im HTML, Bugfix in einem Skript der Seite
-test.use({ stageOptionen: { anpassungen: [
-  { muster: /^https:\/\/www\.example\.de\/[^.]*$/, anpassen: (html) => html.replace(/<script>[^<]*googletagmanager\.com\/gtm\.js[^<]*<\/script>/, NEUER_LOADER) },
-  { muster: /\/consent-bridge\.js/, anpassen: (js) => js.replace(FEHLERHAFTE_ZEILE, KORRIGIERTE_ZEILE) },
-] } });
-```
-
-- **CSP-Inventar:** Jeder Test legt `csp-inventar.json` ab: alle Ressourcen nach Direktive, Herkunft und Kontext (Seite, iframe, Service Worker) und einen Vorschlag für die Policy der Seite (`vorschlag`). Grundlage für eine neue CSP: einen vollständigen Lauf mit allen Consent-Zuständen und Zahlarten machen, dann den Vorschlag prüfen und die Policy als Variante `csp` testen. iframes und Service Worker fallen nicht unter die CSP der Seite.
-- **Anpassungen:** Ändert eine Anpassung nichts (Muster passt nicht mehr, z. B. nach einem Update der Website), bekommt der Test die Anmerkung „Achtung“, und die URL steht in `stage.anpassungenOhneWirkung`. Mit Proxy setzt die Stage `ignoreHTTPSErrors`, weil Playwright die Antwort dann über den Proxy holt; Zertifikatsfehler der Website fallen in diesen Tests nicht auf.
-- **dataLayer-Pushes ändern** (geplante Änderung an CMP oder Website, z. B. ein neuer Consent-Key): `stageOptionen: { dataLayerAnpassen: (e) => { if (e?.event === 'consent_ready') e.consentInfo.youtube = e.consentInfo.statistics === true; } }`. Greift vor GTM, auch nachdem GTM `push` ersetzt hat; das Protokoll zeigt den geänderten Push. Die Funktion läuft im Browser und darf keine Variablen aus der Testdatei verwenden. Die konkrete Regel gehört in den Projektordner, nicht nach `lib/`.
-- **Offene Sitzung zum Ausprobieren** (siehe „Staging im Browser“): Ein Test mit `sitzung(…)` statt `test(…)` (aus `lib/stage`) und `@sitzung` im Titel endet mit `await stage.offenHalten(seite)`; der Mensch bedient dann den sichtbaren Browser selbst, mit allen Regeln und Anpassungen der Stage. Solche Tests laufen nur mit `npm run sitzung -- projects/<name>`, nie bei `npm test`. Mit Tag Assistant: `const website = await stage.vorschauStarten(page)` nimmt in `@sitzung`-Tests `SITZUNG_VORSCHAU_LINK`, sonst `GTM_VORSCHAU_LINK`. Nie `GTM_VORSCHAU_LINK` für eine Sitzung empfehlen: Der schaltet die Vorschau für alle Tests des Projekts ein, auch für Baseline-Vergleiche.
-
-Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
-
-**Consent-Varianten** über die API der CMP statt über Klicks, damit jede Variante genau einen Zustand herstellt (`lib/cmp.ts`, bisher Usercentrics):
-
-```ts
-import { usercentrics } from '../../../lib/cmp';
-await usercentrics.nurDienste(page, ['Google Ads']);       // Namen wie in der UC-Konfiguration
-await usercentrics.nurKategorien(page, ['functional']);
-await usercentrics.widerrufen(page);                        // danach: stage.zustand() für Cookies und Storage
-```
-
-- Danach meist neu laden: Viele Setups (Consent-Gates, GTM-Blocker) werten den Consent erst beim nächsten Seitenaufruf aus. Ob es schon auf derselben Seite wirkt, ist selbst ein Befund.
-- `usercentrics.dienste(page)` zeigt die Dienstnamen der CMP. Mit den Consent-Keys im Container abgleichen: Ein Tippfehler im Dienstnamen blockiert einen Tag dauerhaft.
-- Andere CMP: Funktionen nach demselben Muster in `lib/cmp.ts` ergänzen, sobald sie an einer echten Website erprobt sind. Bis dahin über den Banner klicken.
-- „CMP nicht erreichbar“: die Skripte der CMP per Regel mit `modus: 'blockieren'` sperren.
-- Widerruf: Requests nach dem Zeitpunkt des Widerrufs dürfen nicht kommen. `stage.zustand()` vorher und nachher zeigt, ob Cookies und Storage bleiben.
-
-### Proxy
-
-Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Requests des Testbrowsers über einen lokalen Proxy (`lib/proxy.ts`). Der Proxy sieht und steuert alles im Netzwerk:
-
-- Beacons beim Verlassen einer Seite (GA4 `user_engagement`, Microsoft Ads u. a.) werden erfasst, mit Body, und im Modus `abfangen` wirklich abgefangen.
-- Service Worker sind erlaubt wie bei echten Besuchern; ihre Requests sind sichtbar.
-- Regeln greifen auch für Pfade auf der eigenen Domain (sGTM).
-
-Die Testumgebung ist ohne Proxy einfacher, mit Proxy vollständiger. Was der Auftrag sagt, gilt. Bei Staging-Servern mit ungültigem Zertifikat `stageOptionen: { zertifikatFehlerIgnorieren: true }` setzen.
-
-**Grenze ohne Proxy:** Beacons, die eine Seite beim Verlassen sendet, laufen in Chromium am Routing vorbei und gehen im Modus `abfangen` trotzdem raus. Die Stage erkennt das über das NetLog, markiert sie in `tracking-treffer.json` mit `entwischt: true` und setzt am Test die Anmerkung „Achtung“. Im Bericht erwähnen, wenn das vorkommt, und den Proxy empfehlen.
-
-Weitere Möglichkeiten:
-
-- **Consent-Zustand vorgeben** statt klicken: CMP-Cookie per `page.context().addCookies()` oder localStorage per `page.addInitScript()` setzen. Den Speicherort der CMP vorher per DevTools ermitteln.
-- **dataLayer manipulieren** (z. B. andere CMP-Konfiguration simulieren): `page.addInitScript(() => { window.dataLayer = window.dataLayer || []; window.dataLayer.push(…); })` – läuft vor allen Scripts der Seite.
-- **Weitere Dienste:** Endpunkte aus `tracking-vendors.json` im Tracking-Auditor-Repo als Regel ergänzen.
-- **CSP-Sonderfall Meta:** Große Events (z. B. Purchase mit vielen Produkten) sendet das Pixel nicht per Beacon, sondern als Formular-POST in ein iframe. Eine CSP ohne passende `form-action`/`frame-src` blockiert genau diese Events. Bei CSP-Tests mit Meta deshalb die Purchase-Events prüfen, nicht nur PageView.
-- **PII/Hashing (Enhanced Conversions):** Aufzeichnung im Modus `full` mit Testdaten; prüfen, dass Requests die Daten nur gehasht enthalten. Parser für die Parameter der gängigen Dienste: `pii-lib/` im Tracking-Auditor-Repo.
-
-### Struktur
-
-- Eine Datei pro Journey in `projects/<name>/tests/`, z. B. `kauf.spec.ts`.
-- Immer `import { test, expect } from '../../../lib/stage';` – nie direkt aus `@playwright/test`, sonst fehlt die Stage.
-- Journey als Funktion `journey(page, stage, …)` mit `test.step` pro Abschnitt (deutsche Namen).
-- Kein `waitForTimeout`. Warten über `expect(…)`, `toHaveURL`, `erwarteEvent`, `erwarteGa4`.
-- Projektspezifisches (Regeln, Dekodier-Logik, Helfer) bleibt im Projektordner, z. B. `tests/hilfen.ts`.
-- `lib/` gilt für alle Projekte. Nur ändern, wenn es nicht anders geht, im Bericht begründen und danach `npm test` (Beispiel) laufen lassen. Neue Dienste als `regeln` in den Tests ergänzen.
-- `beispiel/` nicht ändern. Es dient als Referenz und läuft bei `npm test` ohne Projekt.
-
-### Ausführen und stabilisieren
+## Ausführen
 
 Abhängigkeiten sind im Hauptordner einmal installiert (`npm install`, `npx playwright install chromium`); in Projektordnern nie `npm install` ausführen.
 
@@ -344,46 +96,17 @@ npm run report -- projects/<name>/playwright-report
 npm test                                            # ohne Projekt: das Beispiel
 ```
 
-Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`. Report und `test-results/` liegen im Projektordner.
+Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`. Report und `test-results/` liegen im Projektordner. Pfade immer mit `/`, auch unter Windows: Playwright liest sie als regulären Ausdruck.
 
-- Bei Fehlern zuerst die Protokolle (`dataLayer.json`, `tracking-treffer.json`, `hosts.json`, `weitere-requests.json`, `csp-verstoesse.json`, `baseline-vergleich.md`) in `projects/<name>/test-results/<test>/` ansehen, dann Trace und Screenshot. Die Dateien liegen auch bei grünen Tests dort; für eine Auswertung ist kein neuer Lauf nötig.
-- Fehlt ein erwarteter Request, zuerst in `weitere-requests.json` nachsehen, ob er über einen eigenen Pfad oder ein anderes Format rausging (siehe „Requests über eigene Pfade und Formate“).
-- Pushes aus GTM-Custom-Templates liegen im dataLayer der Seite teils als Hüllen-Objekt `{ value: { event: … } }`. Die Stage packt sie aus; im Protokoll stehen sie wie normale Events. Wer `window.dataLayer` direkt liest, sieht die Hülle.
-- Neue Tests zuerst mit `TEMPO=schnell` stabil bekommen, dann im gewünschten Tempo laufen lassen.
-- Testfehler (Locator, Timing) beheben. Website- oder Tracking-Fehler **nicht wegtesten**: Erwartungen nicht aufweichen, damit es grün wird, sondern melden.
-- Tests mit festen Erwartungen mindestens dreimal hintereinander grün laufen lassen (`--repeat-each=3`). Baseline-Tests senden echte Requests: dort reichen zwei Läufe.
-- Bot-Schutz, Captchas, 3-D-Secure: nicht umgehen, sondern melden.
-- Tracking vor Consent, obwohl niemand geklickt hat: zuerst prüfen, ob die CMP den Testbrowser als Bot behandelt und selbst zustimmt (Usercentrics: `isBot`). Die Stage verbirgt `navigator.webdriver` und das Automation-Flag; abschalten nur mit `stageOptionen: { automationVerbergen: false }`.
-- Basic Auth (Staging): `BASIC_AUTH_BENUTZER` und `BASIC_AUTH_PASSWORT` in `.env`, die Config setzt sie für alle Tests.
+## Gemeinsamer Code
 
-## Auftragsart Container-Umbau
-
-Steht im Auftrag **Art: Container-Umbau**, geht es nicht um eine einzelne Journey, sondern darum, dass ein Umbau im GTM (z. B. mit der GTM CLI) nichts verliert: gleiche Requests an gleiche Konten, gleicher Consent, nur die erwarteten Unterschiede. Eine Aufzeichnung ist dafür optional.
-
-1. **Katalog statt Aufzeichnung:** Seiten mit eigenen Triggern plus Auslöser für Klick- und Event-Trigger. Steht nichts im Auftrag, aus dem Container ableiten: Export bzw. `gtm pull`-JSON (`containerVersion.trigger`, Filter auf `{{Click URL}}`, `{{Click Classes}}`, `{{Page Path}}`, Custom Events) und den Katalog in Phase 1 zur Bestätigung vorlegen. Trigger, die nur auf anderen Domains greifen, als nicht testbar nennen.
-2. **Auslöser ohne passende Elemente:** `await stage.linkKlicken(page, 'tel:+49…')` bzw. mit `{ attribute: { class: 'btn btn-primary' } }`, `await stage.dataLayerPush(page, { event: 'formSubmission' })`. Je Auslöser ein `test.step`, danach `stage.warteAufRuhe()`.
-3. **Ein Test je Consent-Szenario**, jeweils mit eigener Baseline (`vergleicheMitBaseline('Umbau – nur Google Ads')`). Die Szenarien stehen im Auftrag; „alle ablehnen“ erwartet null Tracking-Requests.
-4. **Vorher:** Baselines gegen den Ist-Stand ziehen (in der Regel der Live-Container, `GTM_VORSCHAU_LINK` leer) und wie in Phase 3 abgleichen, bis sie sauber sind.
-5. **Nachher, vor dem Veröffentlichen:** `GTM_VORSCHAU_LINK` des Workspaces in `.env`, dieselben Tests laufen gegen die Vorschau (Injection) und vergleichen mit den Baselines von vorher. Prüfen, dass die Vorschau wirklich geladen ist. Debug-Mode-Grenze beachten (siehe „GTM-Vorschau statt Live-Container“).
-6. **Bericht:** jede Abweichung einordnen als erwartet (steht unter „Erwartete Unterschiede“) oder unerwartet. Rote Abweichungen, die erwartet sind, nicht durch neues Ziehen der Baseline verdecken, sondern benennen; erst nach Freigabe durch den Menschen und nach der Veröffentlichung die Baseline neu ziehen.
-
-Der Modus ist `durchlassen` wie bei jeder Baseline: Conversions bei synthetischen Klicks gehen echt raus. Im Auftrag klären, ob das in Ordnung ist (Testtraffic erkennbar?), sonst die Läufe auf Remarketing und Seitenaufrufe beschränken.
+- `lib/` gilt für alle Projekte. Nur ändern, wenn es nicht anders geht, im Bericht begründen und danach `npm test` (Beispiel) laufen lassen.
+- Projektspezifisches (Regeln, Dekodier-Logik, Helfer) bleibt im Projektordner, z. B. `tests/hilfen.ts`.
+- `beispiel/` nicht ändern. Es dient als Referenz und läuft bei `npm test` ohne Projekt.
 
 ## Grenzen und Sicherheit
 
-- Echte Requests nur in Baseline-Tests und nur, wenn der Auftrag eine Baseline will.
+- Echte Requests nur in Baseline-Tests und Sitzungen, Baseline nur, wenn der Auftrag eine will.
 - Echte Käufe, Formular-Absendungen an echte Empfänger oder Kontoänderungen nur, wenn der Auftrag das ausdrücklich erlaubt (Testkonto, Testprodukt, Gutschein). Sonst den Test vor dem endgültigen Absenden beenden und nachfragen.
 - Keine Zugangsdaten, Testadressen oder Exporte in Code, Berichten oder Commits.
-
-## Abschlussbericht (Ende Phase 2)
-
-Kurz und konkret:
-
-1. Welche Tests es gibt und wie man sie startet.
-2. Welche Erwartungen aus dem Auftrag stammen und welche Du aus dem Ist-Zustand übernommen hast (zur Bestätigung).
-3. Baseline: bereit zum Ziehen (Angebot an den Menschen) bzw. angelegt, mit welchem Tempo, mit oder ohne Proxy, welche Werte als flüchtig markiert sind und warum.
-4. Eigene Regeln für Requests über eigene Pfade oder Formate, falls nötig.
-5. Auffälligkeiten im Tracking (mögliche Fehler der Website).
-6. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
-7. Offene Fragen und noch fehlende Einträge in `.env`.
-8. Was Du in `projekt.md` festgehalten hast, und Vorschläge für `AGENTS.md`, `lib/` oder `werkzeuge/`, die allen Projekten helfen würden.
+- Bot-Schutz, Captchas, 3-D-Secure: nicht umgehen, sondern melden.

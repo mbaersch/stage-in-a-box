@@ -9,7 +9,7 @@ sitzung.use({ stageOptionen: {
   // Wie ein echter Besuch: Requests gehen raus. 'abfangen' protokolliert nur, gesendet wird nichts.
   trackingModus: 'durchlassen',
 
-  // Beispiele, Details in AGENTS.md („Varianten“). Läuft im Browser: keine Variablen aus dieser Datei.
+  // Beispiele, Details in docs/anleitung/varianten.md. Läuft im Browser: keine Variablen aus dieser Datei.
   // dataLayerAnpassen: (e) => { if (e?.event === 'consent_ready') e.youtube = e.statistics === true; },
   // anpassungen: [{ muster: /\/skript\.js/, anpassen: (js) => js.replace('alt', 'neu') }],
   // regeln: [{ name: 'Meta', muster: /facebook\.com\/tr/, modus: 'blockieren' }],

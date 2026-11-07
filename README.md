@@ -85,7 +85,7 @@ sitzung.use({ stageOptionen: {
 } });
 ```
 
-Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Trigger und Tags im Workspace lassen sich damit bauen und prüfen, bevor die Website geändert ist. Ebenso möglich: HTML oder Skripte der Website ändern, Dienste blockieren oder verzögern, eine CSP durchsetzen (siehe [`AGENTS.md`](AGENTS.md), „Varianten“).
+Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Trigger und Tags im Workspace lassen sich damit bauen und prüfen, bevor die Website geändert ist. Ebenso möglich: HTML oder Skripte der Website ändern, Dienste blockieren oder verzögern, eine CSP durchsetzen (siehe [`docs/anleitung/varianten.md`](docs/anleitung/varianten.md)).
 
 ## Tracking-Tests aus einer Aufzeichnung
 
@@ -175,7 +175,7 @@ Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht ge
 
 Nicht denselben Link in beide eintragen.
 
-Ist `GTM_VORSCHAU_LINK` gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe `AGENTS.md`).
+Ist `GTM_VORSCHAU_LINK` gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe [`docs/anleitung/gtm-vorschau.md`](docs/anleitung/gtm-vorschau.md)).
 
 ## 5. Tests bauen lassen
 
@@ -183,7 +183,7 @@ Ist `GTM_VORSCHAU_LINK` gesetzt, laden alle Tests des Projekts den Container als
 
 Der Agent richtet die Tests mit `CONVERSION=aus` ein: Sie laufen bis direkt vor den Kauf bzw. das Absenden, es wird also nichts Echtes ausgelöst. Erst wenn das stabil läuft, folgt ein vollständiger Lauf mit Conversion. Danach berichtet er: welche Tests es gibt, welche Erwartungen er aus dem Ist-Zustand übernommen hat (zur Bestätigung), Auffälligkeiten, offene Punkte und was er in `projekt.md` festgehalten hat.
 
-Die Anweisungen für den Agent stehen in [`AGENTS.md`](AGENTS.md). Claude Code liest sie über `CLAUDE.md` automatisch ein, andere Agents über `AGENTS.md`.
+Die Anweisungen für den Agent beginnen in [`AGENTS.md`](AGENTS.md). Claude Code liest sie über `CLAUDE.md` automatisch ein, andere Agents über `AGENTS.md`. Dort steht ein Wegweiser: Je nach Aufgabe liest der Agent die passende Anleitung in [`docs/anleitung/`](docs/anleitung/) und bei Bedarf gesammeltes Wissen aus [`docs/wissen/`](docs/wissen/).
 
 ## 6. Baseline ziehen
 
@@ -297,11 +297,14 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ## Aufbau
 
 ```
-AGENTS.md                 Anweisungen für den Agent (für alle Projekte)
+AGENTS.md                 Kern der Anweisungen für den Agent: Regeln und Wegweiser
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
 lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
-docs/                     Aufzeichnungsformat
+docs/
+  anleitung/              Anleitungen je Aufgabe (Staging, Aufzeichnung, Tests, Baseline, Varianten …)
+  wissen/                 gesammeltes Wissen über CMPs, Dienste, Loader, GTM – wächst mit jedem Projekt
+  aufzeichnungsformat.md  Format der Recorder-Einträge
 beispiel/                 Demo-Seite mit Beispieltests und Baselines
 vorlage/                  Gerüst für neue Projekte (npm run neu)
 erweiterungen/            entpackte Browser-Extensions für Sitzungen (npm run erweiterung), nicht in Git

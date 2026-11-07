@@ -1,0 +1,12 @@
+# Auftragsart Container-Umbau
+
+Steht im Auftrag **Art: Container-Umbau**, geht es nicht um eine einzelne Journey, sondern darum, dass ein Umbau im GTM (z. B. mit der GTM CLI) nichts verliert: gleiche Requests an gleiche Konten, gleicher Consent, nur die erwarteten Unterschiede. Eine Aufzeichnung ist dafür optional. Die Phasen gelten wie bei anderen Tracking-Tests; Tests bauen nach [`tests-bauen.md`](tests-bauen.md), Baselines nach [`baseline.md`](baseline.md).
+
+1. **Katalog statt Aufzeichnung:** Seiten mit eigenen Triggern plus Auslöser für Klick- und Event-Trigger. Steht nichts im Auftrag, aus dem Container ableiten: Export bzw. `gtm pull`-JSON (`containerVersion.trigger`, Filter auf `{{Click URL}}`, `{{Click Classes}}`, `{{Page Path}}`, Custom Events) und den Katalog in Phase 1 zur Bestätigung vorlegen. Trigger, die nur auf anderen Domains greifen, als nicht testbar nennen.
+2. **Auslöser ohne passende Elemente:** `await stage.linkKlicken(page, 'tel:+49…')` bzw. mit `{ attribute: { class: 'btn btn-primary' } }`, `await stage.dataLayerPush(page, { event: 'formSubmission' })`. Je Auslöser ein `test.step`, danach `stage.warteAufRuhe()`.
+3. **Ein Test je Consent-Szenario**, jeweils mit eigener Baseline (`vergleicheMitBaseline('Umbau – nur Google Ads')`). Die Szenarien stehen im Auftrag; „alle ablehnen“ erwartet null Tracking-Requests. Szenarien herstellen: [`varianten.md`](varianten.md), „Consent-Varianten“.
+4. **Vorher:** Baselines gegen den Ist-Stand ziehen (in der Regel der Live-Container, `GTM_VORSCHAU_LINK` leer) und wie in Phase 3 abgleichen, bis sie sauber sind.
+5. **Nachher, vor dem Veröffentlichen:** `GTM_VORSCHAU_LINK` des Workspaces in `.env`, dieselben Tests laufen gegen die Vorschau (Injection) und vergleichen mit den Baselines von vorher. Prüfen, dass die Vorschau wirklich geladen ist. Debug-Mode-Grenze beachten ([`gtm-vorschau.md`](gtm-vorschau.md)).
+6. **Bericht:** jede Abweichung einordnen als erwartet (steht unter „Erwartete Unterschiede“) oder unerwartet. Rote Abweichungen, die erwartet sind, nicht durch neues Ziehen der Baseline verdecken, sondern benennen; erst nach Freigabe durch den Menschen und nach der Veröffentlichung die Baseline neu ziehen.
+
+Der Modus ist `durchlassen` wie bei jeder Baseline: Conversions bei synthetischen Klicks gehen echt raus. Im Auftrag klären, ob das in Ordnung ist (Testtraffic erkennbar?), sonst die Läufe auf Remarketing und Seitenaufrufe beschränken.
