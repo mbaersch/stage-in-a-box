@@ -451,6 +451,16 @@ function auswerten(a) {
       gesehen.set(k, true);
     }
   }
+  const ersteSeite = a.eintraege.filter((e) => e.seite === 1);
+  const update = ersteSeite.findIndex((e) => e.art === 'consent' && e.befehl === 'update');
+  if (update >= 0) {
+    const davor = ersteSeite.slice(0, update).filter((e) => e.art === 'aktion');
+    if (!davor.some((e) => e.rec.type === 'click')) {
+      auffaellig.push(davor.some((e) => e.rec.type === 'init')
+        ? 'Consent-Entscheidung ohne aufgezeichneten Klick: Banner vermutlich in iframe oder geschlossenem Shadow DOM. CMP bzw. Selektoren für Zustimmen/Ablehnen klären.'
+        : 'Consent-Entscheidung, bevor der Recorder lief: GTM lädt vermutlich erst nach der Zustimmung, der Banner-Klick fehlt in der Aufzeichnung. CMP bzw. Selektoren für Zustimmen/Ablehnen und nötige Schritte bis zum Banner (z. B. Scrollen) klären.');
+    }
+  }
   for (const e of a.eintraege) {
     for (const r of e.requests ?? []) {
       const vorConsent = e.consent?.some((c) => c.endsWith('=denied')) && /^G1[01]1$/.test(r.parameter.gcs ?? '') && r.parameter.gcs !== 'G100';

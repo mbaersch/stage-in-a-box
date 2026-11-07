@@ -65,6 +65,8 @@ Das Tag schreibt seine Einträge als Messages ohne Event in den dataLayer. Der T
 4. Bei einem Kauf: nur mit Testkonto, Testprodukt, Gutschein oder Testzahlart, und nur wenn das abgesprochen ist.
 5. Im Tag Assistant die Aufzeichnung **exportieren**.
 
+**Wenn GTM erst nach der Zustimmung lädt:** Dann läuft auch der Recorder erst danach, und der Klick auf den Consent-Banner fehlt in der Aufzeichnung. Trag in diesem Fall im Auftrag unter „Consent-Banner“ ein, wie der Banner bedient wird: entweder den Namen der CMP (der Agent sucht die Selektoren dann in der CMP-Bibliothek des [Tracking Auditor](https://github.com/mbaersch/tracking-auditor)) oder die Selektoren selbst, z. B. `a.consentlink` für Zustimmen und `a.noconsentlink` für Ablehnen. Nenne auch Schritte, ohne die der Banner nicht erscheint, etwa „erst nach Scrollen sichtbar“. Dasselbe gilt für Banner in einem iframe oder geschlossenen Shadow DOM, in die der Recorder nicht hineinsieht. Die Analyse weist auf solche Fälle hin.
+
 Tipp: Lieber mehrere kurze Aufzeichnungen (z. B. „Consent akzeptieren + Kauf“ und „Consent ablehnen + Kauf“) als eine lange mit allem.
 
 ## 3. Projekt anlegen und Analyse starten
