@@ -66,6 +66,7 @@ export const FLUECHTIGE_PARAMETER = [
   // Google Ads / Floodlight
   'rnd', 'random', 'ord', 'auid', 'gclid', 'gclaw', 'num', 'u_tz', 'u_his', 'u_h', 'u_w', 'u_ah', 'u_aw', 'u_cd',
   'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2', 'eoid', 'eitems', '_gsid',
+  'rmt_tld', // folgt dem Host (Länderdomain ja/nein)
   // Microsoft Ads (UET)
   'mid', 'vid', 'rn', 'lt',
   // Piwik PRO (Zeit-, Zufalls- und Besucherwerte; Timings t_* über FLUECHTIGE_MUSTER)
@@ -137,7 +138,12 @@ export interface Befund {
 }
 
 /** Grobe Näherung an die registrierbare Domain (letzte zwei Labels). */
-const basisDomain = (host: string) => host.split(':')[0].split('.').slice(-2).join('.');
+const GOOGLE_LAENDERDOMAIN = /(^|\.)google\.(com?\.)?[a-z]{2,3}$/;
+const basisDomain = (host: string) => {
+  const h = host.split(':')[0];
+  // Google schickt denselben Request mal an google.com, mal an die Länderdomain (google.de, google.co.uk)
+  return GOOGLE_LAENDERDOMAIN.test(h) ? 'google.*' : h.split('.').slice(-2).join('.');
+};
 
 /* ------------------------------------------------------------------ */
 /* Momentaufnahme aus einem Lauf                                      */
@@ -510,6 +516,8 @@ export async function vergleicheMitBaseline(stage: Stage, journey: string, optio
   const berichtDatei = testInfo.outputPath('baseline-vergleich.md');
   fs.writeFileSync(berichtDatei, text);
   await testInfo.attach('baseline-vergleich.md', { path: berichtDatei, contentType: 'text/markdown' });
+  // Für Offline-Abgleiche mit vergleiche(), ohne erneut echte Requests zu senden.
+  fs.writeFileSync(testInfo.outputPath('momentaufnahme.json'), JSON.stringify(lauf, null, 2) + '\n');
   const info = befunde.filter((b) => b.stufe === 'info').length;
   if (info) testInfo.annotations.push({ type: 'Baseline-Hinweise', description: `${info} Hinweis(e), siehe baseline-vergleich.md` });
   const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.bereich}: ${b.text}`);

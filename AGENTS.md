@@ -233,7 +233,7 @@ test.describe('Baseline', () => {
   - Bei beiden ist eine abweichende Anzahl nur ein Hinweis; Consent-Parameter bleiben rot.
   - **Rauschen ohne Aussage** (Sitzungsaufzeichnung, eigene Statistik der Website mit Zeitstempel im Parameter): Regel mit `nichtProtokollieren: true` – wird weiter gesteuert, aber nicht verglichen.
   - **Echte Unsicherheit** (Tag feuert mal, mal nicht): nicht wegfiltern, sondern melden; oft ein Timing-Problem der Website oder ein zu schnelles Tempo.
-- Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Die Protokolle des letzten Laufs liegen in `test-results/`, `vergleiche()` aus `lib/baseline.ts` nimmt zwei Momentaufnahmen.
+- Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Jeder Vergleichslauf legt seine Momentaufnahme als `momentaufnahme.json` in `test-results/<test>/` ab, `vergleiche()` aus `lib/baseline.ts` nimmt sie zusammen mit der Baseline-Datei.
 - Erst wenn der Abgleich sauber ist, gilt die Baseline als fertig. Im Bericht nennen, was als flüchtig, Begleit-Request oder Rauschen eingestuft wurde.
 - **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu -- projects/<name>` nur auf ausdrücklichen Wunsch des Menschen.
 - Bei echten Käufen nur mit Testkonto bzw. Testprodukt laut Auftrag.
