@@ -89,6 +89,12 @@ export interface StageOptionen {
   vorschauLink?: string;
   /** Eigene Loader ohne id=GTM-… in der URL (z. B. Stape /<pfad>/<datei>.js?<kodiert>), die ebenfalls die Vorschau laden sollen. */
   vorschauLoader?: RegExp;
+  /**
+   * Antworten der Website vor dem Browser verändern, z. B. einen geplanten Loader ins HTML setzen oder ein
+   * fehlerhaftes Skript der Seite patchen. Bleibt eine Antwort unverändert, steht ihre URL in
+   * stage.anpassungenOhneWirkung (meist: Muster im Text passt nicht mehr).
+   */
+  anpassungen?: { muster: RegExp; anpassen: (text: string, url: string) => string }[];
 }
 
 /** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
@@ -340,6 +346,29 @@ export class Stage {
   /** URLs von Requests der Debug-Werkzeuge; der NetLog-Abgleich darf sie nicht nachtragen. */
   readonly werkzeugUrls = new Set<string>();
   dataLayerName = 'dataLayer';
+  /** URLs, auf die eine Anpassung passte, ohne etwas zu ändern (siehe StageOptionen.anpassungen). */
+  readonly anpassungenOhneWirkung = new Set<string>();
+  /** Alle Ressourcen nach CSP-Direktive, Host und Kontext (Seite, iframe, Service Worker), mit Anzahl. */
+  readonly ressourcen = new Map<string, { direktive: string; host: string; origin: string; kontext: string; anzahl: number }>();
+
+  /**
+   * Was eine CSP der Seite erlauben müsste: je Direktive die Hosts, die im Lauf angefragt wurden (nur
+   * Requests der Seite selbst; iframes und Service Worker haben eigene Policies). Dazu Verstöße gegen
+   * die simulierte bzw. vorhandene Policy.
+   */
+  cspInventar(seitenHost = zerlege(String(this.testInfo.project.use.baseURL ?? '')).host) {
+    const eintraege = [...this.ressourcen.values()].sort((a, b) =>
+      a.kontext.localeCompare(b.kontext) || a.direktive.localeCompare(b.direktive) || a.host.localeCompare(b.host));
+    const proDirektive = new Map<string, Set<string>>();
+    for (const e of eintraege) {
+      if (e.kontext !== 'Seite') continue;
+      if (!proDirektive.has(e.direktive)) proDirektive.set(e.direktive, new Set());
+      proDirektive.get(e.direktive)!.add(e.host === seitenHost ? "'self'" : e.origin);
+    }
+    const vorschlag = [...proDirektive].sort(([a], [b]) => a.localeCompare(b))
+      .map(([d, hosts]) => `${d} ${[...hosts].sort((a, b) => (a === "'self'" ? -1 : b === "'self'" ? 1 : a.localeCompare(b))).join(' ')}`).join('; ');
+    return { eintraege, vorschlag, verstoesse: [...new Set(this.cspVerstoesse.map((v) => `${v.direktive}: ${v.blockiert}`))] };
+  }
 
   constructor(
     readonly modus: Modus,
@@ -606,6 +635,13 @@ function vonWerkzeug(request: Request) {
   return istWerkzeug(request.headers()['referer']);
 }
 
+/** Playwright-Ressourcentyp → CSP-Direktive (worker-src gilt für Skripte von Workern, hier nicht unterschieden). */
+const CSP_DIREKTIVE: Record<string, string> = {
+  script: 'script-src', stylesheet: 'style-src', image: 'img-src', font: 'font-src', media: 'media-src',
+  manifest: 'manifest-src', xhr: 'connect-src', fetch: 'connect-src', eventsource: 'connect-src',
+  websocket: 'connect-src', ping: 'connect-src', texttrack: 'media-src',
+};
+
 /**
  * Merkt sich je Host, was dessen ersten Request ausgelöst hat (CDP, nur Chromium): Skripte aus dem
  * Aufrufstapel bzw. das HTML der Seite. Beantwortet bei neuen Domains: lädt GTM sie oder die Seite selbst?
@@ -684,6 +720,70 @@ export async function richteStageEin(
       url.searchParams.set('gtm_preview', vorschau.env);
       url.searchParams.set('gtm_cookies_win', 'x');
       await route.continue({ url: url.href }).catch(() => { /* Seite schon geschlossen */ });
+    });
+  }
+
+  // CSP-Inventar: jede Ressource mit Direktive und Kontext, mit und ohne Proxy (Playwright sieht die Requests vor dem Proxy)
+  context.on('request', (request) => {
+    if (vonWerkzeug(request)) return;
+    const { host } = zerlege(request.url());
+    const origin = (() => { try { return new URL(request.url()).origin; } catch { return host; } })();
+    if (!host) return;
+    let direktive = CSP_DIREKTIVE[request.resourceType()] ?? 'connect-src';
+    let kontext = 'Seite';
+    if (request.serviceWorker()) {
+      kontext = 'Service Worker';
+    } else {
+      try {
+        const frame = request.frame();
+        if (request.resourceType() === 'document') {
+          if (!frame.parentFrame()) return; // Hauptdokument braucht keine Direktive
+          direktive = 'frame-src';
+        } else if (frame.parentFrame()) {
+          kontext = `iframe ${zerlege(frame.url()).host || '(ohne URL)'}`;
+        }
+      } catch { kontext = 'unbekannt'; }
+    }
+    const k = `${kontext}|${direktive}|${host}`;
+    const e = stage.ressourcen.get(k);
+    if (e) e.anzahl++;
+    else stage.ressourcen.set(k, { direktive, host, origin, kontext, anzahl: 1 });
+  });
+
+  // Antworten der Website verändern: Anpassungen (z. B. neuer Loader, gepatchtes Skript) und, ohne Proxy,
+  // die CSP-Simulation. Eine gemeinsame Route, weil beide dieselben Dokumente anfassen können.
+  const anpassungenFuer = (url: string) => (optionen.anpassungen ?? []).filter((a) => a.muster.test(url));
+  const cspImBrowser = !proxy && !!optionen.csp;
+  if (optionen.anpassungen?.length || cspImBrowser) {
+    const betroffen = (url: URL) => anpassungenFuer(url.href).length > 0 || (cspImBrowser && !regelFuer(url.href));
+    await context.route(betroffen, async (route: Route, request: Request) => {
+      const anpassungen = anpassungenFuer(request.url());
+      // Angepasste Dokumente holt route.fetch() nicht zwingend über den Proxy: CSP dann auch hier setzen
+      const cspHier = !!optionen.csp && request.resourceType() === 'document' && (cspImBrowser || anpassungen.length > 0);
+      if (!anpassungen.length && !cspHier) {
+        await route.fallback();
+        return;
+      }
+      const antwort = await route.fetch();
+      const headers = { ...antwort.headers() };
+      if (cspHier) {
+        if ((optionen.cspModus ?? 'ersetzen') === 'ersetzen') {
+          delete headers['content-security-policy'];
+          delete headers['content-security-policy-report-only'];
+        }
+        const name = optionen.cspNurBerichten ? 'content-security-policy-report-only' : 'content-security-policy';
+        headers[name] = headers[name] ? `${headers[name]}, ${optionen.csp}` : optionen.csp!;
+      }
+      if (!anpassungen.length) {
+        await route.fulfill({ response: antwort, headers });
+        return;
+      }
+      let text = await antwort.text();
+      const vorher = text;
+      for (const a of anpassungen) text = a.anpassen(text, request.url());
+      if (text === vorher) stage.anpassungenOhneWirkung.add(request.url());
+      delete headers['content-length'];
+      await route.fulfill({ response: antwort, headers, body: text });
     });
   }
 
@@ -782,26 +882,6 @@ export async function richteStageEin(
     }
   });
 
-  // CSP für Dokumente setzen; Tracking-Requests sind nie betroffen.
-  if (optionen.csp) {
-    const csp = optionen.csp;
-    await context.route((url: URL) => !regelFuer(url.href), async (route: Route, request: Request) => {
-      if (request.resourceType() !== 'document') {
-        await route.fallback();
-        return;
-      }
-      const antwort = await route.fetch();
-      const headers = { ...antwort.headers() };
-      if ((optionen.cspModus ?? 'ersetzen') === 'ersetzen') {
-        delete headers['content-security-policy'];
-        delete headers['content-security-policy-report-only'];
-      }
-      const name = optionen.cspNurBerichten ? 'content-security-policy-report-only' : 'content-security-policy';
-      headers[name] = headers[name] ? `${headers[name]}, ${csp}` : csp;
-      await route.fulfill({ response: antwort, headers });
-    });
-  }
-
   return stage;
 }
 
@@ -884,8 +964,10 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
   },
   // Den Zertifikaten des Proxys vertraut der Browser über seine Startargumente (lib/proxy.ts),
   // ignoreHTTPSErrors ist dafür nicht nötig.
-  ignoreHTTPSErrors: async ({ ignoreHTTPSErrors, stageOptionen }, use) => {
-    await use(ignoreHTTPSErrors || !!stageOptionen.zertifikatFehlerIgnorieren);
+  // Ausnahme Anpassungen mit Proxy: route.fetch() läuft dann über den Proxy, und die Node-Seite von
+  // Playwright kennt dessen Zertifikate nicht (sonst „self-signed certificate in certificate chain“).
+  ignoreHTTPSErrors: async ({ ignoreHTTPSErrors, stageOptionen, stageProxy }, use) => {
+    await use(ignoreHTTPSErrors || !!stageOptionen.zertifikatFehlerIgnorieren || (!!stageProxy && !!stageOptionen.anpassungen?.length));
   },
   // Mit Proxy sind Service Worker kein blinder Fleck mehr und dürfen laufen wie bei echten Besuchern
   serviceWorkers: async ({ serviceWorkers, stageProxy }, use) => {
@@ -903,6 +985,12 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
         description: `${entwischt.length} Tracking-Request(s) beim Verlassen einer Seite echt gesendet, obwohl Modus "${stage.modus}" (siehe tracking-treffer.json, entwischt: true)`,
       });
     }
+    if (stage.anpassungenOhneWirkung.size) {
+      testInfo.annotations.push({
+        type: 'Achtung',
+        description: `Anpassung ohne Wirkung (Muster im Inhalt nicht gefunden?): ${[...stage.anpassungenOhneWirkung].join(', ')}`,
+      });
+    }
     // Protokolle als Dateien in test-results/<test>/ (auch bei grünen Tests auswertbar, ohne
     // neuen Lauf) und als Anhang im Report.
     const ablegen = async (name: string, daten: unknown) => {
@@ -915,6 +1003,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     await ablegen('hosts.json', [...stage.tracking.hosts].sort().map((h) => ({ host: h, ausgeloestVon: stage.tracking.ausloeser.get(h) })));
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
+    await ablegen('csp-inventar.json', stage.cspInventar());
   },
 });
 

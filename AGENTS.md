@@ -253,7 +253,16 @@ test.use({ stageOptionen: { regeln: [
 
 // Geplante CSP testen; Verstöße stehen in stage.cspVerstoesse
 test.use({ stageOptionen: { csp: "default-src 'self'; script-src 'self' https://www.googletagmanager.com" } });
+
+// Geplante Änderung an der Website vorwegnehmen: neuer Loader im HTML, Bugfix in einem Skript der Seite
+test.use({ stageOptionen: { anpassungen: [
+  { muster: /^https:\/\/www\.example\.de\/[^.]*$/, anpassen: (html) => html.replace(/<script>[^<]*aGTM[\s\S]*?<\/script>/, NEUER_LOADER) },
+  { muster: /\/ConsentGate\.js/, anpassen: (js) => js.replace('var services = uc.getServicesBaseInfo() || [];', '…') },
+] } });
 ```
+
+- **CSP-Inventar:** Jeder Test legt `csp-inventar.json` ab: alle Ressourcen nach Direktive, Herkunft und Kontext (Seite, iframe, Service Worker) und einen Vorschlag für die Policy der Seite (`vorschlag`). Grundlage für eine neue CSP: einen vollständigen Lauf mit allen Consent-Zuständen und Zahlarten machen, dann den Vorschlag prüfen und die Policy als Variante `csp` testen. iframes und Service Worker fallen nicht unter die CSP der Seite.
+- **Anpassungen:** Ändert eine Anpassung nichts (Muster passt nicht mehr, z. B. nach einem Update der Website), bekommt der Test die Anmerkung „Achtung“, und die URL steht in `stage.anpassungenOhneWirkung`. Mit Proxy setzt die Stage `ignoreHTTPSErrors`, weil Playwright die Antwort dann über den Proxy holt; Zertifikatsfehler der Website fallen in diesen Tests nicht auf.
 
 Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
 
