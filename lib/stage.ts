@@ -82,6 +82,25 @@ export interface StageOptionen {
   unbekannteAbfangen?: boolean;
   /** navigator.webdriver verbergen, damit CMPs den Testbrowser nicht als Bot behandeln. Vorgabe: true. */
   automationVerbergen?: boolean;
+  /**
+   * GTM-Vorschau per Injection: Link aus GTM „Vorschau“/„Vorschau teilen“ (mit id, gtm_auth, gtm_preview).
+   * Vorgabe: Umgebungsvariable GTM_VORSCHAU_LINK. Hängt die Vorschau-Parameter an jedes Laden des Containers.
+   */
+  vorschauLink?: string;
+  /** Eigene Loader ohne id=GTM-… in der URL (z. B. Stape /<pfad>/<datei>.js?<kodiert>), die ebenfalls die Vorschau laden sollen. */
+  vorschauLoader?: RegExp;
+}
+
+/** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
+export function vorschauParameter(link?: string) {
+  if (!link) return undefined;
+  const wert = (name: string) => link.match(new RegExp(`[?&#/]${name}=([^&#]+)`))?.[1];
+  const id = wert('id'), auth = wert('gtm_auth'), env = wert('gtm_preview');
+  if (!id || !auth || !env) {
+    throw new Error('GTM_VORSCHAU_LINK braucht id, gtm_auth und gtm_preview (Link aus GTM „Vorschau teilen“). '
+      + 'Enthält der Link ein #, muss er in .env in Anführungszeichen stehen, sonst wird er dort abgeschnitten.');
+  }
+  return { id: decodeURIComponent(id), auth: decodeURIComponent(auth), env: decodeURIComponent(env) };
 }
 
 /** CONVERSION=aus: Tests enden an stage.conversionPunkt(), z. B. solange sie eingerichtet werden. */
@@ -572,6 +591,20 @@ export async function richteStageEin(
   // sähe aus wie Tracking ohne Zustimmung. Gegenstück: Startargument in playwright.config.ts.
   if (optionen.automationVerbergen !== false) {
     await context.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
+  }
+
+  // Vorschau zuerst registrieren: Playwright fragt später registrierte Routen zuerst, die übrigen
+  // Routen reichen Container-Requests per fallback() bis hierher durch.
+  const vorschau = vorschauParameter(optionen.vorschauLink ?? process.env.GTM_VORSCHAU_LINK);
+  if (vorschau) {
+    const istContainer = (url: URL) => url.searchParams.get('id') === vorschau.id || !!optionen.vorschauLoader?.test(url.href);
+    await context.route(istContainer, async (route: Route) => {
+      const url = new URL(route.request().url());
+      url.searchParams.set('gtm_auth', vorschau.auth);
+      url.searchParams.set('gtm_preview', vorschau.env);
+      url.searchParams.set('gtm_cookies_win', 'x');
+      await route.continue({ url: url.href }).catch(() => { /* Seite schon geschlossen */ });
+    });
   }
 
   if (proxy) {

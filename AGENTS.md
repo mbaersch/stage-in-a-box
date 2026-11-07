@@ -171,11 +171,13 @@ Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben o
 - Lädt GTM erst nach der Zustimmung, entstehen beim Ablehnen womöglich gar keine Tracking-Requests und kein dataLayer-Eintrag. Die Variante „Consent abgelehnt“ prüft dann genau das: nichts darf feuern. Prüfe die CMP-Bibliothek im Repo [mbaersch/tracking-auditor](https://github.com/mbaersch/tracking-auditor), Datei `cmp-library.json`: Dort stehen für über 120 CMPs `accept`, `reject`, ggf. `rejectSteps` (zweistufiges Ablehnen), `detect` (Container zum Erkennen) und `shadowDom`. Bei iframe-Bannern `page.frameLocator(…)` verwenden.
 - Jeder Test startet in einem frischen Browser-Kontext ohne Cookies, der Banner erscheint also immer.
 
-**GTM-Vorschau statt Live-Container:** Steht im Auftrag, dass getestet wird, was nur in einer GTM-Vorschau läuft (Workspace oder Umgebung), beginnt die Journey mit `const website = await stage.vorschauStarten(page)` und läuft danach im Tab `website` weiter, nicht in `page`.
-- Der Link muss aus GTM kommen („Vorschau“ bzw. „Vorschau teilen“, mit `gtm_auth` und `gtm_preview`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Der Link gehört als `GTM_VORSCHAU_LINK` in `.env`.
-- Im frischen Browser erscheint der Dialog „Verbinden“; `vorschauStarten` klickt `#domain-start-button` und wartet auf den neuen Tab. Der Tab mit dem Tag Assistant bleibt offen, sonst endet die Vorschau.
-- Eigener dataLayer und eigene GA4-Requests des Tag Assistant werden nicht protokolliert (`WERKZEUG_SEITEN` in `lib/stage.ts`).
-- Prüfen, dass die Vorschau wirklich geladen ist (z. B. ein Event, das nur im Workspace existiert), bevor Erwartungen entstehen.
+**GTM-Vorschau statt Live-Container:** Steht im Auftrag, dass getestet wird, was nur in einer GTM-Vorschau läuft (Workspace oder Umgebung), reicht `GTM_VORSCHAU_LINK` in `.env` (in Anführungszeichen). Die Stage hängt dann `gtm_auth`, `gtm_preview` und `gtm_cookies_win` an jedes Laden des Containers mit dieser ID (Injection), in allen Tests des Projekts. Der Test braucht dafür nichts Besonderes.
+- Der Link muss aus GTM kommen („Vorschau teilen“, mit `id`, `gtm_auth` und `gtm_preview`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces.
+- Eigener Loader ohne `id=GTM-…` in der URL (Stape u. a.): `stageOptionen: { vorschauLoader: /\/<pfad>\/<datei>\.js\?/ }`.
+- Prüfen, dass die Vorschau wirklich geladen ist (z. B. ein Event oder Tag, das nur im Workspace existiert), bevor Erwartungen entstehen.
+- **Grenze der Injection:** Ohne Tag Assistant ist *Debug Mode* `false`. Hängen Tags an einem Blocker wie „Nicht-Live-Umgebung und nicht Debug Mode“, feuern sie nicht. Dann den Tag Assistant nutzen: Die Journey beginnt mit `const website = await stage.vorschauStarten(page)` und läuft danach im Tab `website` weiter, nicht in `page`. Folgende Punkte gelten nur für diesen Weg:
+  - Im frischen Browser erscheint der Dialog „Verbinden“; `vorschauStarten` klickt `#domain-start-button` und wartet auf den neuen Tab. Der Tab mit dem Tag Assistant bleibt offen, sonst endet die Vorschau.
+  - Eigener dataLayer und eigene GA4-Requests des Tag Assistant werden nicht protokolliert (`WERKZEUG_SEITEN` in `lib/stage.ts`).
 
 **Iframes:** Zahlungsfelder und manche CMPs liegen in Cross-Origin-iframes; der Recorder sieht dort nichts. Wenn der Auftrag diesen Teil abdeckt, mit `frameLocator` arbeiten und Selektoren mit dem Menschen klären. Sonst den Test vor diesem Schritt enden lassen und das im Bericht erwähnen.
 

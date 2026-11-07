@@ -112,7 +112,9 @@ Dann setzt Du oben den Status auf **bestätigt**.
 
 Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht gesetzt, dann greift die Vorgabe. Steht ein Wert in einer Zeile mit `#` davor, wirkt er nicht; der Testlauf warnt dann mit dem Namen der Variable.
 
-**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau* bzw. *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er als `GTM_VORSCHAU_LINK` in `.env`. Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Die Tests öffnen den Tag Assistant, starten die Verbindung und laufen im neuen Tab mit der Website weiter.
+**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er als `GTM_VORSCHAU_LINK` in `.env`, in Anführungszeichen (er enthält oft ein `#`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces.
+
+Ist der Link gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe `AGENTS.md`).
 
 ## 5. Tests bauen lassen
 
@@ -148,7 +150,7 @@ Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regu
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
 
-Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über die GTM-Vorschau fehlen dort der dataLayer und die eigenen GA4-Requests des Tag Assistant: Die Anhänge zeigen nur die Website.
+Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über den Tag Assistant fehlen dort dessen eigener dataLayer und seine GA4-Requests: Die Anhänge zeigen nur die Website.
 
 **Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören.
 
