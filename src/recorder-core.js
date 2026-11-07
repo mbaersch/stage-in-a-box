@@ -266,15 +266,34 @@
     };
   }
 
+  // Wie getByRole() mit Name: Teilstring ohne Groß-/Kleinschreibung, nur sichtbare Elemente.
+  var MAX_ROLE_SCAN = 3000;
+  function roleNameUnique(el, role, name) {
+    if (!role || !name) return undefined;
+    var all = rootOf(el).querySelectorAll(INTERACTIVE);
+    if (all.length > MAX_ROLE_SCAN) return undefined;
+    var needle = name.toLowerCase(), count = 0;
+    for (var i = 0; i < all.length; i++) {
+      var c = all[i];
+      if (c !== el && (!c.getClientRects().length || implicitRole(c) !== role)) continue;
+      if (accessibleName(c).toLowerCase().indexOf(needle) >= 0 && ++count > 1) return false;
+    }
+    return true;
+  }
+
   function describe(el) {
     var tag = el.tagName.toLowerCase();
+    var role = implicitRole(el);
+    var name = accessibleName(el);
     var d = {
       tag: tag,
-      role: implicitRole(el),
-      name: accessibleName(el),
+      role: role,
+      name: name,
       text: cleanText(el.innerText || el.textContent),
       selectors: selectorCandidates(el)
     };
+    var unique = roleNameUnique(el, role, name);
+    if (unique !== undefined) d.roleNameUnique = unique;
     var type = el.getAttribute('type');
     if (type) d.type = type;
     var ac = el.getAttribute('autocomplete');

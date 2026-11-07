@@ -216,13 +216,16 @@ function locator(el) {
     if (s) return `page.locator(${js(s.selector)})`;
   }
   const name = bereinigterName(el?.name);
-  if (el?.role && name && name.length <= 60 && !/\d+[,.]\d{2}\s*€|€\s*\d/.test(name)) {
+  const rolleNutzbar = el?.role && name && name.length <= 60 && !/\d+[,.]\d{2}\s*€|€\s*\d/.test(name);
+  // roleNameUnique fehlt bei älteren Aufzeichnungen; dann wie bisher Rolle + Name ungeprüft
+  if (rolleNutzbar && el.roleNameUnique !== false) {
     return `page.getByRole(${js(el.role)}, { name: ${js(name)} })`;
   }
   for (const kind of ['ariaLabel', 'href']) {
     const s = eindeutig(kind);
     if (s) return `page.locator(${js(s.selector)})`;
   }
+  if (rolleNutzbar) return `page.getByRole(${js(el.role)}, { name: ${js(name)} }).first() /* Name mehrfach auf der Seite – prüfen, welches Element gemeint ist */`;
   const css = sel.find((s) => s.kind === 'cssPath');
   return css ? `page.locator(${js(css.selector)}) /* nur CSS-Pfad – fragil */` : '/* kein Selektor */';
 }
