@@ -275,6 +275,8 @@ export interface CspVerstoss {
 export const STANDARD_DIENSTE: Regel[] = [
   // Pfad statt Host, damit auch serverseitiges Tagging auf eigener Domain erfasst wird
   { name: 'GA4', muster: /\/g\/collect(\?|$)/ },
+  // Google Signals (ads/ga-audiences, g/s/collect): ohne Regel gingen sie im Modus "abfangen" echt raus
+  { name: 'GA4 Begleit', muster: /\/ads\/ga-audiences|\/g\/s\/collect/, nichtProtokollieren: true },
   { name: 'GA4 Measurement Protocol', muster: /google-analytics\.com\/mp\/collect/ },
   // measurement/conversion: Conversion aus GA4 für Google Ads; ohne Regel ginge sie auch im Modus "abfangen" raus
   // Ohne Host: Google Tag Gateway auf der eigenen Domain (<pfad>/as/p/c/<id>/, <pfad>/as/d/ccm/conversion/, <pfad>/d/ccm/form-data)
