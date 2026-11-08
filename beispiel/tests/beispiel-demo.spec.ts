@@ -103,6 +103,18 @@ test.describe('Variante: Adblocker mit Filterregeln', () => {
   });
 });
 
+test.describe('Echte Requests als Test-Traffic kennzeichnen', () => {
+  // Setzt tt (traffic_type) in GA4-Requests, damit ein Datenfilter in GA4 sie ausschließt. Nur mit Proxy.
+  test.use({ stageOptionen: { proxy: true, trackingModus: 'durchlassen', trafficType: 'stage-test' } });
+
+  test('GA4-Requests tragen tt', async ({ page, stage }) => {
+    await journey(page, stage, 'akzeptieren');
+    const lead = await stage.tracking.erwarteGa4('generate_lead');
+    expect(lead.treffer.parameter.tt).toBe('stage-test');
+    expect(stage.tracking.treffer.filter((t) => t.dienst === 'GA4').every((t) => t.parameter.tt === 'stage-test')).toBe(true);
+  });
+});
+
 test.describe('Variante: Adblocker mit Ersatzskript für GTM', () => {
   // uBlock blockiert gtm.js nicht, sondern liefert ein Ersatzskript: eventCallback und Anti-Flicker laufen weiter.
   test.use({ stageOptionen: { adblocker: { regeln: ['||googletagmanager.com/gtm.js$script,redirect=googletagmanager_gtm.js'] } } });

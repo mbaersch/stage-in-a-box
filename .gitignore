@@ -20,6 +20,7 @@
 !/beispiel/
 !/vorlage/
 !/res/
+!/.github/
 
 # Projekte mit Aufzeichnungen, .env und Reports: nie einchecken, auch wenn die Allowlist sich ändert
 /projects/

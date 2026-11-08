@@ -93,6 +93,7 @@ test.use({ stageOptionen: { pruefungen: {
 
 - Rot (nur Dienste mit Profil): Währung oder Transaktions-ID weichen ab oder fehlen; Wert, außer das Profil sagt `valueNurHinweis` (Google Ads, Meta, Microsoft Ads: dort steht oft gewollt Netto, Marge o. Ä.; Änderungen fängt die Baseline); Artikel-IDs, außer das Profil sagt `itemsNurHinweis` (Werbedienste mit Feed-IDs).
 - Hinweis: Dienst mit Profil ohne passenden Request nach dem Push, oder ganz ohne Request nach dem Push (Test endete zu früh, Tag feuert nicht).
+- Nachweis: Je Dienst und Event steht in `durchgaengigkeit.json`, welche Felder tatsächlich verglichen wurden („verglichen: value, currency, transaction_id“). So ist sichtbar, was die Prüfung abdeckt; fehlende Felder sind oft eine bewusste Entscheidung im Setup und kein Fehler.
 - Conversions ohne Event-Namen im Request (Google Ads) ordnet die Prüfung jedem Push im Zeitfenster zu. Feuern sie auch bei frühen Events (z. B. Conversion-Manager mit `value: 0` bei `add_to_cart`), Google Ads nur beim `purchase` prüfen: `stage.pruefeDurchgaengigkeit('add_to_cart', ['Google Ads:value'])` für die übrigen Events.
 - **Artikel über die Journey** (läuft mit, sobald `durchgaengigkeit` an ist; dienst `dataLayer`, ereignis `Journey`): Rot, wenn ein Artikel (gleicher `item_name`) zwischen den Events die ID wechselt. Hinweis, wenn Felder wie `item_category` erst später im Kaufprozess dazukommen – üblich; ändert sich das, meldet es die Baseline (jede Abweichung in `ecommerce` ist dort rot).
 - **Dienste ohne Profil** (z. B. TikTok, eigene sGTM-Formate): Die Prüfung sucht Wert und Transaktions-ID in allen Feldern ihrer Requests, auch in JSON-Bodies, und meldet als Hinweis, wo sie stehen („gefunden in: properties.order_id“) oder dass sie fehlen. Daraus ein Profil fürs Projekt ableiten:
@@ -159,6 +160,12 @@ Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Re
 - Regeln greifen auch für Pfade auf der eigenen Domain (sGTM).
 
 Die Testumgebung ist ohne Proxy einfacher, mit Proxy vollständiger. Was der Auftrag sagt, gilt. Bei Staging-Servern mit ungültigem Zertifikat `stageOptionen: { zertifikatFehlerIgnorieren: true }` setzen.
+
+**Test-Traffic kennzeichnen:** Echte Requests (Baseline, Sitzungen) landen in den Daten von GA4. Mit `TRAFFIC_TYPE=<wert>` in `.env` oder `stageOptionen: { trafficType: '<wert>' }` setzt der Proxy in jedem GA4-Request den Parameter `tt` (traffic_type); ein Datenfilter in GA4 vom Typ „Interner Traffic“ mit diesem Wert schließt sie aus. Andere Regeln mitnehmen: `trafficType: { wert: 'stage-test', dienste: ['GA4', 'GA4 (sGTM)'] }`.
+- Nur mit Proxy (sonst bricht der Test mit Meldung ab), damit auch Beacons beim Verlassen einer Seite markiert sind. Ein vorhandenes `tt` der Seite wird ersetzt. Baseline und Vergleich mit derselben Einstellung laufen lassen, sonst meldet der Vergleich `tt` als Hinweis.
+- Den Filter legt der Mensch in GA4 an; `internal` greift beim vorkonfigurierten Filter, ein eigener Wert braucht einen eigenen Filter. Filter wirken erst ab Aktivierung und nicht rückwirkend.
+- Bei serverseitigem Tagging hängt es vom Server-Container ab, ob `tt` bei GA4 ankommt; in der sGTM-Vorschau prüfen.
+- Werbedienste und andere Analyse-Tools markiert das nicht. Wer dort Testdaten vermeiden will, sperrt deren Requests per Regel; Filter in Tools wie Matomo hängen an deren eigenen Regeln (z. B. IP).
 
 **Grenze ohne Proxy:** Beacons, die eine Seite beim Verlassen sendet, laufen in Chromium am Routing vorbei und gehen im Modus `abfangen` trotzdem raus. Die Stage erkennt das über das NetLog, markiert sie in `tracking-treffer.json` mit `entwischt: true` und setzt am Test die Anmerkung „Achtung“. Im Bericht erwähnen, wenn das vorkommt, und den Proxy empfehlen.
 

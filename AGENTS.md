@@ -102,7 +102,7 @@ Das Projekt ergibt sich aus dem Pfad im Aufruf, alternativ aus `PROJEKT=<name>`.
 
 ## Gemeinsamer Code
 
-- `lib/` gilt für alle Projekte. Nur ändern, wenn es nicht anders geht, im Bericht begründen und danach `npm test` (Beispiel) laufen lassen.
+- `lib/` gilt für alle Projekte. Nur ändern, wenn es nicht anders geht, im Bericht begründen und danach `npm test` (Unit-Tests und Beispiel) laufen lassen. Neue reine Logik bekommt Unit-Tests in `test/einheiten/`.
 - Projektspezifisches (Regeln, Dekodier-Logik, Helfer) bleibt im Projektordner, z. B. `tests/hilfen.ts`.
 - `beispiel/` nicht ändern. Es dient als Referenz und läuft bei `npm test` ohne Projekt.
 

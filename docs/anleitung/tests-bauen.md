@@ -112,7 +112,8 @@ Kurz und konkret:
 2. Welche Erwartungen aus dem Auftrag stammen und welche Du aus dem Ist-Zustand übernommen hast (zur Bestätigung).
 3. Baseline: bereit zum Ziehen (Angebot an den Menschen) bzw. angelegt, mit welchem Tempo, mit oder ohne Proxy, welche Werte als flüchtig markiert sind und warum.
 4. Eigene Regeln für Requests über eigene Pfade oder Formate, falls nötig.
-5. Auffälligkeiten im Tracking (mögliche Fehler der Website).
-6. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
-7. Offene Fragen und noch fehlende Einträge in `.env`.
-8. Was Du in `projekt.md` festgehalten hast, und Vorschläge für `docs/wissen/`, `docs/anleitung/`, `lib/` oder `werkzeuge/`, die allen Projekten helfen würden.
+5. Bei Durchgängigkeit: je Dienst und Event, was tatsächlich verglichen wurde (Einträge „verglichen: …“ in `durchgaengigkeit.json`). Fehlt ein Feld, ist das oft eine Entscheidung im Setup (z. B. Conversion ohne Wert): nennen und klären, ob es so gewollt ist, nicht als Fehler werten. „verglichen: nichts“ oder „kein Request mit diesem Ereignis“ bei einem Dienst, der gesendet hat, kann auch heißen, dass das Profil nicht zu den Requests der Website passt – dann ein Projektprofil vorschlagen.
+6. Auffälligkeiten im Tracking (mögliche Fehler der Website).
+7. Was nicht abgedeckt ist und warum (iframe, Bot-Schutz, fehlende Testdaten).
+8. Offene Fragen und noch fehlende Einträge in `.env`.
+9. Was Du in `projekt.md` festgehalten hast, und Vorschläge für `docs/wissen/`, `docs/anleitung/`, `lib/` oder `werkzeuge/`, die allen Projekten helfen würden.

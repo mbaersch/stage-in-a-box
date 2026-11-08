@@ -271,7 +271,7 @@ Ohne Proxy beobachtet und steuert die Testumgebung Requests über Playwright. Da
 - **Beacons beim Verlassen einer Seite** (GA4 `user_engagement`, Microsoft Ads und viele andere senden bei `pagehide`) sieht Playwright nicht und kann sie nicht abfangen. Sie werden über das Netzwerkprotokoll des Browsers nachträglich erkannt, aber ohne Inhalt. Im Modus „abfangen“ gehen sie trotzdem raus.
 - **Service Worker** müssen abgeschaltet werden, sonst entgehen deren Requests der Kontrolle. Das ist weniger realistisch als ein echter Besuch.
 
-Mit `PROXY=ein` (in `.env`) laufen alle Requests des Testbrowsers über einen lokalen Proxy. Der sieht jeden Request mit Inhalt, kann ihn abfangen, blockieren oder verzögern, auch auf Pfaden der eigenen Domain (sGTM). Service Worker laufen dann wie bei echten Besuchern.
+Mit `PROXY=ein` (in `.env`) laufen alle Requests des Testbrowsers über einen lokalen Proxy. Der sieht jeden Request mit Inhalt, kann ihn abfangen, blockieren oder verzögern, auch auf Pfaden der eigenen Domain (sGTM). Service Worker laufen dann wie bei echten Besuchern. Mit `TRAFFIC_TYPE=internal` markiert er echte GA4-Requests zusätzlich als Test-Traffic, den ein Datenfilter in GA4 ausschließen kann.
 
 Dafür bricht der Proxy HTTPS mit eigenen Zertifikaten auf, denen nur der Testbrowser vertraut. Zwischen Browser und Proxy gilt HTTP/1.1. Für Tracking-Tests spielt das keine Rolle, bei Performance-Messungen schon. Mit Proxy entstehen eigene Baselines (`<journey>.proxy.json`). Der Proxy braucht eine zusätzliche Abhängigkeit (`node-forge`, wird mit `npm install` installiert).
 
@@ -334,7 +334,7 @@ dist/
   recorder.js             eigenständige Variante (ohne GTM)
 src/
   recorder-core.js        Quellcode des Recorders (hier ändern, dann build.sh)
-test/                     Smoke-Test für den Recorder
+test/                     Smoke-Test für den Recorder, Unit-Tests der Bibliothek (einheiten/)
 ```
 
 ## Verwandtes Projekt
@@ -346,9 +346,11 @@ test/                     Smoke-Test für den Recorder
 ```sh
 sh build.sh                 # dist/ aus src/recorder-core.js erzeugen
 npm run test:recorder       # Smoke-Test des Recorders
-npm test                    # Beispieltests gegen die Demo-Seite
+npm test                    # Unit-Tests (test/einheiten) und Beispieltests gegen die Demo-Seite
 npm run pruefen             # TypeScript-Prüfung, auch aller Projekte
 ```
+
+GitHub Actions führt dieselben Prüfungen bei jedem Push und Pull Request aus, die Beispieltests auch mit Proxy (`.github/workflows/tests.yml`). Echte Websites und Zugangsdaten braucht das nicht. Neue reine Logik in `lib/` (Parser, Vergleiche, Regeln) bekommt Unit-Tests in `test/einheiten/`.
 
 Die Versionen sind über `package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
 

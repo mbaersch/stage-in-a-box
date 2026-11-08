@@ -135,7 +135,7 @@ function schreibe(datei: string, inhalt: string | Uint8Array) {
   fs.renameSync(tmp, datei);
 }
 
-function standAusKopf(text: string): string | undefined {
+export function standAusKopf(text: string): string | undefined {
   const kopf = text.slice(0, 3000);
   const m = kopf.match(/^!\s*(?:Last modified|TimeUpdated|Updated):\s*(.+)$/im) ?? kopf.match(/^!\s*Version:\s*(.+)$/im)
     ?? kopf.match(/^#\s*Last updated:\s*(.+)$/im);
@@ -144,7 +144,7 @@ function standAusKopf(text: string): string | undefined {
 }
 
 /** hosts-Zeilen ("0.0.0.0 domain", "127.0.0.1 domain") in Netzwerkregeln umsetzen. */
-function alsFilter(text: string): string {
+export function alsFilter(text: string): string {
   return text.replace(/^(?:0\.0\.0\.0|127\.0\.0\.1)\s+([^\s#]+).*$/gm, (_, host: string) => (host === 'localhost' ? '' : `||${host}^`));
 }
 

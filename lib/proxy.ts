@@ -54,6 +54,8 @@ export interface ProxyVerbindung {
     aktion: ProxyAktion; verzoegerungMs?: number;
     /** Bei blockieren: diese Antwort statt Abbruch ausliefern (Ersatzdatei eines Adblockers) */
     ersatz?: { contentType: string; body: Buffer };
+    /** Bei durchlassen: an diese URL senden statt an die ursprüngliche (z. B. mit zusätzlichem Parameter) */
+    zielUrl?: string;
   } | undefined;
   /** Wird für jeden Request aufgerufen, bevor er bearbeitet wird; das Objekt wird danach weiter aktualisiert. */
   melde(r: ProxyRequest): void;
@@ -255,7 +257,7 @@ export class StageProxy {
     const eintrag: ProxyRequest = {
       zeit: Date.now(),
       methode: req.method ?? 'GET',
-      url,
+      url: entscheidung?.zielUrl ?? url,
       ziel,
       body: body.length ? (body.length <= MAX_BODY_TEXT ? body.toString('utf8') : `[${body.length} Bytes]`) : undefined,
       herkunft: String(req.headers.referer ?? req.headers.origin ?? '') || undefined,
@@ -292,7 +294,7 @@ export class StageProxy {
     const headers = { ...req.headers };
     delete headers['proxy-connection'];
     const modul = url.startsWith('https:') ? https : http;
-    const anfrage = modul.request(url, { method: req.method, headers, rejectUnauthorized: !this.zertifikatFehlerIgnorieren }, (antwort) => {
+    const anfrage = modul.request(eintrag.url, { method: req.method, headers, rejectUnauthorized: !this.zertifikatFehlerIgnorieren }, (antwort) => {
       eintrag.status = antwort.statusCode;
       if (antwort.headers.location) eintrag.weiterleitungZu = new URL(antwort.headers.location, url).href;
       const antwortHeaders = { ...antwort.headers };

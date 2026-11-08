@@ -100,7 +100,11 @@ export default defineConfig({
     },
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    // Unit-Tests der reinen Funktionen in lib/ (ohne Browser), nur beim Lauf ohne Projekt
+    ...(istBeispiel ? [{ name: 'einheiten', testDir: path.join(WURZEL, 'test', 'einheiten') }] : []),
+  ],
   webServer: istBeispiel
     ? { command: `node beispiel/demo/server.mjs ${DEMO_PORT}`, cwd: WURZEL, port: DEMO_PORT, reuseExistingServer: true }
     : undefined,

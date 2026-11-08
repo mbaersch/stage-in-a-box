@@ -136,6 +136,8 @@ export function pruefeDurchgaengigkeit(
     const nr = pushes.length > 1 ? ` #${i + 1}` : '';
     const danach = anfragen.filter((a) => a.zeit >= push.zeit - 500 && a.zeit < bis);
     const gefunden = new Set<string>();
+    // Nachweis je Dienst: welche Felder tatsächlich verglichen wurden
+    const verglichen = new Map<string, Set<string>>();
     for (const a of danach) {
       const c = conversion.get(a.dienst);
       if (!c) continue;
@@ -145,6 +147,11 @@ export function pruefeDurchgaengigkeit(
         const ist = werteAusRequest(ereignis, a, f, c);
         if (!ist) continue;
         gefunden.add(a.dienst);
+        if (!verglichen.has(a.dienst)) verglichen.set(a.dienst, new Set());
+        for (const feld of ['value', 'currency', 'transaction_id', 'items'] as const) {
+          if (soll[feld] === undefined || !c[feld]) continue;
+          verglichen.get(a.dienst)!.add(ausnahmen.includes(`${a.dienst}:${feld}`) ? `${feld} (Ausnahme)` : feld);
+        }
         const melde = (feld: keyof Werte, stufe: 'rot' | 'info', text: string) => {
           if (ausnahmen.includes(`${a.dienst}:${feld}`)) return;
           befunde.push({ stufe, ereignis: ereignis + nr, dienst: a.dienst, text });
@@ -170,6 +177,12 @@ export function pruefeDurchgaengigkeit(
           }
         }
       }
+    }
+    for (const [d, liste] of verglichen) {
+      befunde.push({
+        stufe: 'info', ereignis: ereignis + nr, dienst: d,
+        text: liste.size ? `verglichen: ${[...liste].join(', ')}` : 'verglichen: nichts – der Push enthält keine Werte, die das Profil des Dienstes kennt',
+      });
     }
     // Dienste mit Profil, die nach dem Push gesendet, aber das Ereignis nicht erkennbar übertragen haben
     for (const d of new Set(danach.map((a) => a.dienst))) {

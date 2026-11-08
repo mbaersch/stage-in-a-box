@@ -106,6 +106,12 @@ export interface StageOptionen {
    * Vorgabe: Umgebungsvariable ADBLOCKER. Ergebnis in adblocker.json.
    */
   adblocker?: Adblocker;
+  /**
+   * Echte GA4-Requests als Test-Traffic kennzeichnen: setzt den Parameter tt (traffic_type), den die
+   * Datenfilter von GA4 auswerten. Braucht den Proxy. Vorgabe: Umgebungsvariable TRAFFIC_TYPE.
+   * dienste: Namen der Regeln, deren Requests markiert werden (Vorgabe: GA4).
+   */
+  trafficType?: string | { wert: string; dienste?: string[] };
   /** navigator.webdriver verbergen, damit CMPs den Testbrowser nicht als Bot behandeln. Vorgabe: true. */
   automationVerbergen?: boolean;
   /**
@@ -452,6 +458,8 @@ export class Stage {
   cookieProtokollAktiv = false;
   /** Bericht für die Baseline, gefüllt von vergleicheMitBaseline. */
   cookieEintraege?: CookieEintrag[];
+  /** Kennzeichnung echter Requests als Test-Traffic (stageOptionen.trafficType), nur mit Proxy. */
+  trafficType?: { wert: string; dienste: string[] };
   /** Adblocker dieses Tests (stageOptionen.adblocker): Profil, Listen mit Stand, blockierte Requests. */
   adblocker?: {
     name: string; listen: AdblockerListe[]; blockiert: AdblockerTreffer[];
@@ -1162,6 +1170,14 @@ export async function richteStageEin(
     });
   }
 
+  const trafficType = typeof optionen.trafficType === 'string' ? { wert: optionen.trafficType }
+    : optionen.trafficType ?? (process.env.TRAFFIC_TYPE ? { wert: process.env.TRAFFIC_TYPE } : undefined);
+  if (trafficType && !proxy) {
+    throw new Error('trafficType bzw. TRAFFIC_TYPE braucht den Proxy (PROXY=ein oder stageOptionen.proxy): '
+      + 'nur dort lassen sich alle GA4-Requests ändern, auch Beacons beim Verlassen einer Seite.');
+  }
+  stage.trafficType = trafficType && { wert: trafficType.wert, dienste: trafficType.dienste ?? ['GA4'] };
+
   if (proxy) {
     verbindeProxy(stage, proxy, regelMitTyp, modus, optionen, blocker ? adblockerPruefen : undefined);
     return stage;
@@ -1298,6 +1314,15 @@ export async function richteStageEin(
   return stage;
 }
 
+/** Setzt bzw. ersetzt einen Query-Parameter, ohne die übrige URL neu zu kodieren. */
+export function mitParameter(url: string, name: string, wert: string): string {
+  const [ohneHash, hash] = url.split('#', 2);
+  const [basis, query = ''] = ohneHash.split('?', 2);
+  const teile = query.split('&').filter((t) => t && t.split('=')[0] !== name);
+  teile.push(`${name}=${encodeURIComponent(wert)}`);
+  return `${basis}?${teile.join('&')}${hash !== undefined ? `#${hash}` : ''}`;
+}
+
 /** Verbindet die Stage mit dem Proxy: Regeln, CSP und Protokoll laufen dann dort. */
 function verbindeProxy(
   stage: Stage, proxy: StageProxy, regelFuer: (url: string, typ: string, herkunft?: string) => Regel | undefined,
@@ -1318,7 +1343,10 @@ function verbindeProxy(
       }
       const regel = regelFuer(url, ziel, herkunft);
       if (!regel) return undefined;
-      return { aktion: regel.modus ?? modus, verzoegerungMs: regel.verzoegerungMs };
+      const aktion = regel.modus ?? modus;
+      // Test-Traffic kennzeichnen: tt ist der Kurzparameter für traffic_type in GA4-Requests
+      const markieren = aktion === 'durchlassen' && stage.trafficType?.dienste.includes(regel.name);
+      return { aktion, verzoegerungMs: regel.verzoegerungMs, zielUrl: markieren ? mitParameter(url, 'tt', stage.trafficType!.wert) : undefined };
     },
     melde(r: ProxyRequest) {
       if (istWerkzeug(r.herkunft) || istWerkzeug(r.url)) return;

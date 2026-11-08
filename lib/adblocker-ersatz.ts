@@ -107,6 +107,8 @@ const ALIASE: Record<string, string> = {
   '2x2-transparent.png': '2x2.png', 'abp-resource:2x2-transparent-png': '2x2.png',
   '3x2-transparent.png': '3x2.png', 'abp-resource:3x2-transparent-png': '3x2.png',
   '32x32-transparent.png': '32x32.png', 'abp-resource:32x32-transparent-png': '32x32.png',
+  'noopmp3-0.1s': 'noop-0.1s.mp3', 'abp-resource:blank-mp3': 'noop-0.1s.mp3',
+  'noopmp4-1s': 'noop-1s.mp4', 'abp-resource:blank-mp4': 'noop-1s.mp4',
   'google-analytics.com/analytics.js': 'google-analytics_analytics.js',
   'googletagmanager_gtm.js': 'google-analytics_analytics.js',
   'googletagmanager.com/gtm.js': 'google-analytics_analytics.js',
@@ -143,6 +145,6 @@ export function ersatzFuer(regel: string): Ersatz {
   const name = ALIASE[roh] ?? roh;
   const bekannt = NACHGEBILDET[name];
   if (bekannt) return { name, nachgebildet: true, ...bekannt() };
-  const endung = name.match(/\.([a-z0-9]+)$/)?.[1] ?? (name.includes('mp3') ? 'mp3' : name.includes('mp4') ? 'mp4' : 'txt');
+  const endung = name.match(/\.([a-z0-9]+)$/)?.[1] ?? '';
   return { name, nachgebildet: false, contentType: TYP_NACH_ENDUNG[endung] ?? 'text/plain', body: Buffer.alloc(0) };
 }
