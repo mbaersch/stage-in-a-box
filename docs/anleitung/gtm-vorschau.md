@@ -23,3 +23,5 @@ Die Journey beginnt mit `const website = await stage.vorschauStarten(page)` und 
 
 - Im frischen Browser erscheint der Dialog „Verbinden“; `vorschauStarten` klickt `#domain-start-button` und wartet auf den neuen Tab. Der Tab mit dem Tag Assistant bleibt offen, sonst endet die Vorschau.
 - Eigener dataLayer und eigene GA4-Requests des Tag Assistant werden nicht protokolliert (`WERKZEUG_SEITEN` in `lib/stage.ts`).
+- Auf der ersten Seite nicht weiternavigieren, bevor dort `gtm.dom` kam (z. B. auf ein Event danach warten). Sonst kommt die Debug-Verbindung nicht zustande, und alles, was nur im Debug Mode feuert, bleibt stumm.
+- Große Container sind im Debug Mode sehr langsam (Sekunden bis `gtm.dom`, ausgelasteter Hauptthread). Dann `--workers=1`, auf jeder Seite auf ein Event nach `gtm.dom` warten und großzügige Timeouts setzen. Kommt Playwrights Prüfung vor dem Klick (ruhige Animation-Frames) unter der Last nicht durch: `scrollIntoViewIfNeeded()`, dann `click({ force: true })`, und die Wirkung über URL oder dataLayer prüfen.

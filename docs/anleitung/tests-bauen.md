@@ -26,6 +26,8 @@ Ein Request, der zu fehlen scheint, fehlt nicht unbedingt; er kann über einen e
 
 Generierte IDs (`idGenerated`) nie verwenden. Texte mit Preisen, Datumsangaben oder Zählern nicht als exakten Namen, sondern als RegExp oder gar nicht. Rolle + Name ist nicht auf Eindeutigkeit geprüft: Bei Formularen mit wiederholten Feldern (Rechnungs- und Lieferadresse) eher `id`/`name` nehmen.
 
+Kommt ein Name mehrfach vor, den umgebenden Container eingrenzen (z. B. `page.locator('.woocommerce-message').getByRole('link', …)`) statt `.first()` oder `filter({ visible: true })`: Elemente weit außerhalb des Bildschirms (ausgeklappte Menüs, Mini-Warenkörbe) gelten für Playwright als sichtbar.
+
 **Zuordnung:**
 
 | Recorder | Playwright |
