@@ -90,6 +90,19 @@ test.describe('Variante: GA4 blockiert (Adblocker)', () => {
   });
 });
 
+test.describe('Variante: Adblocker mit Filterregeln', () => {
+  // Im Projekt meist adblocker: 'ublock' oder 'streng' (öffentliche Listen, werden geladen).
+  // Hier eine eigene Regel, damit das Beispiel ohne Netz läuft: blockiert GA4-Pfade auch auf der eigenen Domain.
+  test.use({ stageOptionen: { adblocker: { regeln: ['/g/collect?'] } } });
+
+  test('Seite funktioniert, GA4 kommt nicht durch', async ({ page, stage }) => {
+    await journey(page, stage, 'akzeptieren');
+    expect(stage.tracking.ga4('generate_lead')).toHaveLength(1);
+    expect(stage.tracking.treffer.every((t) => t.adblocker === '/g/collect?')).toBe(true);
+    expect(stage.adblocker?.blockiert.every((b) => b.dienst === 'GA4')).toBe(true);
+  });
+});
+
 test.describe('Variante: geplante CSP ohne Freigabe für Tracking-Endpunkte', () => {
   test.use({ stageOptionen: { csp: "default-src 'self'; connect-src 'none'" } });
 

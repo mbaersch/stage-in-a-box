@@ -485,6 +485,12 @@ export async function vergleicheMitBaseline(stage: Stage, journey: string, optio
   // testDir ist <projekt>/tests; die Baselines liegen daneben
   const projekt = path.dirname(testInfo.project.testDir);
   const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey, stage.mitProxy));
+  if (stage.adblocker) {
+    throw new Error(
+      `Baseline "${journey}" nicht mit Adblocker (${stage.adblocker.name}): Er verändert, was gesendet wird. `
+      + 'Adblocker-Varianten ohne Baseline-Vergleich laufen lassen (ADBLOCKER=aus bzw. stageOptionen.adblocker entfernen).',
+    );
+  }
   const lauf = momentaufnahme(stage, journey, (await stage.zustand()).cookies);
   const neu = !fs.existsSync(datei)
     || testInfo.config.updateSnapshots === 'all'

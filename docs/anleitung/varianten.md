@@ -23,7 +23,7 @@ test.use({ stageOptionen: { anpassungen: [
 ] } });
 ```
 
-Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
+Verzögerungen, CSP-Simulation und Adblocker fangen Requests im Browser ab. Weiterleitungsketten von Beacons können dabei verloren gehen – solche Varianten nicht mit Baseline-Vergleichen kombinieren.
 
 ## Optionen im Einzelnen
 
@@ -32,6 +32,30 @@ Verzögerungen und CSP-Simulation fangen Requests im Browser ab. Weiterleitungsk
 - **dataLayer vorbelegen** (z. B. andere CMP-Konfiguration simulieren): `page.addInitScript(() => { window.dataLayer = window.dataLayer || []; window.dataLayer.push(…); })` – läuft vor allen Scripts der Seite.
 - **CSP-Inventar:** Jeder Test legt `csp-inventar.json` ab: alle Ressourcen nach Direktive, Herkunft und Kontext (Seite, iframe, Service Worker) und einen Vorschlag für die Policy der Seite (`vorschlag`). Grundlage für eine neue CSP: einen vollständigen Lauf mit allen Consent-Zuständen und Zahlarten machen, dann den Vorschlag prüfen und die Policy als Variante `csp` testen. iframes und Service Worker fallen nicht unter die CSP der Seite. Dienstspezifische Fallstricke: [`../wissen/dienste.md`](../wissen/dienste.md).
 - **Weitere Dienste:** Endpunkte aus `tracking-vendors.json` im [Tracking Auditor](https://github.com/mbaersch/tracking-auditor) als Regel ergänzen.
+
+## Adblocker mit Filterlisten
+
+Statt einzelner Regeln blockiert `adblocker` alles, was ein Blocker mit öffentlichen Filterlisten blockieren würde. Code: `lib/adblocker.ts`, Beispiel: `beispiel/tests/beispiel-demo.spec.ts`.
+
+```ts
+test.use({ stageOptionen: { adblocker: 'ublock' } });   // Standardlisten von uBlock Origin
+test.use({ stageOptionen: { adblocker: 'streng' } });   // zusätzlich AdGuard Tracking Protection
+test.use({ stageOptionen: { adblocker: { profil: 'ublock', listen: ['filter/eigene.txt'], regeln: ['||example.com/pixel^'] } } });
+```
+
+Ohne Änderung an den Tests: `ADBLOCKER=ublock npm test -- projects/<name>` (oder in `.env`).
+
+| Profil | Listen | Steht für |
+|---|---|---|
+| `ublock` | uBlock filters (Ads, Privacy, Unbreak, Quick fixes), EasyList, EasyPrivacy, Peter Lowe | uBlock Origin nach der Installation, ohne die Malware-Listen |
+| `streng` | dazu AdGuard Tracking Protection | Nutzer mit schärferem Tracking-Schutz; kennt auch First-Party-Tracker |
+
+- Die Listen werden beim ersten Lauf geladen und einen Tag lang in `listen/` im Hauptordner zwischengespeichert (nicht im Git, fremde Lizenzen). Ist eine Quelle nicht erreichbar, nimmt die Stage einen Spiegel, sonst die alte Kopie mit Anmerkung „Achtung“. Ohne Netz und ohne Kopie bricht der Test mit Meldung ab.
+- Ergebnis in `adblocker.json`: Listen mit Stand, jeder blockierte Request mit Regel und Liste, Dienste blockiert bzw. durchgekommen. Der Test bekommt die Anmerkung „Adblocker“ mit der Zusammenfassung; in `tracking-treffer.json` trägt jeder blockierte Treffer die Regel im Feld `adblocker`. Im Test: `stage.adblocker.blockiert`.
+- Kombinierbar mit allem außer Baseline-Vergleichen (bricht mit Meldung ab). Im Modus `abfangen` sieht man, was ein Blocker durchließe, ohne dass es gesendet wird.
+- Typische Fragen: Kommt die Conversion bei Blocker-Nutzern noch an (sGTM auf eigener Domain, eigener Pfad)? Funktioniert die Seite, wenn GTM oder die CMP blockiert ist? Bleibt der Kauf möglich?
+- Grenzen: Es wirken nur Netzwerkregeln, keine kosmetischen Regeln und Scriptlets. Regeln mit `redirect=` (z. B. für `gtm.js`) liefern bei uBlock ein Ersatzskript, hier nur eine leere Antwort (`ersatz: true` in `adblocker.json`); Seiten, die sich auf das Ersatzskript verlassen, verhalten sich hier anders. Die Engine ist die von Ghostery (`@ghostery/adblocker`), kompatibel zu uBlock, aber nicht identisch. Was im Browser fest eingebaut ist (Safari ITP, Firefox-Tracking-Schutz, Brave Shields), bildet das nicht nach.
+- Beacons beim Verlassen einer Seite sieht die Route ohne Proxy nicht; die Stage prüft sie nachträglich gegen die Listen (`nachtraeglich` in `adblocker.json`), sie gelten dann als blockiert.
 
 ## Bedingungen für eine Journey
 

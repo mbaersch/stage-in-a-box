@@ -156,6 +156,8 @@ function kontextFuer(host: string): tls.SecureContext {
 
 export class StageProxy {
   private verbindung: ProxyVerbindung = { entscheide: () => undefined, melde: () => {} };
+  /** Zuletzt abgebrochene Requests (Methode, URL, Body-Länge) mit Zeitpunkt, um Wiederholungen zu erkennen */
+  private readonly zuletztBlockiert = new Map<string, number>();
   private readonly server: http.Server;
   private readonly mitm: https.Server;
   private readonly sockets = new Set<net.Socket>();
@@ -236,6 +238,15 @@ export class StageProxy {
     for await (const t of req) teile.push(t as Buffer);
     const body = Buffer.concat(teile);
     const ziel = String(req.headers['sec-fetch-dest'] ?? '');
+    // Nach einem Abbruch auf einer wiederverwendeten Verbindung sendet Chromium denselben Request sofort
+    // noch einmal. Diese Wiederholung ebenfalls abbrechen, aber nicht als eigenen Request zählen.
+    const schluessel = `${req.method} ${url} ${body.length}`;
+    const blockiertUm = this.zuletztBlockiert.get(schluessel);
+    if (blockiertUm && Date.now() - blockiertUm < 2000) {
+      this.zuletztBlockiert.delete(schluessel);
+      req.socket.destroy();
+      return;
+    }
     const entscheidung = this.verbindung.entscheide(url, ziel, String(req.headers.referer ?? req.headers.origin ?? '') || undefined);
     const eintrag: ProxyRequest = {
       zeit: Date.now(),
@@ -259,6 +270,7 @@ export class StageProxy {
     if (eintrag.aktion === 'blockieren') {
       eintrag.fehler = 'blockiert (Proxy)';
       eintrag.abgeschlossen = true;
+      this.zuletztBlockiert.set(schluessel, Date.now());
       req.socket.destroy();
       return;
     }

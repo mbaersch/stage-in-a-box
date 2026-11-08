@@ -35,3 +35,5 @@ test/beispielausgabe.json
 *.stackdump
 # Gespeicherte Zustände für wiederkehrende Besucher (stage.zustandSpeichern)
 zustaende/
+# Zwischengespeicherte Filterlisten des Adblockers (lib/adblocker.ts); fremde Lizenzen, nie einchecken
+/listen/

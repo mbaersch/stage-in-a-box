@@ -76,6 +76,7 @@
 - [ ] CMP nicht erreichbar (Skript blockiert): <!-- was soll dann passieren? -->
 - [ ] Zustimmen und sofort weiter (Klick auf Link direkt nach dem Banner)
 - [ ] Einzelne Dienste blockiert (Adblocker): <!-- welche? -->
+- [ ] Mit Adblocker wie bei echten Nutzern: <!-- ublock (Standardlisten von uBlock Origin) oder streng (zusätzlich AdGuard-Tracking-Schutz, auch First-Party). Was muss trotzdem ankommen, z. B. Conversion über sGTM? -->
 - [ ] Geplante CSP testen: <!-- Policy einfügen oder Datei nennen -->
 - [ ] Ladereihenfolge (z. B. GTM oder CMP verzögert): <!-- was genau? -->
 - [ ] Andere CMP-Konfiguration simulieren: <!-- was soll anders sein? -->

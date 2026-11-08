@@ -28,6 +28,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Gegen eine Baseline vergleichen:** Der erste Lauf speichert den Ist-Zustand – dataLayer, Consent, alle Requests an Tracking-Dienste inklusive Weiterleitungen. Jeder weitere Lauf meldet Abweichungen, etwa nach einem Deployment.
 - **Requests prüfen, ohne dass sie gesendet werden.** Requests an GA4, Google Ads, Meta & Co. werden abgefangen und protokolliert. Das funktioniert auch auf Live-Seiten ohne Staging.
 - **Dienste gezielt blockieren**, wie es ein Adblocker täte, und prüfen, ob Seite und Conversion-Tracking trotzdem funktionieren.
+- **Mit echten Filterlisten blockieren** (Standardlisten von uBlock Origin, auf Wunsch zusätzlich der Tracking-Schutz von AdGuard) und sehen, was bei Besuchern mit Adblocker noch ankommt, etwa über einen sGTM auf eigener Domain.
 - **Consent-Varianten durchspielen**, ohne die CMP umzukonfigurieren.
 - **Ladereihenfolgen simulieren**, etwa GTM oder CMP verzögert, um Race Conditions aufzudecken.
 - **Eine geplante CSP prüfen**, bevor sie live geht, inklusive der Frage, ob sie im Kaufabschluss Tracking blockiert. Jeder Lauf liefert dazu ein Inventar aller Ressourcen je CSP-Direktive und einen Vorschlag für die Policy.
@@ -211,11 +212,12 @@ npm run report -- projects/mein-shop/playwright-report    # HTML-Report öffnen
 npm run baseline:neu -- projects/mein-shop                # Baselines bewusst neu erstellen
 TEMPO=aufzeichnung npm test -- projects/mein-shop         # im Tempo der Aufzeichnung
 PROXY=ein npm test -- projects/mein-shop                  # über den Proxy (siehe unten)
+ADBLOCKER=ublock npm test -- projects/mein-shop           # mit Filterlisten eines Adblockers
 ```
 
 Solange Tests eingerichtet werden, laufen sie mit `CONVERSION=aus` (in `.env` oder vor dem Befehl) nur bis direkt vor den Kauf bzw. das Absenden und gelten dann als übersprungen. So wird beim Ausprobieren nichts Echtes ausgelöst; die Conversion selbst prüft erst der vollständige Lauf.
 
-Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
+Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY`, `ADBLOCKER` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite: Journeys mit Zustimmung und Ablehnung, Adblocker, CSP, Baseline-Abgleich](res/demo-testergebnisse.png)
 
@@ -308,7 +310,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ```
 AGENTS.md                 Kern der Anweisungen für den Agent: Regeln und Wegweiser
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
-lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen, pruefungen, dienstprofile
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen, pruefungen, dienstprofile, adblocker
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/
   anleitung/              Anleitungen je Aufgabe (Staging, Aufzeichnung, Tests, Baseline, Varianten …)
@@ -317,6 +319,7 @@ docs/
 beispiel/                 Demo-Seite mit Beispieltests und Baselines
 vorlage/                  Gerüst für neue Projekte (npm run neu)
 erweiterungen/            entpackte Browser-Extensions für Sitzungen (npm run erweiterung), nicht in Git
+listen/                   zwischengespeicherte Filterlisten für den Adblocker, nicht in Git
 projects/                 Deine Projekte, nicht in Git
   <name>/
     projekt.md            Anweisungen und Erkenntnisse nur für dieses Projekt
@@ -354,3 +357,5 @@ Die `.gitignore` im Hauptverzeichnis lässt nur die bekannten Ordner und Dateien
 ## Lizenz
 
 [MIT](LICENSE) – Nutzung, Änderung und Weitergabe frei, auch kommerziell. Bedingung ist nur, dass der Lizenzhinweis erhalten bleibt.
+
+Die Filterlisten für den Adblocker (EasyList, EasyPrivacy, uBlock filters, Peter Lowe, AdGuard) sind nicht Teil des Repos. Sie stehen unter eigenen Lizenzen und werden beim Test von ihren Quellen geladen. Die Filter-Engine `@ghostery/adblocker` steht unter MPL 2.0.

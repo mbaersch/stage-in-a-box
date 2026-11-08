@@ -17,6 +17,7 @@
  *   mit Zeitpunkt zur Consent-Entscheidung (lib/pruefungen.ts)
  * - Bedingungen: Landung über eine Anzeige (Klick-IDs), wiederkehrender Besucher, Uhr vorstellen,
  *   Netz/CPU drosseln, Gerät und Browser-Kennung, Zurück-Navigation mit bfcache (lib/bedingungen.ts)
+ * - Adblocker: Requests blockieren wie uBlock Origin oder AdGuard mit öffentlichen Filterlisten (lib/adblocker.ts)
  *
  * Verwendung in Tests:
  *   import { test, expect } from '../../../lib/stage';   // aus projects/<name>/tests/
@@ -43,6 +44,9 @@ import {
   type CookieEintrag, type CookieEreignis, type DurchgaengigkeitsBefund, type Pruefungen,
 } from './pruefungen';
 import { profileZusammenfuehren, type DienstProfil } from './dienstprofile';
+import {
+  adblockerAusUmgebung, adblockerLaden, type Adblocker, type AdblockerListe, type AdblockerTreffer,
+} from './adblocker';
 
 export type { Tempo } from './tempo';
 
@@ -96,6 +100,12 @@ export interface StageOptionen {
    * kann Funktionen der Website stören. Vorgabe: Umgebungsvariable UNBEKANNTE=abfangen.
    */
   unbekannteAbfangen?: boolean;
+  /**
+   * Adblocker mit öffentlichen Filterlisten (lib/adblocker.ts): 'ublock' (Standardlisten von uBlock Origin),
+   * 'streng' (zusätzlich AdGuard-Tracking-Schutz) oder eigene Listen und Regeln.
+   * Vorgabe: Umgebungsvariable ADBLOCKER. Ergebnis in adblocker.json.
+   */
+  adblocker?: Adblocker;
   /** navigator.webdriver verbergen, damit CMPs den Testbrowser nicht als Bot behandeln. Vorgabe: true. */
   automationVerbergen?: boolean;
   /**
@@ -233,6 +243,8 @@ export interface Treffer {
   quelle: 'browser' | 'netlog' | 'proxy';
   /** true: im Modus abfangen/blockieren trotzdem echt gesendet (am Routing vorbei). */
   entwischt?: boolean;
+  /** Filterregel, mit der der Adblocker (stageOptionen.adblocker) den Request blockiert hat. */
+  adblocker?: string;
 }
 
 /**
@@ -440,6 +452,11 @@ export class Stage {
   cookieProtokollAktiv = false;
   /** Bericht für die Baseline, gefüllt von vergleicheMitBaseline. */
   cookieEintraege?: CookieEintrag[];
+  /** Adblocker dieses Tests (stageOptionen.adblocker): Profil, Listen mit Stand, blockierte Requests. */
+  adblocker?: {
+    name: string; listen: AdblockerListe[]; blockiert: AdblockerTreffer[];
+    pruefe: (url: string, typ: string, seite: string) => { filter: string } | undefined;
+  };
   /** Alle Ressourcen nach CSP-Direktive, Host und Kontext (Seite, iframe, Service Worker), mit Anzahl. */
   readonly ressourcen = new Map<string, { direktive: string; host: string; origin: string; kontext: string; anzahl: number }>();
 
@@ -957,6 +974,21 @@ export async function richteStageEin(
   stage.dienstProfile = profileZusammenfuehren(optionen.dienstProfile);
   stage.bfcacheAktiv = !!optionen.bfcache;
   await erfasseAusloeser(context, stage);
+  const adblockerOption = optionen.adblocker ?? adblockerAusUmgebung();
+  const blocker = adblockerOption ? await adblockerLaden(adblockerOption) : undefined;
+  if (blocker) stage.adblocker = { name: blocker.name, listen: blocker.listen, blockiert: [], pruefe: blocker.pruefe };
+  /** Prüft einen Request gegen den Adblocker und protokolliert, was blockiert wird. */
+  const adblockerPruefen = (url: string, typ: string, seite: string) => {
+    const ergebnis = blocker?.pruefe(url, typ, seite);
+    if (ergebnis) {
+      const regel = regelFuer(url);
+      stage.adblocker!.blockiert.push({
+        zeit: Date.now(), url, host: zerlege(url).host, typ, filter: ergebnis.filter, liste: ergebnis.liste,
+        ersatz: ergebnis.ersatz ? true : undefined, dienst: regel && !regel.nichtProtokollieren ? regel.name : undefined,
+      });
+    }
+    return ergebnis;
+  };
 
   // Bedingungen (lib/bedingungen.ts)
   if (optionen.uhr) {
@@ -1131,13 +1163,14 @@ export async function richteStageEin(
   }
 
   if (proxy) {
-    verbindeProxy(stage, proxy, regelMitTyp, modus, optionen);
+    verbindeProxy(stage, proxy, regelMitTyp, modus, optionen, blocker ? adblockerPruefen : undefined);
     return stage;
   }
 
   // Protokoll über Events statt im Routing: so werden auch Weiterleitungsketten erfasst,
   // die das Routing nicht sieht, und Status bzw. Fehler jedes Requests.
   const offen = new Map<Request, Treffer>();
+  const vomAdblocker = new WeakMap<Request, string>();
   context.on('request', (request) => {
     const url = request.url();
     if (vonWerkzeug(request)) {
@@ -1182,7 +1215,14 @@ export async function richteStageEin(
     if (!treffer) return;
     offen.delete(request);
     treffer.fehler = request.failure()?.errorText ?? 'unbekannter Fehler';
+    treffer.adblocker = vomAdblocker.get(request);
     treffer.abgeschlossen = true;
+  });
+  // Leere Ersatzantworten (redirect=…) enden mit requestfinished statt requestfailed
+  context.on('requestfinished', (request) => {
+    const filter = vomAdblocker.get(request);
+    const treffer = filter ? stage.tracking.treffer.find((t) => t.url === request.url() && !t.adblocker && t.quelle === 'browser') : undefined;
+    if (treffer) treffer.adblocker = filter;
   });
   // Weiterleitungen beenden den ursprünglichen Request ohne requestfinished.
   context.on('response', (response) => {
@@ -1225,6 +1265,36 @@ export async function richteStageEin(
     }
   });
 
+  // Adblocker: zuletzt registriert, damit Playwright diese Route zuerst fragt – ein Blocker greift vor
+  // allem anderen. Die Route gilt für alle Requests; Beacon-Ketten können dabei verloren gehen.
+  if (blocker) await context.route(() => true, async (route: Route, request: Request) => {
+    let typ = request.resourceType();
+    let seite = '';
+    try {
+      const frame = request.frame();
+      if (typ === 'document') {
+        const eltern = frame.parentFrame();
+        // Hauptdokumente lässt ein Blocker durch (Seite soll laden); iframes nicht unbedingt
+        if (!eltern) return await route.fallback();
+        typ = 'sub_frame';
+        seite = eltern.url();
+      } else {
+        seite = frame.url();
+      }
+    } catch {
+      seite = request.serviceWorker()?.url() ?? '';
+    }
+    const ergebnis = vonWerkzeug(request) ? undefined : adblockerPruefen(request.url(), typ, seite || request.headers().referer || '');
+    try {
+      if (!ergebnis) await route.fallback();
+      else {
+        vomAdblocker.set(request, ergebnis.filter);
+        if (ergebnis.ersatz) await route.fulfill({ status: 200, contentType: ergebnis.ersatz.contentType, body: ergebnis.ersatz.body });
+        else await route.abort('blockedbyclient');
+      }
+    } catch { /* Seite schon geschlossen */ }
+  });
+
   return stage;
 }
 
@@ -1232,9 +1302,18 @@ export async function richteStageEin(
 function verbindeProxy(
   stage: Stage, proxy: StageProxy, regelFuer: (url: string, typ: string, herkunft?: string) => Regel | undefined,
   modus: Modus, optionen: StageOptionen,
+  adblockerPruefen?: (url: string, typ: string, seite: string) => { filter: string } | undefined,
 ) {
+  /** Filter des Adblockers je URL, für die Zuordnung zum Treffer in melde() */
+  const vomAdblocker = new Map<string, string>();
   proxy.verbinde({
     entscheide(url, ziel, herkunft) {
+      // Hauptdokumente (sec-fetch-dest document) lässt ein Blocker durch; Ersatzskripte gibt es hier nicht
+      const blockiert = adblockerPruefen && ziel !== 'document' ? adblockerPruefen(url, ziel || 'other', herkunft ?? '') : undefined;
+      if (blockiert) {
+        vomAdblocker.set(url, blockiert.filter);
+        return { aktion: 'blockieren' };
+      }
       const regel = regelFuer(url, ziel, herkunft);
       if (!regel) return undefined;
       return { aktion: regel.modus ?? modus, verzoegerungMs: regel.verzoegerungMs };
@@ -1268,6 +1347,7 @@ function verbindeProxy(
         umleitungVon: vorher?.url,
         abgeschlossen: false,
         quelle: 'proxy',
+        adblocker: vomAdblocker.get(r.url),
       };
       // Status, Fehler und Abschluss live aus dem Proxy-Eintrag lesen
       Object.defineProperties(treffer, {
@@ -1419,6 +1499,28 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       expect(rot, 'UTM-Parameter im ersten Request nach der Landung (Details: landung.json)').toEqual([]);
     }
     if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
+    if (stage.adblocker) {
+      const { name, listen, blockiert, pruefe } = stage.adblocker;
+      // Beacons beim Verlassen einer Seite laufen ohne Proxy am Routing vorbei (entwischt). Ein echter
+      // Blocker sieht sie; deshalb nachträglich prüfen, damit sie nicht als durchgekommen zählen.
+      const seite = String(testInfo.project.use.baseURL ?? '');
+      for (const t of stage.tracking.treffer.filter((x) => !x.adblocker && x.quelle === 'netlog')) {
+        t.adblocker = pruefe(t.url, t.ressourcentyp, seite)?.filter;
+      }
+      const dienste = (nurBlockiert: boolean) => [...new Set(stage.tracking.treffer
+        .filter((t) => !!t.adblocker === nurBlockiert).map((t) => t.dienst))].sort();
+      const durch = dienste(false);
+      await ablegen('adblocker.json', {
+        name, listen, blockiertDienste: dienste(true), durchgekommenDienste: durch, blockiert,
+        nachtraeglich: stage.tracking.treffer.filter((t) => t.quelle === 'netlog' && t.adblocker).map((t) => ({ url: t.url, filter: t.adblocker })),
+      });
+      testInfo.annotations.push({
+        type: 'Adblocker',
+        description: `${name}: ${blockiert.length} Request(s) blockiert, davon ${blockiert.filter((b) => b.dienst).length} an Dienste. `
+          + `Durchgekommen: ${durch.length ? durch.join(', ') : 'kein Dienst'} (Details: adblocker.json)`,
+      });
+      for (const l of listen.filter((x) => x.warnung)) testInfo.annotations.push({ type: 'Achtung', description: `Filterliste ${l.name}: ${l.warnung}` });
+    }
     if (stage.cookieProtokollAktiv) await ablegen('cookies.json', await stage.cookies().catch(() => []));
     // Durchgängigkeit: nur wenn der Test bis zum Ende lief (nicht bei CONVERSION=aus übersprungen)
     const { ereignisse, ausnahmen } = ereignisseAus(stageOptionen.pruefungen?.durchgaengigkeit);

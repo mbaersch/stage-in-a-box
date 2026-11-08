@@ -14,6 +14,16 @@ Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel dar
 
 Für die GTM-Vorschau braucht ein solcher Loader `vorschauLoader` (siehe [`../anleitung/gtm-vorschau.md`](../anleitung/gtm-vorschau.md)).
 
+## Eigene Pfade und Adblocker
+
+Eine eigene Domain allein schützt nicht vor Adblockern; es kommt auf den Pfad an. Geprüft am 8. November 2026 mit den Listen der Profile `ublock` und `streng` (`lib/adblocker.ts`):
+
+- `/g/collect?v=…` wird auf jedem Host blockiert, auch auf der eigenen Domain oder Subdomain (EasyPrivacy, Regel `/collect?v=`).
+- `/gtm.js` wird auf jedem Pfad blockiert (EasyPrivacy, Regel `/gtm.js`), ebenso Skripte auf Subdomains, die mit `sgtm.` beginnen (`://sgtm.*.js?`).
+- Bei `googletagmanager.com/gtm.js` und `/gtag/js` liefert uBlock ein Ersatzskript statt nichts (uBlock filters – Privacy, `redirect=googletagmanager_gtm.js`).
+
+Ob ein konkretes Setup durchkommt, zeigt die Variante `adblocker` (siehe [`../anleitung/varianten.md`](../anleitung/varianten.md)). Die Listen ändern sich täglich; die Befunde in `adblocker.json` nennen Regel, Liste und Stand.
+
 ## Referenz
 
 Der [Tracking Auditor](https://github.com/mbaersch/tracking-auditor) bringt `tracking-vendors.json` (Skripte und Endpunkte bekannter Dienste) und `lib/tracking-classify.js` mit Erkennung von First-Party-Collect-Endpunkten und Stape-Tunneln (`extractFirstPartyCollectMatches`, `extractStapeMatches`, `tryDecodeStapeTransport`). Nicht alles daraus übernehmen: Ziel ist nicht, jeden denkbaren Loader zu erkennen, sondern die Requests dieser einen Website richtig zuzuordnen.
