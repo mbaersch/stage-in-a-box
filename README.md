@@ -39,6 +39,10 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 - **Mitlaufende Prüfungen** im Testkauf: Kommen Wert, Währung, Transaktions-ID und Artikel aus dem dataLayer unverändert bei GA4, Google Ads, Meta und Microsoft Ads an? Weitere Dienste bekommen ein Profil im Projekt; ohne Profil zeigt die Prüfung, wo die Werte stehen. Kommen die UTM-Parameter einer Landung im ersten Request von GA4 & Co. an? Welche Cookies werden wann gesetzt, vor oder nach der Consent-Entscheidung, mit welcher Laufzeit?
 - **Unter weiteren Bedingungen**, als Zusatz zu einer bestehenden Journey: Landung über eine Anzeige (kommt die Klick-ID in der Conversion an?), wiederkehrender Besucher, Uhr vorspulen für Timer und Sitzungsende, langsames Netz und schwaches Gerät, Mobilgerät, andere Browser-Kennung, Zurück-Navigation aus dem bfcache. Im Auftrag sind das Kreuzchen.
 
+![Mitlaufende Prüfungen in den Beispieltests: Wert und Währung bei GA4, Abweichung zwischen dataLayer und Request, Cookies vor und nach der Consent-Entscheidung](res/pr%C3%BCfungen-beispieltests.png)
+
+![Bedingungen in den Beispieltests: Landung über eine Anzeige, UTM-Parameter, wiederkehrender Besucher, Uhr, Netz und Gerät, Browser-Kennung, Zurück-Navigation](res/bedingungen-testen.png)
+
 ## Voraussetzungen
 
 - [Node.js](https://nodejs.org/) ab Version 20.12
@@ -213,7 +217,7 @@ Solange Tests eingerichtet werden, laufen sie mit `CONVERSION=aus` (in `.env` od
 
 Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
 
-![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite](res/testergebnisse.png)
+![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite: Journeys mit Zustimmung und Ablehnung, Adblocker, CSP, Baseline-Abgleich](res/demo-testergebnisse.png)
 
 Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über den Tag Assistant fehlen dort dessen eigener dataLayer und seine GA4-Requests: Die Anhänge zeigen nur die Website.
 
