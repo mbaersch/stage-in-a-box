@@ -66,8 +66,10 @@ test.use({ stageOptionen: { pruefungen: {
 
 **Durchgängigkeit:** Am Testende wird für jedes genannte Event geprüft, ob Wert, Währung, Transaktions-ID und Artikel-IDs aus dem dataLayer-Push in den Requests nach dem Push ankommen. Wo die Werte stehen, sagen die Dienstprofile (`lib/dienstprofile.ts`, zentral für GA4, Google Ads, Meta, Microsoft Ads).
 
-- Rot (nur Dienste mit Profil): Wert, Währung oder Transaktions-ID weichen ab oder fehlen; Artikel-IDs, außer das Profil sagt `itemsNurHinweis` (Werbedienste mit Feed-IDs).
-- Hinweis: Dienst mit Profil ohne passenden Request nach dem Push.
+- Rot (nur Dienste mit Profil): Währung oder Transaktions-ID weichen ab oder fehlen; Wert, außer das Profil sagt `valueNurHinweis` (Google Ads, Meta, Microsoft Ads: dort steht oft gewollt Netto, Marge o. Ä.; Änderungen fängt die Baseline); Artikel-IDs, außer das Profil sagt `itemsNurHinweis` (Werbedienste mit Feed-IDs).
+- Hinweis: Dienst mit Profil ohne passenden Request nach dem Push, oder ganz ohne Request nach dem Push (Test endete zu früh, Tag feuert nicht).
+- Conversions ohne Event-Namen im Request (Google Ads) ordnet die Prüfung jedem Push im Zeitfenster zu. Feuern sie auch bei frühen Events (z. B. Conversion-Manager mit `value: 0` bei `add_to_cart`), Google Ads nur beim `purchase` prüfen: `stage.pruefeDurchgaengigkeit('add_to_cart', ['Google Ads:value'])` für die übrigen Events.
+- **Artikel über die Journey** (läuft mit, sobald `durchgaengigkeit` an ist; dienst `dataLayer`, ereignis `Journey`): Rot, wenn ein Artikel (gleicher `item_name`) zwischen den Events die ID wechselt. Hinweis, wenn Felder wie `item_category` erst später im Kaufprozess dazukommen – üblich; ändert sich das, meldet es die Baseline (jede Abweichung in `ecommerce` ist dort rot).
 - **Dienste ohne Profil** (z. B. TikTok, eigene sGTM-Formate): Die Prüfung sucht Wert und Transaktions-ID in allen Feldern ihrer Requests, auch in JSON-Bodies, und meldet als Hinweis, wo sie stehen („gefunden in: properties.order_id“) oder dass sie fehlen. Daraus ein Profil fürs Projekt ableiten:
 
 ```ts

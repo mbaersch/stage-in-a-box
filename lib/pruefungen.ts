@@ -113,7 +113,14 @@ function suche(soll: Werte, anfragen: Anfrage[]): { feld: keyof Werte; gefunden:
     for (const a of anfragen) for (const [k, w] of Object.entries(felder(a.parameter, a.body))) if (passt(w)) gefunden.add(k);
     out.push({ feld, gefunden: [...gefunden] });
   };
-  if (soll.transaction_id) pruefe('transaction_id', (w) => w === soll.transaction_id || w.includes(soll.transaction_id!));
+  if (soll.transaction_id) {
+    // Kurze IDs stecken sonst als Teilstring in Seiten-URLs (/order-received/253/) und Zufallswerten
+    const tid = soll.transaction_id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const alsToken = new RegExp(`(^|[^A-Za-z0-9])${tid}($|[^A-Za-z0-9])`);
+    // URLs herausschneiden statt das Feld zu verwerfen: eingebettetes JSON kann URL und echte ID enthalten
+    const ohneUrls = (w: string) => w.replace(/(https?:)?\/\/[^\s"'<>,}\]]*/g, ' ').replace(/^\/\S*$/, '');
+    pruefe('transaction_id', (w) => w === soll.transaction_id || alsToken.test(ohneUrls(w)));
+  }
   if (soll.value !== undefined) { const formen = zahlFormen(soll.value); pruefe('value', (w) => formen.has(w.trim())); }
   return out;
 }
@@ -143,8 +150,9 @@ export function pruefeDurchgaengigkeit(
           befunde.push({ stufe, ereignis: ereignis + nr, dienst: a.dienst, text });
         };
         if (soll.value !== undefined && c.value) {
-          if (ist.value === undefined) melde('value', 'rot', `value fehlt (dataLayer: ${soll.value})`);
-          else if (Math.abs(ist.value - soll.value) > 0.005) melde('value', 'rot', `value ${ist.value} statt ${soll.value}`);
+          const stufe = c.valueNurHinweis ? 'info' : 'rot';
+          if (ist.value === undefined) melde('value', stufe, `value fehlt (dataLayer: ${soll.value})`);
+          else if (Math.abs(ist.value - soll.value) > 0.005) melde('value', stufe, `value ${ist.value} statt ${soll.value}`);
         }
         if (soll.currency !== undefined && c.currency) {
           if (ist.currency === undefined) melde('currency', 'rot', `currency fehlt (dataLayer: ${soll.currency})`);
@@ -169,6 +177,12 @@ export function pruefeDurchgaengigkeit(
         befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'kein Request mit diesem Ereignis nach dem Push' });
       }
     }
+    // Sonst bliebe ein Push, nach dem gar nichts mehr gesendet wurde (z. B. Test zu früh beendet), ohne Befund
+    for (const d of new Set(anfragen.map((a) => a.dienst))) {
+      if (conversion.has(d) && !danach.some((a) => a.dienst === d)) {
+        befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'nach dem Push gar kein Request dieses Dienstes' });
+      }
+    }
     // Dienste ohne Profil: Werte suchen, nur Hinweise (Grundlage für ein neues Profil)
     for (const d of new Set(danach.map((a) => a.dienst).filter((x) => !conversion.has(x)))) {
       for (const { feld, gefunden: wo } of suche(soll, danach.filter((a) => a.dienst === d))) {
@@ -183,6 +197,63 @@ export function pruefeDurchgaengigkeit(
   // Mehrfachkopien (z. B. 1p-conversion) erzeugen gleiche Befunde: einmal reicht
   const gesehen = new Set<string>();
   return befunde.filter((b) => { const k = JSON.stringify(b); if (gesehen.has(k)) return false; gesehen.add(k); return true; });
+}
+
+/**
+ * Artikel über die ganze Journey (alle dataLayer-Pushes mit ecommerce.items): Behält ein Artikel seine ID
+ * von view_item bis purchase? Wechselnde IDs sind rot. Felder, die erst später im Kaufprozess dazukommen
+ * (z. B. item_category ab dem Checkout), sind üblich und nur ein Hinweis; Änderungen daran sieht die Baseline.
+ */
+export function pruefeArtikelVerlauf(pushes: Push[]): DurchgaengigkeitsBefund[] {
+  const befunde: DurchgaengigkeitsBefund[] = [];
+  const info = (text: string, stufe: 'rot' | 'info' = 'info') => befunde.push({ stufe, ereignis: 'Journey', dienst: 'dataLayer', text });
+  const vorhanden = (v: unknown) => v !== undefined && v !== null && v !== '';
+  // Je Artikel-ID: Events in Reihenfolge mit den belegten Feldern; je Name: die IDs
+  const nachId = new Map<string, { ereignis: string; felder: Set<string> }[]>();
+  const nachName = new Map<string, Map<string, Set<string>>>();
+  const namenJeId = new Map<string, Set<string>>();
+  for (const p of pushes) {
+    const d = Array.isArray(p.daten) ? { event: p.daten[1], ecommerce: p.daten[2] } : p.daten;
+    const e = d?.ecommerce && typeof d.ecommerce === 'object' ? d.ecommerce : d;
+    if (!Array.isArray(e?.items) || typeof d?.event !== 'string') continue;
+    for (const item of e.items) {
+      const id = vorhanden(item?.item_id) ? String(item.item_id) : vorhanden(item?.id) ? String(item.id) : undefined;
+      const name = vorhanden(item?.item_name) ? String(item.item_name) : vorhanden(item?.name) ? String(item.name) : undefined;
+      if (name) {
+        if (!nachName.has(name)) nachName.set(name, new Map());
+        const ids = nachName.get(name)!;
+        const k = id ?? '(ohne ID)';
+        if (!ids.has(k)) ids.set(k, new Set());
+        ids.get(k)!.add(d.event);
+      }
+      if (!id) continue;
+      if (name) { if (!namenJeId.has(id)) namenJeId.set(id, new Set()); namenJeId.get(id)!.add(name); }
+      if (!nachId.has(id)) nachId.set(id, []);
+      const felder = new Set(Object.keys(item).filter((f) => vorhanden(item[f])));
+      const liste = nachId.get(id)!;
+      // Wiederholte Pushes desselben Events (Repeater, Reload) zählen einmal
+      if (!liste.some((x) => x.ereignis === d.event)) liste.push({ ereignis: d.event, felder });
+    }
+  }
+  for (const [name, ids] of nachName) {
+    if (ids.size > 1) {
+      info(`Artikel „${name}“ wechselt die ID: ${[...ids].map(([id, ev]) => `${id} (${[...ev].join(', ')})`).join(' / ')}`, 'rot');
+    }
+  }
+  for (const [id, namen] of namenJeId) if (namen.size > 1) info(`Artikel ${id} wechselt den Namen: ${[...namen].join(' / ')}`);
+  for (const [id, liste] of nachId) {
+    const alle = new Set(liste.flatMap((x) => [...x.felder]));
+    for (const feld of alle) {
+      const fehlt = liste.filter((x) => !x.felder.has(feld)).map((x) => x.ereignis);
+      if (!fehlt.length) continue;
+      const ab = liste.findIndex((x) => x.felder.has(feld));
+      const spaeterDa = liste.slice(ab).every((x) => x.felder.has(feld));
+      info(spaeterDa
+        ? `Artikel ${id}: ${feld} erst ab ${liste[ab].ereignis} (fehlt bei ${fehlt.join(', ')}) – üblich`
+        : `Artikel ${id}: ${feld} fehlt bei ${fehlt.join(', ')}`);
+    }
+  }
+  return befunde;
 }
 
 export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereignisse: string[]; ausnahmen: string[] } {

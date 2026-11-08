@@ -39,7 +39,7 @@ import {
   type KlickIdBefund, type Landung, type Netz, type UtmBefund,
 } from './bedingungen';
 import {
-  cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeDurchgaengigkeit,
+  cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDurchgaengigkeit,
   type CookieEintrag, type CookieEreignis, type DurchgaengigkeitsBefund, type Pruefungen,
 } from './pruefungen';
 import { profileZusammenfuehren, type DienstProfil } from './dienstprofile';
@@ -1422,6 +1422,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (ereignisse.length && testInfo.status === 'passed') {
       const befunde: DurchgaengigkeitsBefund[] = [];
       for (const e of ereignisse) befunde.push(...await stage.pruefeDurchgaengigkeit(e, ausnahmen));
+      befunde.push(...pruefeArtikelVerlauf(stage.dataLayer.eintraege));
       await ablegen('durchgaengigkeit.json', befunde);
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis} → ${b.dienst}: ${b.text}`);
       expect(rot, 'Durchgängigkeit dataLayer → Requests (Details: durchgaengigkeit.json)').toEqual([]);

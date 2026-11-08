@@ -52,6 +52,8 @@ export interface ConversionProfil {
   items?: { parameter: string; format: 'ga4' | 'json' | 'liste'; schluessel?: string };
   /** Abweichende Artikel-IDs nur als Hinweis (Werbedienste nutzen oft Feed-IDs) */
   itemsNurHinweis?: boolean;
+  /** Abweichender Wert nur als Hinweis (Werbedienste bekommen oft Netto, Marge o. Ä.; die Baseline sieht Änderungen) */
+  valueNurHinweis?: boolean;
   /** Ein Request enthält mehrere Ereignisse, eines pro Body-Zeile (GA4) */
   zeilenweise?: boolean;
 }
@@ -90,6 +92,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
     conversion: {
       pfad: /\/(pagead\/)?(1p-)?conversion\//,
       pflicht: ['label'],
+      valueNurHinweis: true,
       value: 'value',
       currency: 'currency_code',
       transaction_id: 'oid',
@@ -104,13 +107,14 @@ export const DIENST_PROFILE: DienstProfil[] = [
       currency: 'cd[currency]',
       items: { parameter: 'cd[content_ids]', format: 'json' },
       itemsNurHinweis: true,
+      valueNurHinweis: true,
     },
   },
   {
     name: 'Microsoft Ads',
     // Kein request-Feld: UET sendet msclkid=N auch ohne Klick-ID; die echte findet die Suche nach dem Wert
     klickId: { msclkid: { speicher: ['_uetmsclkid'] } },
-    conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc' },
+    conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc', valueNurHinweis: true },
   },
   // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
   { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'] } } },
