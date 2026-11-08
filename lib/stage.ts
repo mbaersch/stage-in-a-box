@@ -277,7 +277,8 @@ export const STANDARD_DIENSTE: Regel[] = [
   { name: 'GA4', muster: /\/g\/collect(\?|$)/ },
   { name: 'GA4 Measurement Protocol', muster: /google-analytics\.com\/mp\/collect/ },
   // measurement/conversion: Conversion aus GA4 für Google Ads; ohne Regel ginge sie auch im Modus "abfangen" raus
-  { name: 'Google Ads', muster: /googleadservices\.com\/(pagead|ccm)\/conversion|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|google\.[a-z.]+\/rmkt\/collect|\/ccm\/(s\/)?collect|analytics\.google\.com\/measurement\/(1p-)?conversion/ },
+  // Ohne Host: Google Tag Gateway auf der eigenen Domain (<pfad>/as/p/c/<id>/, <pfad>/as/d/ccm/conversion/, <pfad>/d/ccm/form-data)
+  { name: 'Google Ads', muster: /googleadservices\.com\/(pagead|ccm)\/conversion|\/ccm\/conversion\/|\/as\/p\/c\/\d{6,}\/|\/(pagead|ccm)\/form-data|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|google\.[a-z.]+\/rmkt\/collect|\/ccm\/(s\/)?collect|analytics\.google\.com\/measurement\/(1p-)?conversion/ },
   { name: 'Floodlight', muster: /fls\.doubleclick\.net\/activity|ad\.doubleclick\.net\/activity/ },
   { name: 'Meta', muster: /facebook\.com\/tr([/?]|$)/ },
   // Insights (Sitzungsdaten von UET) schwanken in Pfad und Anzahl: steuern, aber nicht protokollieren

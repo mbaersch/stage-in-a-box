@@ -42,7 +42,7 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 | Dienst | Event | Wert | Währung | Transaktion | Artikel |
 |---|---|---|---|---|---|
 | GA4 | `en` | `epn.value` (`ep.value`) | `cu` | `ep.transaction_id` | `pr1`, `pr2` … (`id…~nm…`) |
-| Google Ads | `/pagead/conversion/…` mit `label` | `value` | `currency_code` | `oid` | – |
+| Google Ads | `/pagead/conversion/…` (auch `ccm/conversion`, Gateway `as/p/c`) mit `label` | `value` | `currency_code` | `oid` | – |
 | Meta | `ev` (z. B. `Purchase`) | `cd[value]` | `cd[currency]` | – | `cd[content_ids]` |
 | Microsoft Ads | Request mit `gv` | `gv` | `gc` | – | – |
 

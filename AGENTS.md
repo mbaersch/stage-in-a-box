@@ -22,7 +22,7 @@ Wissen, bei Bedarf:
 |---|---|
 | [`docs/wissen/cmp.md`](docs/wissen/cmp.md) | Consent-Banner, die der Recorder nicht sieht, CMP-Bibliothek, Eigenheiten einzelner CMPs |
 | [`docs/wissen/eigene-formate.md`](docs/wissen/eigene-formate.md) | Tracking über eigene Pfade und Formate (sGTM, Stape-Tunnel), Requests ohne Regel |
-| [`docs/wissen/gtm.md`](docs/wissen/gtm.md) | GTM und Google-Tag: Debug Mode, Hüllen-Objekte, Tag feuert ohne Request |
+| [`docs/wissen/gtm.md`](docs/wissen/gtm.md) | GTM und Google-Tag: Debug Mode, Hüllen-Objekte, Tag feuert ohne Request, Google Tag Gateway |
 | [`docs/wissen/dienste.md`](docs/wissen/dienste.md) | Besonderheiten einzelner Dienste (GA4, Google Ads, Meta, Enhanced Conversions) |
 | [`docs/wissen/tag-assistant-export.md`](docs/wissen/tag-assistant-export.md) | Was ein Tag-Assistant-Export enthält und was nicht |
 | [`docs/aufzeichnungsformat.md`](docs/aufzeichnungsformat.md) | Format der Recorder-Einträge (Referenz) |

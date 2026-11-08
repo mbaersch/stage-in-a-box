@@ -90,7 +90,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
       wbraid: {}, // Ablage nicht belegt: nur Suche nach dem Wert
     },
     conversion: {
-      pfad: /\/(pagead\/)?(1p-)?conversion\//,
+      pfad: /\/(pagead\/)?(1p-)?conversion\/|\/as\/p\/c\//,
       pflicht: ['label'],
       valueNurHinweis: true,
       value: 'value',
