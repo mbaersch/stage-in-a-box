@@ -7,6 +7,7 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 - `stage.tracking.erwarteGa4(en)` liefert alle Parameter eines Ereignisses (`en`, `gcs`, `ep.*`, `epn.*`, `pr1` …); mehrere Ereignisse in einem Request (Batching im Body) sind aufgelöst.
 - `gcs`: `G100` = kein Consent, `G111` = voller Consent.
 - UTM-Parameter speichert GA4 nicht im Browser; die Kampagne wird aus `dl` (und `dr`) des ersten Requests einer Sitzung ermittelt. Fehlen die UTMs dort, ist die Zuordnung verloren.
+- **CSP:** Je nach Setup sendet GA4 an `region1.google-analytics.com` oder `region1.analytics.google.com` (dazu `/measurement/conversion` per fetch und Bild); eine Policy braucht beide Domains. `*.google.com` deckt `analytics.google.com` mit ab. Der Begleit-Request `stats.g.doubleclick.net/g/collect` hängt an `*.doubleclick.net`. Blockiert die CSP die Endpunkte, weicht gtag nicht auf einen anderen Weg aus (an einer Website geprüft).
 - `user_engagement` geht beim Verlassen einer Seite raus (Beacon bei `pagehide`), seine Anzahl hängt an der Verweildauer und am Tempo: im Baseline-Vergleich „(Timing)“. Ohne Proxy sieht Playwright diese Beacons nicht.
 
 ## Google Ads
