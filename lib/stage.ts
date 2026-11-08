@@ -107,11 +107,18 @@ export interface StageOptionen {
    */
   adblocker?: Adblocker;
   /**
-   * Echte GA4-Requests als Test-Traffic kennzeichnen: setzt den Parameter tt (traffic_type), den die
-   * Datenfilter von GA4 auswerten. Braucht den Proxy. Vorgabe: Umgebungsvariable TRAFFIC_TYPE.
-   * dienste: Namen der Regeln, deren Requests markiert werden (Vorgabe: GA4).
+   * Echte GA4-Requests als Test-Traffic kennzeichnen (nur mit Proxy), benannt wie die Felder in GA4:
+   * trafficType setzt traffic_type (im Request tt), auswertbar mit einem Datenfilter „Interner Traffic“
+   * mit genau diesem Wert. Vorgabe: Umgebungsvariable TRAFFIC_TYPE.
    */
-  trafficType?: string | { wert: string; dienste?: string[] };
+  trafficType?: string;
+  /**
+   * debug_mode (im Request _dbg=1): Events erscheinen in der DebugView und gelten als Entwickler-Traffic,
+   * auswertbar mit dem Datenfilter „Entwickler-Traffic“. Nur mit Proxy. Vorgabe: Umgebungsvariable DEBUG_MODE=ein.
+   */
+  debugMode?: boolean;
+  /** Regeln, deren Requests trafficType und debugMode bekommen. Vorgabe: ['GA4']. */
+  kennzeichnenDienste?: string[];
   /** navigator.webdriver verbergen, damit CMPs den Testbrowser nicht als Bot behandeln. Vorgabe: true. */
   automationVerbergen?: boolean;
   /**
@@ -458,8 +465,8 @@ export class Stage {
   cookieProtokollAktiv = false;
   /** Bericht für die Baseline, gefüllt von vergleicheMitBaseline. */
   cookieEintraege?: CookieEintrag[];
-  /** Kennzeichnung echter Requests als Test-Traffic (stageOptionen.trafficType), nur mit Proxy. */
-  trafficType?: { wert: string; dienste: string[] };
+  /** Kennzeichnung echter Requests als Test-Traffic (stageOptionen.trafficType, debugMode), nur mit Proxy. */
+  kennzeichnung?: { parameter: Record<string, string>; dienste: string[] };
   /** Adblocker dieses Tests (stageOptionen.adblocker): Profil, Listen mit Stand, blockierte Requests. */
   adblocker?: {
     name: string; listen: AdblockerListe[]; blockiert: AdblockerTreffer[];
@@ -1170,13 +1177,18 @@ export async function richteStageEin(
     });
   }
 
-  const trafficType = typeof optionen.trafficType === 'string' ? { wert: optionen.trafficType }
-    : optionen.trafficType ?? (process.env.TRAFFIC_TYPE ? { wert: process.env.TRAFFIC_TYPE } : undefined);
-  if (trafficType && !proxy) {
-    throw new Error('trafficType bzw. TRAFFIC_TYPE braucht den Proxy (PROXY=ein oder stageOptionen.proxy): '
-      + 'nur dort lassen sich alle GA4-Requests ändern, auch Beacons beim Verlassen einer Seite.');
+  // Test-Traffic kennzeichnen: tt = traffic_type, _dbg = debug_mode (Kurzparameter in GA4-Requests)
+  const kennzeichen: Record<string, string> = {};
+  const trafficType = optionen.trafficType ?? process.env.TRAFFIC_TYPE;
+  if (trafficType) kennzeichen.tt = trafficType;
+  if (optionen.debugMode ?? /^(ein|an|ja|1|true|on|yes)$/i.test(process.env.DEBUG_MODE ?? '')) kennzeichen._dbg = '1';
+  if (Object.keys(kennzeichen).length) {
+    if (!proxy) {
+      throw new Error('trafficType bzw. debugMode (TRAFFIC_TYPE, DEBUG_MODE) brauchen den Proxy (PROXY=ein oder stageOptionen.proxy): '
+        + 'nur dort lassen sich alle GA4-Requests ändern, auch Beacons beim Verlassen einer Seite.');
+    }
+    stage.kennzeichnung = { parameter: kennzeichen, dienste: optionen.kennzeichnenDienste ?? ['GA4'] };
   }
-  stage.trafficType = trafficType && { wert: trafficType.wert, dienste: trafficType.dienste ?? ['GA4'] };
 
   if (proxy) {
     verbindeProxy(stage, proxy, regelMitTyp, modus, optionen, blocker ? adblockerPruefen : undefined);
@@ -1344,9 +1356,10 @@ function verbindeProxy(
       const regel = regelFuer(url, ziel, herkunft);
       if (!regel) return undefined;
       const aktion = regel.modus ?? modus;
-      // Test-Traffic kennzeichnen: tt ist der Kurzparameter für traffic_type in GA4-Requests
-      const markieren = aktion === 'durchlassen' && stage.trafficType?.dienste.includes(regel.name);
-      return { aktion, verzoegerungMs: regel.verzoegerungMs, zielUrl: markieren ? mitParameter(url, 'tt', stage.trafficType!.wert) : undefined };
+      const k = stage.kennzeichnung;
+      const zielUrl = aktion === 'durchlassen' && k?.dienste.includes(regel.name)
+        ? Object.entries(k.parameter).reduce((u, [name, wert]) => mitParameter(u, name, wert), url) : undefined;
+      return { aktion, verzoegerungMs: regel.verzoegerungMs, zielUrl };
     },
     melde(r: ProxyRequest) {
       if (istWerkzeug(r.herkunft) || istWerkzeug(r.url)) return;
@@ -1529,6 +1542,13 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       expect(rot, 'UTM-Parameter im ersten Request nach der Landung (Details: landung.json)').toEqual([]);
     }
     if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
+    if (stage.kennzeichnung) {
+      const { parameter, dienste } = stage.kennzeichnung;
+      testInfo.annotations.push({
+        type: 'Test-Traffic',
+        description: `${Object.entries(parameter).map(([k, v]) => `${k}=${v}`).join(', ')} in Requests an ${dienste.join(', ')}`,
+      });
+    }
     if (stage.adblocker) {
       const { name, listen, blockiert, pruefe } = stage.adblocker;
       // Beacons beim Verlassen einer Seite laufen ohne Proxy am Routing vorbei (entwischt). Ein echter

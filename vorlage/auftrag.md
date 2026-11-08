@@ -50,7 +50,7 @@
 ## Baseline
 
 - **Baseline anlegen?** <!-- ja / nein. Baseline-Läufe senden echte Requests an alle Dienste. -->
-- **Testtraffic erkennbar bzw. gefiltert?** <!-- z. B. Testkonto, IP-Filter; für GA4: TRAFFIC_TYPE (Wert, Datenfilter in GA4 vorhanden?), braucht den Proxy -->
+- **Testtraffic erkennbar bzw. gefiltert?** <!-- z. B. Testkonto, IP-Filter. GA4: welche Datenfilter sind aktiv – interner Traffic (mit welchem traffic_type-Wert?), Entwickler-Traffic, keiner? Danach TRAFFIC_TYPE bzw. DEBUG_MODE (braucht den Proxy) -->
 - **Mit Proxy?** <!-- ja (empfohlen: sieht auch Beacons beim Verlassen und Service Worker) / nein -->
 - **Tempo:** <!-- schnell / mittel / langsam / aufzeichnung (Pausen wie aufgezeichnet). Baseline und Vergleich laufen immer im selben Tempo. -->
 

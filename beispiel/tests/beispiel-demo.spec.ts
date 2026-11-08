@@ -104,14 +104,14 @@ test.describe('Variante: Adblocker mit Filterregeln', () => {
 });
 
 test.describe('Echte Requests als Test-Traffic kennzeichnen', () => {
-  // Setzt tt (traffic_type) in GA4-Requests, damit ein Datenfilter in GA4 sie ausschließt. Nur mit Proxy.
-  test.use({ stageOptionen: { proxy: true, trackingModus: 'durchlassen', trafficType: 'stage-test' } });
+  // traffic_type (tt) und debug_mode (_dbg) in GA4-Requests, auswertbar mit Datenfiltern in GA4. Nur mit Proxy.
+  test.use({ stageOptionen: { proxy: true, trackingModus: 'durchlassen', trafficType: 'stage-test', debugMode: true } });
 
-  test('GA4-Requests tragen tt', async ({ page, stage }) => {
+  test('GA4-Requests tragen tt und _dbg', async ({ page, stage }) => {
     await journey(page, stage, 'akzeptieren');
     const lead = await stage.tracking.erwarteGa4('generate_lead');
     expect(lead.treffer.parameter.tt).toBe('stage-test');
-    expect(stage.tracking.treffer.filter((t) => t.dienst === 'GA4').every((t) => t.parameter.tt === 'stage-test')).toBe(true);
+    expect(stage.tracking.treffer.filter((t) => t.dienst === 'GA4').every((t) => t.parameter.tt === 'stage-test' && t.parameter._dbg === '1')).toBe(true);
   });
 });
 

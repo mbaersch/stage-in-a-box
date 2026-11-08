@@ -161,11 +161,18 @@ Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Re
 
 Die Testumgebung ist ohne Proxy einfacher, mit Proxy vollständiger. Was der Auftrag sagt, gilt. Bei Staging-Servern mit ungültigem Zertifikat `stageOptionen: { zertifikatFehlerIgnorieren: true }` setzen.
 
-**Test-Traffic kennzeichnen:** Echte Requests (Baseline, Sitzungen) landen in den Daten von GA4. Mit `TRAFFIC_TYPE=<wert>` in `.env` oder `stageOptionen: { trafficType: '<wert>' }` setzt der Proxy in jedem GA4-Request den Parameter `tt` (traffic_type); ein Datenfilter in GA4 vom Typ „Interner Traffic“ mit diesem Wert schließt sie aus. Andere Regeln mitnehmen: `trafficType: { wert: 'stage-test', dienste: ['GA4', 'GA4 (sGTM)'] }`.
-- Nur mit Proxy (sonst bricht der Test mit Meldung ab), damit auch Beacons beim Verlassen einer Seite markiert sind. Ein vorhandenes `tt` der Seite wird ersetzt. Baseline und Vergleich mit derselben Einstellung laufen lassen, sonst meldet der Vergleich `tt` als Hinweis.
-- Den Filter legt der Mensch in GA4 an; `internal` greift beim vorkonfigurierten Filter, ein eigener Wert braucht einen eigenen Filter. Filter wirken erst ab Aktivierung und nicht rückwirkend.
-- Bei serverseitigem Tagging hängt es vom Server-Container ab, ob `tt` bei GA4 ankommt; in der sGTM-Vorschau prüfen.
-- Werbedienste und andere Analyse-Tools markiert das nicht. Wer dort Testdaten vermeiden will, sperrt deren Requests per Regel; Filter in Tools wie Matomo hängen an deren eigenen Regeln (z. B. IP).
+**Test-Traffic kennzeichnen:** Echte Requests (Baseline, Sitzungen) landen in den Daten von GA4. Der Proxy kann jeden GA4-Request kennzeichnen, benannt wie die Felder in GA4:
+
+| Option | `.env` | Im Request | Datenfilter in GA4 |
+|---|---|---|---|
+| `trafficType: '<wert>'` | `TRAFFIC_TYPE=<wert>` | `tt=<wert>` | „Interner Traffic“ mit genau diesem Wert |
+| `debugMode: true` | `DEBUG_MODE=ein` | `_dbg=1` | „Entwickler-Traffic“; Events erscheinen außerdem in der DebugView |
+
+- Welcher Wert und welche Kennzeichnung passen, hängt davon ab, welche Filter in der Property existieren und welchen Status sie haben: Erst ein **aktiver** Filter schließt Daten aus. Im Status „Testing“ (so steht der vorkonfigurierte Filter für `internal` ab Werk) werden die Daten nur markiert, aber weiter berichtet. Keine Vorgabe annehmen, sondern im Auftrag klären; beides lässt sich kombinieren.
+- Nur mit Proxy (sonst bricht der Test mit Meldung ab), damit auch Beacons beim Verlassen einer Seite gekennzeichnet sind. Vorhandene Werte der Seite werden ersetzt. Der Test bekommt die Anmerkung „Test-Traffic“. Baseline und Vergleich mit derselben Einstellung laufen lassen, sonst meldet der Vergleich die Parameter als Hinweis.
+- Andere Regeln mitnehmen (z. B. eigene Pfade): `kennzeichnenDienste: ['GA4', 'GA4 (sGTM)']`.
+- Ein Server-Container reicht `tt` und `_dbg` wie andere Parameter weiter. Zu prüfen ist nur, ob er sie selbst liest oder verändert (Transformationen, Tags, die auf traffic_type oder debug_mode reagieren); dann im Bericht nennen.
+- Werbedienste und andere Analyse-Tools kennzeichnet das nicht. Wer dort Testdaten vermeiden will, sperrt deren Requests per Regel; Filter in Tools wie Matomo hängen an deren eigenen Regeln (z. B. IP).
 
 **Grenze ohne Proxy:** Beacons, die eine Seite beim Verlassen sendet, laufen in Chromium am Routing vorbei und gehen im Modus `abfangen` trotzdem raus. Die Stage erkennt das über das NetLog, markiert sie in `tracking-treffer.json` mit `entwischt: true` und setzt am Test die Anmerkung „Achtung“. Im Bericht erwähnen, wenn das vorkommt, und den Proxy empfehlen.
 
