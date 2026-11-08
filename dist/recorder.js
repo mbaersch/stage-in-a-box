@@ -82,7 +82,7 @@ window.__recConfig = window.__recConfig || {
 
   function cssEscape(s) {
     if (window.CSS && CSS.escape) return CSS.escape(s);
-    return String(s).replace(/[^a-zA-Z0-9_ -￿-]/g, function (c) { return '\\' + c; });
+    return String(s).replace(/[^a-zA-Z0-9_\u00a0-\uffff-]/g, function (c) { return '\\' + c; });
   }
 
   function attrValue(s) {
@@ -92,7 +92,7 @@ window.__recConfig = window.__recConfig || {
   function cleanText(s) {
     if (!s) return '';
     s = String(s).replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
-    return s.length > TEXT_MAX ? s.slice(0, TEXT_MAX) + '…' : s;
+    return s.length > TEXT_MAX ? s.slice(0, TEXT_MAX) + '\u2026' : s;
   }
 
   function isElement(n) {
@@ -227,7 +227,7 @@ window.__recConfig = window.__recConfig || {
 
   // Erhält Format und Länge: Buchstaben -> x/X, Ziffern -> 0, Rest bleibt.
   function maskValue(v) {
-    return String(v).replace(/[A-Za-zÀ-ÖØ-öø-ÿ]/g, function (c) {
+    return String(v).replace(/[A-Za-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u00ff]/g, function (c) {
       return c === c.toUpperCase() && c !== c.toLowerCase() ? 'X' : 'x';
     }).replace(/[0-9]/g, '0');
   }
