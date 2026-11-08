@@ -108,7 +108,8 @@ export const DIENST_PROFILE: DienstProfil[] = [
   },
   {
     name: 'Microsoft Ads',
-    klickId: { msclkid: { speicher: ['_uetmsclkid'], request: ['msclkid'] } },
+    // Kein request-Feld: UET sendet msclkid=N auch ohne Klick-ID; die echte findet die Suche nach dem Wert
+    klickId: { msclkid: { speicher: ['_uetmsclkid'] } },
     conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc' },
   },
   // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
@@ -169,6 +170,16 @@ export function felder(parameter: Record<string, string>, body?: string): Record
       // Arrays von Ereignissen (z. B. { data: [ … ] }) bleiben mit Index im Pfad
       return { ...parameter, ...flach(json) };
     } catch { /* kein JSON */ }
+  }
+  // Meta u. a. senden große Payloads per FormData (multipart); URLSearchParams würde daraus Unsinn machen
+  const multipart = text.match(/^--([^\r\n]+)\r?\n/);
+  if (multipart && /Content-Disposition: form-data/i.test(text)) {
+    const out: Record<string, string> = { ...parameter };
+    for (const teil of text.split(`--${multipart[1]}`)) {
+      const m = teil.match(/Content-Disposition: form-data;\s*name="([^"]*)"[^\r\n]*\r?\n(?:[^\r\n]+\r?\n)*\r?\n([\s\S]*?)\r?\n?$/i);
+      if (m) out[m[1]] = m[2];
+    }
+    return out;
   }
   if (text.includes('=')) {
     try { return { ...parameter, ...Object.fromEntries(new URLSearchParams(text)) }; } catch { /* ignorieren */ }

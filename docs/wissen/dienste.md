@@ -47,7 +47,7 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 
 ### Klick-IDs
 
-Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request steckt oder die Ablage bzw. der Parameter aus dem Profil vorhanden ist (das Format ist Sache des Dienstes):
+Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. einem eigenen Feld des Requests steckt (Seiten-URL und Referrer zählen nicht) oder die Ablage bzw. der Parameter aus dem Profil vorhanden ist (das Format ist Sache des Dienstes):
 
 | Parameter | Dienst | Ablage | Parameter im Request |
 |---|---|---|---|
@@ -56,7 +56,7 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request
 | `wbraid` | Google Ads | nicht belegt – nur Suche nach dem Wert (gesehen: `_gac_gb_<UA-ID>`) | nicht belegt |
 | `dclid` | Floodlight / DoubleClick | Cookie `_gcl_dc` | nicht belegt (gesehen: `dclid` an `ccm/collect` auf der Landungsseite) |
 | `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
-| `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` |
+| `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` (kommt als `N` auch ohne Klick-ID – nur Suche nach dem Wert) |
 | `ttclid` | TikTok | Cookie `ttclid` (`<ttclid>.<Zeit>`, 1 Tag) | `context.ad.callback` (JSON-Body) |
 | `li_fat_id` | LinkedIn | Cookie `li_fat_id` (30 Tage) | `li_fat_id` |
 | `rdt_cid` | Reddit | Cookie `_rdt_cid` | `click_id` |
@@ -64,8 +64,6 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request
 | `oppref` | OpenAI Ads | Cookie `__oppref` (30 Tage) | `oppref` |
 
 Ins Profil gehört nur die Hauptablage, die der Tag selbst liest. Nebenablagen (`_gcl_ls` im localStorage, `GCL_AW_P` auf googleadservices.com, `_gac_*`, `multiFbc`, sessionStorage `tt_adInfo`) findet die Suche nach dem Wert; stünden sie im Profil, fiele eine fehlende Hauptablage nicht auf.
-
-Meta übernimmt auf der Landungsseite alle URL-Parameter der Seite als eigene Felder. Ein Fund einer fremden Klick-ID bei Meta belegt deshalb keine Weitergabe.
 
 Ohne zentrales Profil: Snap (`ScCid`, `scid`, `sccid` wurden an einer Website weder gespeichert noch gesendet), X (`twclid`), Awin (`awc`, Cookie `aw_m_<Merchant-ID>` – findet die Suche nach dem Wert).
 

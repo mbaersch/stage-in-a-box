@@ -45,7 +45,10 @@ export interface KlickIdBefund {
    * Ablagen aus dem Profil, die vorhanden sind (Format des Dienstes egal).
    */
   gespeichert: string[];
-  /** Tracking-Requests, die den Wert enthalten oder einen Klick-ID-Parameter aus dem Profil des Dienstes. */
+  /**
+   * Tracking-Requests, die den Wert in einem eigenen Feld tragen (nicht nur in Seiten-URL oder Referrer)
+   * oder einen Klick-ID-Parameter aus dem Profil des Dienstes.
+   */
   requests: { nr: number; dienst: string; ereignis: string; zeit: number; wie: string }[];
 }
 
@@ -54,6 +57,31 @@ interface TrefferLike {
 }
 
 const dekodiert = (s: string) => { try { return decodeURIComponent(s.replace(/\+/g, ' ')); } catch { return s; } };
+
+/** Felder eines Requests; Bodies mit einem Ereignis pro Zeile (GA4) zeilenweise, sonst überschreibt die letzte Zeile. JSON und multipart am Stück. */
+function requestFelder(t: TrefferLike): [string, string][] {
+  const liste: [string, string][] = Object.entries(t.parameter);
+  const body = t.body?.trim();
+  if (!body) return liste;
+  const ganz = body.startsWith('{') || body.startsWith('[') || body.startsWith('--');
+  const teile = ganz ? [body] : body.split('\n');
+  for (const teil of teile) {
+    const f = Object.entries(felder({}, teil));
+    liste.push(...(f.length ? f : [['Body', teil] as [string, string]]));
+  }
+  return liste;
+}
+
+/**
+ * Felder, die den Wert enthalten. Steht der Wert dort als "<id>=<wert>", ist es eine URL (Seite, Referrer):
+ * Die tragen fast alle Dienste auf der Landungsseite und danach im Referrer, das ist keine Weitergabe.
+ */
+function felderMitWert(t: TrefferLike, id: string, wert: string): string[] {
+  return requestFelder(t).filter(([, v]) => {
+    const d = dekodiert(dekodiert(v));
+    return d.includes(wert) && !d.includes(`${id}=${wert}`);
+  }).map(([k]) => k);
+}
 
 /** Sucht jede Klick-ID in Cookies, localStorage der offenen Seiten und Tracking-Requests, dazu nach Profil. */
 export async function klickIdBefunde(
@@ -88,8 +116,9 @@ export async function klickIdBefunde(
     const requests: KlickIdBefund['requests'] = [];
     for (const t of treffer) {
       const ereignis = t.parameter.en ?? t.parameter.ev ?? t.parameter.event ?? t.parameter.label ?? t.pfad;
-      if (dekodiert(t.url).includes(wert) || (t.body ? dekodiert(t.body).includes(wert) : false)) {
-        requests.push({ nr: t.nr, dienst: t.dienst, zeit: t.zeit, ereignis, wie: 'Wert enthalten' });
+      const mitWert = felderMitWert(t, id, wert);
+      if (mitWert.length) {
+        requests.push({ nr: t.nr, dienst: t.dienst, zeit: t.zeit, ereignis, wie: `Wert in ${[...new Set(mitWert)].join(', ')}` });
         continue;
       }
       const profil = passendeProfile.find((p) => p.name === t.dienst);
