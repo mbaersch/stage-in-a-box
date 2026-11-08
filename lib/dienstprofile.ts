@@ -86,8 +86,9 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'Google Ads',
     klickId: {
       gclid: { speicher: ['_gcl_aw'], request: ['gclaw'] },
-      gbraid: { speicher: ['_gcl_gb', '_gcl_ag'], request: ['gclgb'] },
-      wbraid: {}, // Ablage nicht belegt: nur Suche nach dem Wert
+      // gbraid und wbraid gehen beide als gclgb raus, liegen aber in verschiedenen Cookies
+      gbraid: { speicher: ['_gcl_ag'], request: ['gclgb'] },
+      wbraid: { speicher: ['_gcl_gb'], request: ['gclgb'] },
     },
     conversion: {
       pfad: /\/(pagead\/)?(1p-)?conversion\/|\/as\/p\/c\//,

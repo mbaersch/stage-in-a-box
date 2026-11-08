@@ -53,8 +53,8 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. einem e
 | Parameter | Dienst | Ablage | Parameter im Request |
 |---|---|---|---|
 | `gclid` | Google Ads (Conversion Linker) | Cookie `_gcl_aw` | `gclaw` |
-| `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` oder `_gcl_ag` (`2.1.k<gbraid>$i<Zeit>`) | `gclgb` |
-| `wbraid` | Google Ads | nicht belegt – nur Suche nach dem Wert (gesehen: `_gac_gb_<UA-ID>`) | nicht belegt |
+| `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_ag` (`2.1.k<gbraid>$i<Zeit>`) | `gclgb` |
+| `wbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` (`GCL.<Zeit>.<wbraid>`) | `gclgb` (an Conversions zusätzlich `gacgb`) |
 | `dclid` | Floodlight / DoubleClick | Cookie `_gcl_dc` | nicht belegt (gesehen: `dclid` an `ccm/collect` auf der Landungsseite) |
 | `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
 | `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` (kommt als `N` auch ohne Klick-ID – nur Suche nach dem Wert) |
@@ -66,7 +66,9 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. einem e
 
 Ins Profil gehört nur die Hauptablage, die der Tag selbst liest. Nebenablagen (`_gcl_ls` im localStorage, `GCL_AW_P` auf googleadservices.com, `_gac_*`, `multiFbc`, sessionStorage `tt_adInfo`) findet die Suche nach dem Wert; stünden sie im Profil, fiele eine fehlende Hauptablage nicht auf.
 
-Ohne zentrales Profil: Snap (`ScCid`, `scid`, `sccid` wurden an einer Website weder gespeichert noch gesendet), X (`twclid`), Awin (`awc`, Cookie `aw_m_<Merchant-ID>` – findet die Suche nach dem Wert).
+Ohne zentrales Profil: Snap (`ScCid`, `scid`, `sccid` wurden an zwei Websites weder gespeichert noch gesendet; `u_sclid` im Snap-Request ist eine eigene UUID des Pixels, die auch ohne Klick-ID kommt), X (`twclid`), Awin (`awc`, Cookie `aw_m_<Merchant-ID>` – findet die Suche nach dem Wert; an einer Website mit Awin-MasterTag wurde ein Testwert nicht gespeichert, Ursache nicht geklärt).
+
+Landet eine Testseite mit `gclid` und `gbraid`/`wbraid` zugleich, speichert der Conversion Linker nur `gclid`. Diese IDs deshalb in getrennten Landungen prüfen.
 
 Gespeichert wird meist erst mit Consent. Fehlt die ID in der Conversion, ist das ein Befund: Conversion Linker fehlt, feuert zu spät oder ohne Consent, oder die Landungsseite leitet um und verliert den Parameter.
 
