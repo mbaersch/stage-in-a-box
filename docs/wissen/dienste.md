@@ -52,12 +52,22 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. Request
 | Parameter | Dienst | Ablage | Parameter im Request |
 |---|---|---|---|
 | `gclid` | Google Ads (Conversion Linker) | Cookie `_gcl_aw` | `gclaw` |
-| `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` | `gclgb` |
-| `wbraid` | Google Ads | nicht belegt – nur Suche nach dem Wert | nicht belegt |
+| `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` oder `_gcl_ag` (`2.1.k<gbraid>$i<Zeit>`) | `gclgb` |
+| `wbraid` | Google Ads | nicht belegt – nur Suche nach dem Wert (gesehen: `_gac_gb_<UA-ID>`) | nicht belegt |
+| `dclid` | Floodlight / DoubleClick | Cookie `_gcl_dc` | nicht belegt (gesehen: `dclid` an `ccm/collect` auf der Landungsseite) |
 | `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
 | `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` |
+| `ttclid` | TikTok | Cookie `ttclid` (`<ttclid>.<Zeit>`, 1 Tag) | `context.ad.callback` (JSON-Body) |
+| `li_fat_id` | LinkedIn | Cookie `li_fat_id` (30 Tage) | `li_fat_id` |
+| `rdt_cid` | Reddit | Cookie `_rdt_cid` | `click_id` |
+| `epik` | Pinterest | Cookie `_epik` (365 Tage) | im JSON-String `pd`, den jeder Request hat – nur Suche nach dem Wert |
+| `oppref` | OpenAI Ads | Cookie `__oppref` (30 Tage) | `oppref` |
 
-Noch ohne zentrales Profil, weil nicht an einer Website bestätigt: Floodlight (`dclid`), LinkedIn (`li_fat_id`), TikTok (`ttclid`), X (`twclid`), Pinterest (`epik`).
+Ins Profil gehört nur die Hauptablage, die der Tag selbst liest. Nebenablagen (`_gcl_ls` im localStorage, `GCL_AW_P` auf googleadservices.com, `_gac_*`, `multiFbc`, sessionStorage `tt_adInfo`) findet die Suche nach dem Wert; stünden sie im Profil, fiele eine fehlende Hauptablage nicht auf.
+
+Meta übernimmt auf der Landungsseite alle URL-Parameter der Seite als eigene Felder. Ein Fund einer fremden Klick-ID bei Meta belegt deshalb keine Weitergabe.
+
+Ohne zentrales Profil: Snap (`ScCid`, `scid`, `sccid` wurden an einer Website weder gespeichert noch gesendet), X (`twclid`), Awin (`awc`, Cookie `aw_m_<Merchant-ID>` – findet die Suche nach dem Wert).
 
 Gespeichert wird meist erst mit Consent. Fehlt die ID in der Conversion, ist das ein Befund: Conversion Linker fehlt, feuert zu spät oder ohne Consent, oder die Landungsseite leitet um und verliert den Parameter.
 

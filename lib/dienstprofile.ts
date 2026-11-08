@@ -11,9 +11,10 @@
  * Felder sind Parameternamen. Gesucht wird in URL-Parametern, Formular-Bodies und JSON-Bodies;
  * JSON wird dafür flach gemacht: { properties: { value: 1 } } → "properties.value".
  *
- * Hier nur, was belegt ist. Weitere Dienste (LinkedIn li_fat_id, TikTok ttclid …) erst eintragen, wenn
- * Parameter, Ablage und Request-Parameter an einer echten Website bestätigt sind; bis dahin findet die
- * Suche nach dem Wert sie trotzdem.
+ * Hier nur, was belegt ist. Weitere Dienste (Snap, X …) erst eintragen, wenn Parameter, Ablage und
+ * Request-Parameter an einer echten Website bestätigt sind; bis dahin findet die Suche nach dem Wert sie
+ * trotzdem. Nur die Hauptablage eintragen, die der Tag selbst liest: Ist eine Ablage aus dem Profil da,
+ * gilt die ID als gespeichert, Backups wie _gcl_ls würden ein fehlendes _gcl_aw verdecken.
  *
  * Projekte ergänzen oder überschreiben Profile mit stageOptionen.dienstProfile. Gleicher Name:
  * Felder überschreiben, Listen ersetzen, alles andere bleibt (klickId je Identifier, conversion je Feld). Was sich bewährt und für jede Website mit dem Dienst gilt, gehört hierher
@@ -83,7 +84,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'Google Ads',
     klickId: {
       gclid: { speicher: ['_gcl_aw'], request: ['gclaw'] },
-      gbraid: { speicher: ['_gcl_gb'], request: ['gclgb'] },
+      gbraid: { speicher: ['_gcl_gb', '_gcl_ag'], request: ['gclgb'] },
       wbraid: {}, // Ablage nicht belegt: nur Suche nach dem Wert
     },
     conversion: {
@@ -110,6 +111,15 @@ export const DIENST_PROFILE: DienstProfil[] = [
     klickId: { msclkid: { speicher: ['_uetmsclkid'], request: ['msclkid'] } },
     conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc' },
   },
+  // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
+  { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'] } } },
+  { name: 'LinkedIn', klickId: { li_fat_id: { speicher: ['li_fat_id'], request: ['li_fat_id'] } } },
+  { name: 'Reddit', klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } } },
+  // Wert steckt im JSON-String pd, den jeder Request hat: kein request-Feld, nur Suche nach dem Wert
+  { name: 'Pinterest', klickId: { epik: { speicher: ['_epik'] } } },
+  { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
+  // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
+  { name: 'TikTok', klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } } },
 ];
 
 /**

@@ -11,7 +11,7 @@ import { DIENST_PROFILE, felder, type DienstProfil } from './dienstprofile';
 /* ------------------------------------------------------------------ */
 
 /** URL-Parameter, mit denen Werbenetzwerke Klicks kennzeichnen. */
-export const KLICK_IDS = ['gclid', 'gbraid', 'wbraid', 'dclid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', 'twclid', 'epik'] as const;
+export const KLICK_IDS = ['gclid', 'gbraid', 'wbraid', 'dclid', 'fbclid', 'msclkid', 'ttclid', 'li_fat_id', 'twclid', 'epik', 'rdt_cid', 'oppref'] as const;
 export type KlickId = (typeof KLICK_IDS)[number];
 
 export interface Landung {
