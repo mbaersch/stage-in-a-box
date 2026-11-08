@@ -310,7 +310,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 ```
 AGENTS.md                 Kern der Anweisungen für den Agent: Regeln und Wegweiser
 CLAUDE.md                 bindet AGENTS.md für Claude Code ein
-lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen, pruefungen, dienstprofile, adblocker
+lib/                      die Testumgebung: stage, baseline, tempo, netlog, proxy, cmp, bedingungen, pruefungen, dienstprofile, adblocker (mit Ersatzdateien)
 werkzeuge/                Analyse-Script, Anlegen neuer Projekte
 docs/
   anleitung/              Anleitungen je Aufgabe (Staging, Aufzeichnung, Tests, Baseline, Varianten …)

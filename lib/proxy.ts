@@ -50,7 +50,11 @@ export interface ProxyRequest {
 
 export interface ProxyVerbindung {
   /** Entscheidet pro URL, sec-fetch-dest (empty = fetch/XHR/Beacon) und Referer/Origin; ohne Rückgabe wird durchgelassen. */
-  entscheide(url: string, ziel: string, herkunft?: string): { aktion: ProxyAktion; verzoegerungMs?: number } | undefined;
+  entscheide(url: string, ziel: string, herkunft?: string): {
+    aktion: ProxyAktion; verzoegerungMs?: number;
+    /** Bei blockieren: diese Antwort statt Abbruch ausliefern (Ersatzdatei eines Adblockers) */
+    ersatz?: { contentType: string; body: Buffer };
+  } | undefined;
   /** Wird für jeden Request aufgerufen, bevor er bearbeitet wird; das Objekt wird danach weiter aktualisiert. */
   melde(r: ProxyRequest): void;
   /** CSP für Dokumente setzen */
@@ -265,6 +269,16 @@ export class StageProxy {
       eintrag.status = 204;
       eintrag.abgeschlossen = true;
       res.writeHead(204, { 'access-control-allow-origin': String(req.headers.origin ?? '*'), 'access-control-allow-credentials': 'true' }).end();
+      return;
+    }
+    if (eintrag.aktion === 'blockieren' && entscheidung?.ersatz) {
+      eintrag.status = 200;
+      eintrag.fehler = 'ersetzt (Proxy)';
+      eintrag.abgeschlossen = true;
+      res.writeHead(200, {
+        'content-type': entscheidung.ersatz.contentType,
+        'access-control-allow-origin': String(req.headers.origin ?? '*'), 'access-control-allow-credentials': 'true',
+      }).end(entscheidung.ersatz.body);
       return;
     }
     if (eintrag.aktion === 'blockieren') {

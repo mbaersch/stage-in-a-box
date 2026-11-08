@@ -20,7 +20,7 @@ Eine eigene Domain allein schützt nicht vor Adblockern; es kommt auf den Pfad a
 
 - `/g/collect?v=…` wird auf jedem Host blockiert, auch auf der eigenen Domain oder Subdomain (EasyPrivacy, Regel `/collect?v=`).
 - `/gtm.js` wird auf jedem Pfad blockiert (EasyPrivacy, Regel `/gtm.js`), ebenso Skripte auf Subdomains, die mit `sgtm.` beginnen (`://sgtm.*.js?`).
-- Bei `googletagmanager.com/gtm.js` und `/gtag/js` liefert uBlock ein Ersatzskript statt nichts (uBlock filters – Privacy, `redirect=googletagmanager_gtm.js`).
+- Bei `googletagmanager.com/gtm.js` und `/gtag/js` liefert uBlock ein Ersatzskript statt nichts (uBlock filters – Privacy, `redirect=googletagmanager_gtm.js`, bei uBlock ein Alias für den Ersatz von `analytics.js`): Anti-Flicker wird freigegeben und jeder `eventCallback` im dataLayer ausgeführt, der dataLayer selbst bleibt. Weiterleitungen nach einem Push mit `eventCallback` funktionieren für Blocker-Nutzer also; Tags feuern nicht.
 
 Ob ein konkretes Setup durchkommt, zeigt die Variante `adblocker` (siehe [`../anleitung/varianten.md`](../anleitung/varianten.md)). Die Listen ändern sich täglich; die Befunde in `adblocker.json` nennen Regel, Liste und Stand.
 

@@ -45,7 +45,7 @@ import {
 } from './pruefungen';
 import { profileZusammenfuehren, type DienstProfil } from './dienstprofile';
 import {
-  adblockerAusUmgebung, adblockerLaden, type Adblocker, type AdblockerListe, type AdblockerTreffer,
+  adblockerAusUmgebung, adblockerLaden, type Adblocker, type AdblockerErgebnis, type AdblockerListe, type AdblockerTreffer,
 } from './adblocker';
 
 export type { Tempo } from './tempo';
@@ -984,7 +984,7 @@ export async function richteStageEin(
       const regel = regelFuer(url);
       stage.adblocker!.blockiert.push({
         zeit: Date.now(), url, host: zerlege(url).host, typ, filter: ergebnis.filter, liste: ergebnis.liste,
-        ersatz: ergebnis.ersatz ? true : undefined, dienst: regel && !regel.nichtProtokollieren ? regel.name : undefined,
+        ersatz: ergebnis.ersatz ? { name: ergebnis.ersatz.name, nachgebildet: ergebnis.ersatz.nachgebildet } : undefined, dienst: regel && !regel.nichtProtokollieren ? regel.name : undefined,
       });
     }
     return ergebnis;
@@ -1302,17 +1302,19 @@ export async function richteStageEin(
 function verbindeProxy(
   stage: Stage, proxy: StageProxy, regelFuer: (url: string, typ: string, herkunft?: string) => Regel | undefined,
   modus: Modus, optionen: StageOptionen,
-  adblockerPruefen?: (url: string, typ: string, seite: string) => { filter: string } | undefined,
+  adblockerPruefen?: (url: string, typ: string, seite: string) => AdblockerErgebnis | undefined,
 ) {
   /** Filter des Adblockers je URL, für die Zuordnung zum Treffer in melde() */
   const vomAdblocker = new Map<string, string>();
   proxy.verbinde({
     entscheide(url, ziel, herkunft) {
-      // Hauptdokumente (sec-fetch-dest document) lässt ein Blocker durch; Ersatzskripte gibt es hier nicht
+      // Hauptdokumente (sec-fetch-dest document) lässt ein Blocker durch
       const blockiert = adblockerPruefen && ziel !== 'document' ? adblockerPruefen(url, ziel || 'other', herkunft ?? '') : undefined;
       if (blockiert) {
         vomAdblocker.set(url, blockiert.filter);
-        return { aktion: 'blockieren' };
+        return blockiert.ersatz
+          ? { aktion: 'blockieren', ersatz: { contentType: blockiert.ersatz.contentType, body: blockiert.ersatz.body } }
+          : { aktion: 'blockieren' };
       }
       const regel = regelFuer(url, ziel, herkunft);
       if (!regel) return undefined;
@@ -1520,6 +1522,13 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
           + `Durchgekommen: ${durch.length ? durch.join(', ') : 'kein Dienst'} (Details: adblocker.json)`,
       });
       for (const l of listen.filter((x) => x.warnung)) testInfo.annotations.push({ type: 'Achtung', description: `Filterliste ${l.name}: ${l.warnung}` });
+      const ohneNachbildung = [...new Set(blockiert.filter((b) => b.ersatz && !b.ersatz.nachgebildet).map((b) => b.ersatz!.name))];
+      if (ohneNachbildung.length) {
+        testInfo.annotations.push({
+          type: 'Achtung',
+          description: `Ersatzdatei des Adblockers nicht nachgebildet, Stage liefert eine leere Antwort: ${ohneNachbildung.join(', ')} (Details: adblocker.json)`,
+        });
+      }
     }
     if (stage.cookieProtokollAktiv) await ablegen('cookies.json', await stage.cookies().catch(() => []));
     // Durchgängigkeit: nur wenn der Test bis zum Ende lief (nicht bei CONVERSION=aus übersprungen)

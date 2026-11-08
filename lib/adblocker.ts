@@ -11,12 +11,14 @@
  * Die Listen kommen nie ins Repo (Lizenzen GPL bzw. CC BY-SA). Sie werden beim ersten Lauf geladen und
  * in listen/ zwischengespeichert (gitignored), einen Tag lang wiederverwendet und dann neu geladen.
  * Die Filter-Engine ist @ghostery/adblocker (MPL 2.0, optionale Abhängigkeit). Ausgewertet werden nur
- * Netzwerkregeln; kosmetische Regeln und Scriptlets wirken hier nicht.
+ * Netzwerkregeln; kosmetische Regeln und Scriptlets wirken hier nicht. Ersatzdateien (redirect=…) liefert
+ * lib/adblocker-ersatz.ts.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ersatzFuer, type Ersatz } from './adblocker-ersatz';
 
 export type AdblockerProfil = 'ublock' | 'streng';
 
@@ -46,8 +48,11 @@ export interface AdblockerTreffer {
   filter: string;
   /** Liste, aus der die Regel stammt. */
   liste?: string;
-  /** Regel mit redirect=…: Ein echter Blocker liefert ein Ersatzskript, die Stage nur eine leere Antwort. */
-  ersatz?: boolean;
+  /**
+   * Regel mit redirect=…: Statt zu blockieren liefert der Blocker eine Ersatzdatei. nachgebildet: false heißt,
+   * uBlock liefert dort eine Datei mit eigener Logik, die Stage nur eine leere Antwort (lib/adblocker-ersatz.ts).
+   */
+  ersatz?: { name: string; nachgebildet: boolean };
   /** Dienst laut Regeln der Stage, falls es ein Tracking-Request ist. */
   dienst?: string;
 }
@@ -55,8 +60,8 @@ export interface AdblockerTreffer {
 export interface AdblockerErgebnis {
   filter: string;
   liste?: string;
-  /** Leere Antwort statt Abbruch (Regel mit redirect=…). */
-  ersatz?: { body: string; contentType: string };
+  /** Ersatzdatei statt Abbruch (Regel mit redirect=…). */
+  ersatz?: Ersatz;
 }
 
 export interface AdblockerSetup {
@@ -258,9 +263,7 @@ export async function adblockerLaden(option: Adblocker): Promise<AdblockerSetup>
       if (!ergebnis.match) return undefined;
       const filter: string = ergebnis.filter?.rawLine ?? ergebnis.filter?.toString() ?? '(unbekannte Regel)';
       const liste = listeVon(filter);
-      return ergebnis.redirect
-        ? { filter, liste, ersatz: { body: ergebnis.redirect.body ?? '', contentType: ergebnis.redirect.contentType ?? 'text/plain' } }
-        : { filter, liste };
+      return ergebnis.redirect ? { filter, liste, ersatz: ersatzFuer(filter) } : { filter, liste };
     },
   };
 }

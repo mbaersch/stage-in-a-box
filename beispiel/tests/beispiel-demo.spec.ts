@@ -103,6 +103,31 @@ test.describe('Variante: Adblocker mit Filterregeln', () => {
   });
 });
 
+test.describe('Variante: Adblocker mit Ersatzskript für GTM', () => {
+  // uBlock blockiert gtm.js nicht, sondern liefert ein Ersatzskript: eventCallback und Anti-Flicker laufen weiter.
+  test.use({ stageOptionen: { adblocker: { regeln: ['||googletagmanager.com/gtm.js$script,redirect=googletagmanager_gtm.js'] } } });
+
+  test('eventCallback läuft, obwohl GTM fehlt', async ({ page, stage }) => {
+    await page.goto('/');
+    const ablauf = await page.evaluate(async () => {
+      const w = window as any;
+      const ereignisse: string[] = [];
+      w.dataLayer.hide = { end: () => ereignisse.push('Seite freigegeben') };
+      await new Promise((fertig) => {
+        const s = document.createElement('script');
+        s.src = 'https://www.googletagmanager.com/gtm.js?id=GTM-DEMO';
+        s.onload = fertig;
+        document.head.append(s);
+      });
+      await new Promise((fertig) => w.dataLayer.push({ event: 'formular_gesendet', eventCallback: () => { ereignisse.push('weiter'); fertig(null); } }));
+      return ereignisse;
+    });
+    expect(ablauf).toEqual(['Seite freigegeben', 'weiter']);
+    expect(stage.adblocker?.blockiert[0].ersatz).toEqual({ name: 'google-analytics_analytics.js', nachgebildet: true });
+    await stage.dataLayer.erwarteEvent('formular_gesendet');
+  });
+});
+
 test.describe('Variante: geplante CSP ohne Freigabe für Tracking-Endpunkte', () => {
   test.use({ stageOptionen: { csp: "default-src 'self'; connect-src 'none'" } });
 
