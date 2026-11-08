@@ -69,6 +69,8 @@ Damit das, was ein Projekt lehrt, beim nächsten zur Verfügung steht:
 | Ablauf oder Vorgehen bei einer Aufgabe | `docs/anleitung/` |
 | Fehler oder fehlende Fähigkeit in Code | `lib/`, `werkzeuge/` |
 
+Dienst-Wissen (Endpunkte, Request-Formate, Klick-IDs) teilt sich die Stage mit drei Schwesterprojekten. Wie sie abgeglichen werden und welches Projekt wofür Quelle ist: [`abgleich/README.md` im tracking-auditor](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md). Nach Änderungen an `STANDARD_DIENSTE` oder `lib/dienstprofile.ts` dort `npm run abgleich` mit dem Pfad zu dieser Stage laufen lassen bzw. vorschlagen.
+
 Änderungen außerhalb von `projects/` schlägst Du dem Menschen vor – allgemein formuliert, ohne Projektdaten (keine Domains, Konto-IDs, Selektoren, Testdaten).
 
 ## Umgang mit `.env` und Testdaten

@@ -1,6 +1,6 @@
 # Wissen: Besonderheiten einzelner Dienste
 
-Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flüchtige Parameter sowie Timing- und Begleit-Requests in `lib/baseline.ts`. Hier steht, was man über einen Dienst wissen muss, um Tests und Befunde richtig einzuordnen.
+Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flüchtige Parameter sowie Timing- und Begleit-Requests in `lib/baseline.ts`. Hier steht, was man über einen Dienst wissen muss, um Tests und Befunde richtig einzuordnen. Abgleich mit den Schwesterprojekten (Auditor, Extensions): [`abgleich/README.md`](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md) im tracking-auditor.
 
 ## GA4
 

@@ -296,7 +296,7 @@ export const STANDARD_DIENSTE: Regel[] = [
   // Diagnose und IPv6-Abgleich des Pixels: ohne Regel gingen sie im Modus "abfangen" echt raus
   { name: 'TikTok Begleit', muster: /analytics\.tiktok\.com\/api\/v\d\/monitor|tiktokw\.us\/ipv6\/enrich_ipv6/, nichtProtokollieren: true },
   { name: 'Pinterest', muster: /ct\.pinterest\.com\/(v3|user)/ },
-  { name: 'Reddit', muster: /alb\.reddit\.com\/rp([/?]|$)/ },
+  { name: 'Reddit', muster: /alb\.reddit\.com\/rp(\.gif)?([/?]|$)/ },
   { name: 'Snap', muster: /tr\d*\.snapchat\.com\/p([/?]|$)/ },
 ];
 
