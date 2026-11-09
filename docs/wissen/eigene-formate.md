@@ -12,6 +12,10 @@ Typisches Muster: Script- und Tracking-Requests gehen an eine eigene Subdomain m
 
 Script-Downloads und Tracking teilen sich dann dieselbe URL-Form: Eine Regel darauf fängt im Modus `abfangen` auch die Scripts ab. Deshalb dekodieren und nur passende Pfade (z. B. `/g/collect`) als Tracking werten. Dekodier-Logik gehört in den Test des jeweiligen Projekts, nicht nach `lib/`.
 
+Variante auf der Hauptdomain (Custom Loader v2, beobachtet 11/2026): Der Pfad ist ein Proxy-Pfad der Website (`CUSTOM_PROXY_PATH`, z. B. `/xyz`), der Server-Container liegt auf einer Subdomain. Das Skript am Anfang des Containers überschreibt `XMLHttpRequest.open`, `fetch`, `sendBeacon` und `Image.src` und schreibt Requests an den Server-Container um: im Modus `strict` nur die Pfade `/g/collect`, `/collect`, `/data` und `/anonymize/…`, zu `https://www.example.de/xyz/<präfix><kennung><suffix>?<param>=<Base64 von Pfad und Query>`. Daneben gibt es `…/xyz/fps/<Base64 von id=GTM-…&dn=…&sop=/xyz>/`, das Pfadschema des First-Party-Servings von Google (Tag Gateway). Erkennbar ist Stape an den Antwort-Headern (`x-stape-version`, `cache-status: stape`), am Request selbst nicht.
+
+Adblocker: Die Base64-Kodierung macht den Hit für die Filterlisten unsichtbar. Derselbe GA4-Hit als `/xyz/g/collect?v=2…` (reiner Pfad-Proxy wie beim Tag Gateway) wird von EasyPrivacy blockiert (`/collect?v=`), getunnelt kommt er bei `ublock` und `streng` durch, ebenso Loader und `fps`-Pfad.
+
 Für die GTM-Vorschau braucht ein solcher Loader `vorschauLoader` (siehe [`../anleitung/gtm-vorschau.md`](../anleitung/gtm-vorschau.md)).
 
 ## Eigene Pfade und Adblocker
