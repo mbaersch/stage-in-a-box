@@ -244,12 +244,12 @@ export class StageProxy {
     for await (const t of req) teile.push(t as Buffer);
     const body = Buffer.concat(teile);
     const ziel = String(req.headers['sec-fetch-dest'] ?? '');
-    // Nach einem Abbruch auf einer wiederverwendeten Verbindung sendet Chromium denselben Request sofort
-    // noch einmal. Diese Wiederholung ebenfalls abbrechen, aber nicht als eigenen Request zählen.
+    // Nach einem Abbruch sendet Chromium denselben Request sofort noch einmal, teils mehrfach (belegt: bis zu
+    // dreimal binnen 0,5 s). Wiederholungen ebenfalls abbrechen, aber nicht als eigene Requests zählen.
     const schluessel = `${req.method} ${url} ${body.length}`;
     const blockiertUm = this.zuletztBlockiert.get(schluessel);
     if (blockiertUm && Date.now() - blockiertUm < 2000) {
-      this.zuletztBlockiert.delete(schluessel);
+      this.zuletztBlockiert.set(schluessel, Date.now());
       req.socket.destroy();
       return;
     }
