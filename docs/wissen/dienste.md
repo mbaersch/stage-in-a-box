@@ -47,6 +47,16 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 | Meta | `ev` (z. B. `Purchase`) | `cd[value]` | `cd[currency]` | – | `cd[content_ids]` |
 | Microsoft Ads | Request mit `gv` | `gv` | `gc` | – | – |
 
+Ohne Profil, Felder an echten Requests belegt (11/2026); der Event-Name für einen Kauf ist bei TikTok und Reddit noch nicht beobachtet, deshalb noch kein Profil:
+
+| Dienst | Event | Wert | Währung | Transaktion | Artikel |
+|---|---|---|---|---|---|
+| TikTok | `event` im JSON-Body | `properties.value` | `properties.currency` | `properties.order_id` | `properties.contents[].content_id` |
+| Reddit | `event` | `m.valueDecimal` (`m.value` leer) | `m.currency` | `m.transactionId`, `m.orderId` (beide leer beobachtet) | `m.products` |
+| OpenAI Ads | `type` je Element von `events`, Kauf: `order_created` | `data.amount` **in Cent** (99,95 € = `9995`) | `data.currency` | – | `data.contents[].id` |
+
+Microsoft Ads trägt im Request keinen Event-Namen, der zum dataLayer passt (`ea`/`el` frei im Tag wählbar). Die Durchgängigkeit ordnet deshalb jeden Request mit `gv` im Zeitfenster einem Push zu, auch eine Lead-Conversion, die nach dem Kauf feuert. Abhilfe wie bei Google Ads: nur beim passenden Event prüfen oder `ausnahmen`.
+
 ### Event-ID zur Deduplizierung
 
 Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Prüfung `deduplizierung` sucht jede ID aus einem Pixel-Request in den Requests an den Server-Container und meldet IDs, die ein Pixel mehrfach verwendet (Profil `deduplizierung`: Feld der ID, Feld des Event-Namens für den Bericht, Feld der Pixel-ID). Am Server-Container ist das Feld nicht genormt; üblich sind `ep.event_id` oder je Plattform `ep.fb_event_id` u. Ä.
