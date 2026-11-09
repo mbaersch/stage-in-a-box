@@ -65,10 +65,14 @@ export interface ConversionProfil {
 export interface DeduplizierungsProfil {
   /** Feld mit der Event-ID im Pixel-Request */
   id: Feld;
-  /** Feld mit dem Event-Namen, nur für den Bericht */
+  /** Feld mit dem Event-Namen. Requests ohne Event-Namen (Sync, Telemetrie, Interaktionen) zählen nicht als Event. */
   ereignis?: Feld;
   /** Feld mit der Pixel- bzw. Konto-ID: Mehrere Pixel einer Seite dürfen dieselbe Event-ID tragen */
   konto?: Feld;
+  /** Technische Events des Pixels, die nie über die Conversions API gehen (z. B. Laden des Pixels) */
+  ignorieren?: RegExp;
+  /** IDs, die das Pixel ohne Angabe der Seite selbst erzeugt: Die kennt der Server nicht, sie gelten als „ohne ID“. */
+  automatisch?: RegExp;
 }
 
 export interface DienstProfil {
@@ -124,8 +128,8 @@ export const DIENST_PROFILE: DienstProfil[] = [
       itemsNurHinweis: true,
       valueNurHinweis: true,
     },
-    // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API)
-    deduplizierung: { id: 'eid', ereignis: 'ev', konto: 'id' },
+    // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API) – SubscribedButtonClick sendet das Pixel selbst (automatische Events)
+    deduplizierung: { id: 'eid', ereignis: 'ev', konto: 'id', ignorieren: /^SubscribedButtonClick$/ },
   },
   {
     name: 'Microsoft Ads',
@@ -139,17 +143,18 @@ export const DIENST_PROFILE: DienstProfil[] = [
   {
     name: 'Reddit',
     klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
-    // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID
+    // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID. Im Request steht die
+    // conversionId als SHA-256 (belegt 11/2026); der Abgleich mit dem Server vergleicht deshalb auch Hashes.
     deduplizierung: { id: ['m.conversionId', 'm.transactionId'], ereignis: 'event', konto: 'id' },
   },
-  // cdid = client_deduplication_id
-  { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev', konto: 'pid' } },
+  // cdid = client_deduplication_id; ohne Angabe der Seite erzeugt das Pixel eine eigene mit „@-“ davor (belegt 11/2026)
+  { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev', konto: 'pid', automatisch: /^@-/ } },
   // Wert steckt im JSON-String pd, den jeder Request hat: kein request-Feld, nur Suche nach dem Wert
   {
     name: 'Pinterest',
     klickId: { epik: { speicher: ['_epik'] } },
     // Event-ID im JSON-Parameter ed
-    deduplizierung: { id: 'ed.event_id', ereignis: 'event', konto: 'tid' },
+    deduplizierung: { id: 'ed.event_id', ereignis: 'event', konto: 'tid', ignorieren: /^init$/i },
   },
   { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
   // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
@@ -157,7 +162,8 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'TikTok',
     klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } },
     // event_id im JSON-Body; ohne Angabe der Seite leer
-    deduplizierung: { id: 'event_id', ereignis: 'event', konto: ['context.pixel.code', 'context.pixel.codes'] },
+    // EnrichAM: Nachreichen von Advanced Matching, kein eigenes Event
+    deduplizierung: { id: 'event_id', ereignis: 'event', konto: ['context.pixel.code', 'context.pixel.codes'], ignorieren: /^EnrichAM$/i },
   },
 ];
 

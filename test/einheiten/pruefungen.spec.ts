@@ -1,5 +1,6 @@
 /** Durchgängigkeit, Artikel über die Journey, Cookie-Helfer (lib/pruefungen.ts). */
 import { test, expect } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import {
   cookieMuster, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDeduplizierung, pruefeDurchgaengigkeit, pruefeGa4Grenzen,
 } from '../../lib/pruefungen';
@@ -168,6 +169,29 @@ test.describe('Event-ID zur Deduplizierung', () => {
     const eigen = { zeit: 0, dienst: 'Eigener sGTM', host: 'data.shop.de', pfad: '/e', parameter: { id: 'E-9' } };
     expect(rot(pruefeDeduplizierung([eigen, meta('Purchase', 'E-9')], undefined, ['Eigener sGTM']))).toEqual([]);
     expect(rot(pruefeDeduplizierung([sgtm('en=purchase'), meta('Purchase', 'E-9')], undefined, [], ['Meta']))).toEqual([]);
+  });
+
+  test('Requests ohne Event-Namen und technische Events zählen nicht', () => {
+    const tiktok = (event?: string) => ({ zeit: 0, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel/act', parameter: {},
+      body: JSON.stringify({ ...(event ? { event } : {}), event_id: '' }) });
+    const pin = { zeit: 0, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/', parameter: { event: 'init', tid: '1' } };
+    const sync = { zeit: 0, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/user/', parameter: { tid: '1' } };
+    const befunde = pruefeDeduplizierung([tiktok(), tiktok('EnrichAM'), tiktok('Pageview'), pin, sync]);
+    expect(art(befunde, 'pixel-ohne-id').map((b) => `${b.dienst} ${b.ereignis}`)).toEqual(['TikTok Pageview']);
+  });
+
+  test('Snap: vom Pixel erzeugte cdid gilt als ohne ID der Seite', () => {
+    const snap = (cdid: string) => ({ zeit: 0, dienst: 'Snap', host: 'tr.snapchat.com', pfad: '/p', parameter: { ev: 'PAGE_VIEW', pid: 'x', cdid } });
+    const befunde = pruefeDeduplizierung([sgtm('en=page_view'), snap('@-744c739c'), snap('@-fb1b6d94')]);
+    expect(rot(befunde)).toEqual([]);
+    expect(texte(art(befunde, 'pixel-ohne-id'))[0]).toMatch(/^2× ohne Event-ID der Seite \(2× vom Pixel selbst erzeugt/);
+  });
+
+  test('Reddit: conversionId als SHA-256 im Pixel, im Klartext am Server', () => {
+    const reddit = { zeit: 0, dienst: 'Reddit', host: 'alb.reddit.com', pfad: '/rp', parameter: {},
+      body: `id=a2_x&event=Purchase&m.conversionId=${createHash('sha256').update('ORDER-7').digest('hex')}` };
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=ORDER-7'), reddit]))).toEqual([]);
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=ORDER-8'), reddit]))).toHaveLength(1);
   });
 });
 

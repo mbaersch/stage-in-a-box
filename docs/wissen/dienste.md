@@ -53,14 +53,16 @@ Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe E
 
 | Dienst | Event-ID im Pixel-Request | Event-Name | Pixel-ID | Stand |
 |---|---|---|---|---|
-| Meta | `eid` (im `fbq`-Aufruf `eventID`) | `ev` | `id` | im Profil |
-| TikTok | `event_id` im JSON-Body, leer ohne Angabe der Seite | `event` | `context.pixel.code` | im Profil |
-| Pinterest | `event_id` im JSON-Parameter `ed` | `event` | `tid` | im Profil |
-| Reddit | `m.conversionId` (empfohlen), sonst `m.transactionId` | `event` | `id` | im Profil |
-| Snap | `cdid` (client_deduplication_id) | `ev` | `pid` | im Profil |
-| OpenAI Ads | `id` je Event im JSON-Body; ohne Angabe der Seite erzeugt das SDK eine UUID v4 | `type` je Event | `pid` | offen (mehrere Events pro Request) |
-| LinkedIn | `eventId` (dokumentiert für das Image-Pixel an `/collect`) | – | – | Insight Tag offen |
-| Microsoft Ads | `eventId` (UET und Conversions API, CAPI noch Beta) | – | – | Feld im UET-Request offen |
+| Meta | `eid` (im `fbq`-Aufruf `eventID`) | `ev`; `SubscribedButtonClick` (automatisches Event) zählt nicht | `id` | im Profil |
+| TikTok | `event_id` im JSON-Body, leer ohne Angabe der Seite | `event`; `EnrichAM` (Advanced Matching nachgereicht) zählt nicht | `context.pixel.code` | im Profil |
+| Pinterest | `event_id` im JSON-Parameter `ed` | `event`; `init` (Laden des Pixels) zählt nicht | `tid` | im Profil |
+| Reddit | `m.conversionId` (empfohlen), sonst `m.transactionId`; die `conversionId` steht als SHA-256 im Request, verglichen wird deshalb auch mit dem Hash der Werte am Server | `event` | `id` | im Profil, belegt 11/2026 |
+| Snap | `cdid` (client_deduplication_id); ohne Angabe der Seite erzeugt das Pixel eine eigene mit `@-` davor, die gilt als „ohne ID der Seite“ | `ev` | `pid` | im Profil, belegt 11/2026 |
+| OpenAI Ads | `events.N.id` je Event im JSON-Body; SDK-eigene Events (`openai::…`, `oai::…`) mit UUID v4, Events der Seite mit ihrer ID (beobachtet: `<ms>.<zufall>.<zähler>`) | `events.N.type` | `pid` | offen: mehrere Events pro Request, Profil kennt nur eine ID je Request |
+| LinkedIn | `eventId` (dokumentiert für Conversions an `/collect`) | – | `pid` | offen: Conversion-Request noch nicht beobachtet. `/wa/` (Website-Signale) sendet einen Body als gzip + Base64, den die Stage nicht liest; keine Event-ID darin |
+| Microsoft Ads | `eventId` (UET und Conversions API, CAPI noch Beta) | `evt` (`pageLoad`, `custom` …) | `ti` | offen: Request mit eigenem Event noch nicht beobachtet |
+
+Requests ohne Event-Namen (Sync, Telemetrie, automatisch erfasste Interaktionen wie TikTok `/pixel/act`, Snap-POSTs an `/p`, Pinterest `/user/`) zählen nicht als Event. Belegt sind die Angaben „11/2026“ an Requests einer WooCommerce-Testseite mit Pixeln aus dem GTM.
 
 Quelle für TikTok, Pinterest, Reddit, Snap und OpenAI: die Parser der [Tracking Auditor Extension](https://github.com/mbaersch/tracking-auditor-extension) (Kopie in `pii-lib/` des Tracking Auditors).
 

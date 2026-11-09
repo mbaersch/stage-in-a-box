@@ -11,6 +11,7 @@
  * docs/anleitung/varianten.md, „Prüfungen“.
  */
 import type { BrowserContext } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import { DIENST_PROFILE, feldWert, felder, type ConversionProfil, type DienstProfil, type Feld } from './dienstprofile';
 
 export interface Pruefungen {
@@ -335,32 +336,44 @@ export function pruefeDeduplizierung(
   }
 
   // Pixel-Requests mit ID und Event, je Dienst und Konto (mehrere Pixel einer Seite dürfen dieselbe ID tragen)
-  const pixel: { dienst: string; konto: string; ereignis: string; id?: string }[] = [];
+  const pixel: { dienst: string; konto: string; ereignis: string; id?: string; automatisch?: boolean }[] = [];
   for (const a of anfragen) {
     const d = dedup.get(a.dienst);
     if (!d || anServer(a)) continue;
     const f = felder(a.parameter, a.body);
-    pixel.push({ dienst: a.dienst, konto: feldWert(f, d.konto) ?? '', ereignis: feldWert(f, d.ereignis) ?? a.pfad, id: feldWert(f, d.id) });
+    const ereignis = feldWert(f, d.ereignis);
+    if (d.ereignis && !ereignis) continue;
+    if (ereignis && d.ignorieren?.test(ereignis)) continue;
+    const id = feldWert(f, d.id);
+    const automatisch = !!id && !!d.automatisch?.test(id);
+    pixel.push({ dienst: a.dienst, konto: feldWert(f, d.konto) ?? '', ereignis: ereignis ?? a.pfad, id: automatisch ? undefined : id, automatisch });
   }
+  // Manche Pixel senden die ID als SHA-256 (Reddit), der Server-Container bekommt sie im Klartext
+  const hashes = new Map<string, string>();
+  const sha256 = (w: string) => { if (!hashes.has(w)) hashes.set(w, createHash('sha256').update(w).digest('hex')); return hashes.get(w)!; };
+  const istHash = (id: string) => /^[0-9a-f]{64}$/.test(id);
+  const passt = (wert: string, id: string) => enthaeltToken(wert, id) || (istHash(id) && sha256(wert) === id);
 
   // Pixel → Server
-  const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number }>();
+  const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number; automatisch: number }>();
   for (const p of pixel) {
     if (!p.id) {
       const k = `${p.dienst}|${p.ereignis}`;
-      ohneId.set(k, { dienst: p.dienst, ereignis: p.ereignis, anzahl: (ohneId.get(k)?.anzahl ?? 0) + 1 });
+      const vorher = ohneId.get(k) ?? { dienst: p.dienst, ereignis: p.ereignis, anzahl: 0, automatisch: 0 };
+      ohneId.set(k, { ...vorher, anzahl: vorher.anzahl + 1, automatisch: vorher.automatisch + (p.automatisch ? 1 : 0) });
       continue;
     }
     if (!server.length) continue;
-    const wo = [...new Set(serverEvents.flatMap((e) => Object.entries(e.f).filter(([, w]) => enthaeltToken(w, p.id!)).map(([k]) => k)))];
+    const wo = [...new Set(serverEvents.flatMap((e) => Object.entries(e.f).filter(([, w]) => passt(w, p.id!)).map(([k]) => k)))];
     befunde.push(wo.length
       ? { stufe: 'info', ereignis: p.ereignis, dienst: p.dienst, text: `Event-ID ${p.id} auch im Request an den Server-Container (${wo.join(', ')})` }
       : { stufe: 'rot', ereignis: p.ereignis, dienst: p.dienst, text: `Event-ID ${p.id} in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen` });
   }
-  for (const { dienst, ereignis, anzahl } of ohneId.values()) {
+  for (const { dienst, ereignis, anzahl, automatisch } of ohneId.values()) {
     befunde.push({
       stufe: 'info', ereignis, dienst, art: 'pixel-ohne-id',
-      text: `${anzahl}× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)`,
+      text: `${anzahl}× ohne Event-ID${automatisch ? ` der Seite (${automatisch}× vom Pixel selbst erzeugt, die kennt der Server nicht)` : ''}`
+        + ' – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)',
     });
   }
 
@@ -388,7 +401,7 @@ export function pruefeDeduplizierung(
     const jeEvent = new Map<string, string[]>();
     for (const e of serverEvents) {
       const id = feldWert(e.f, feld);
-      if (!id || ids.has(id)) continue;
+      if (!id || ids.has(id) || ids.has(sha256(id))) continue;
       if (!jeEvent.has(e.ereignis)) jeEvent.set(e.ereignis, []);
       if (!jeEvent.get(e.ereignis)!.includes(id)) jeEvent.get(e.ereignis)!.push(id);
     }
