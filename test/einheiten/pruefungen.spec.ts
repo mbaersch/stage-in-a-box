@@ -45,12 +45,12 @@ test.describe('pruefeDurchgaengigkeit', () => {
     const p = kauf({ value: 5, transaction_id: '253' });
     const fremd = { zeit: 1100, dienst: 'Eigen', pfad: '/t', parameter: { dl: 'https://shop.de/order-received/253/', oid: '253' } };
     const text = pruefeDurchgaengigkeit([p], [fremd], 'purchase').map((b) => b.text).find((t) => t.startsWith('transaction_id'));
-    expect(text).toBe('transaction_id (253) gefunden in: oid – kein Profil, nicht geprüft');
+    expect(text).toBe('transaction_id (253) gefunden in: oid – nicht im Profil, nicht geprüft');
   });
 
   test('Push ohne Werte: Nachweis sagt, dass nichts verglichen wurde', () => {
     const befunde = pruefeDurchgaengigkeit([{ zeit: 1000, daten: { event: 'purchase' } }], [ga4('en=purchase')], 'purchase');
-    expect(befunde.map((b) => b.text)).toEqual(['verglichen: nichts – der Push enthält keine Werte, die das Profil des Dienstes kennt']);
+    expect(befunde.map((b) => b.text)).toEqual(['verglichen: nichts – Push und Profil des Dienstes haben keine gemeinsamen Werte']);
   });
 
   test('kein Request nach dem Push: Hinweis', () => {
@@ -132,6 +132,27 @@ test.describe('Event-ID zur Deduplizierung', () => {
     const ga4Google = { ...sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), host: 'region1.google-analytics.com' };
     const befunde = pruefeDurchgaengigkeit([push], [ga4Google, meta('E-9')], 'purchase');
     expect(texte(befunde).filter((t) => t.includes('event_id'))).toEqual([]);
+  });
+
+  test('TikTok: event_id im JSON-Body, Event-Name per Liste', () => {
+    const tiktok = { zeit: 1100, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
+      body: JSON.stringify({ event: 'PlaceAnOrder', event_id: 'E-9', context: { pixel: { code: 'CTEST' } } }) };
+    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1&ep.tt_event_id=E-9'), tiktok], 'purchase');
+    expect(texte(befunde)).toContain('event_id E-9 auch im Request an den Server-Container (ep.tt_event_id)');
+  });
+
+  test('Pinterest: event_id im JSON-Parameter ed, Groß- und Kleinschreibung egal', () => {
+    const pin = { zeit: 1100, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/',
+      parameter: { event: 'Checkout', tid: '1', ed: JSON.stringify({ event_id: 'P-1', value: 10 }) } };
+    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), pin], 'purchase');
+    expect(rot(befunde)).toEqual(['event_id P-1 fehlt im Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
+  });
+
+  test('Dienst mit Profil nur für die Event-ID: Werte werden weiter gesucht', () => {
+    const tiktok = { zeit: 1100, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
+      body: JSON.stringify({ event: 'CompletePayment', event_id: '', properties: { value: 10, order_id: 'T-1' } }) };
+    const befunde = pruefeDurchgaengigkeit([push], [tiktok], 'purchase');
+    expect(texte(befunde)).toContain('transaction_id (T-1) gefunden in: properties.order_id – nicht im Profil, nicht geprüft');
   });
 
   test('eigene Regel als Server-Container und Ausnahme', () => {

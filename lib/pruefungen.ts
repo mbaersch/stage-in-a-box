@@ -113,7 +113,10 @@ function items(f: Record<string, string>, def: NonNullable<ConversionProfil['ite
 function werteAusRequest(ereignis: string, a: Anfrage, f: Record<string, string>, c: ConversionProfil): Werte | undefined {
   if (c.pfad && !c.pfad.test(a.pfad)) return undefined;
   if (c.pflicht?.some((p) => f[p] === undefined)) return undefined;
-  if (c.ereignis && f[c.ereignis.parameter] !== (c.ereignis.werte?.[ereignis] ?? ereignis)) return undefined;
+  if (c.ereignis) {
+    const erwartet = [c.ereignis.werte?.[ereignis] ?? ereignis].flat().map((n) => n.toLowerCase());
+    if (!erwartet.includes(String(f[c.ereignis.parameter] ?? '').toLowerCase())) return undefined;
+  }
   return {
     value: zahl(feldWert(f, c.value)),
     currency: feldWert(f, c.currency),
@@ -248,7 +251,7 @@ export function pruefeDurchgaengigkeit(
     for (const [d, liste] of verglichen) {
       befunde.push({
         stufe: 'info', ereignis: ereignis + nr, dienst: d,
-        text: liste.size ? `verglichen: ${[...liste].join(', ')}` : 'verglichen: nichts – der Push enthält keine Werte, die das Profil des Dienstes kennt',
+        text: liste.size ? `verglichen: ${[...liste].join(', ')}` : 'verglichen: nichts – Push und Profil des Dienstes haben keine gemeinsamen Werte',
       });
     }
     // Dienste mit Profil, die nach dem Push gesendet, aber das Ereignis nicht erkennbar übertragen haben
@@ -263,13 +266,14 @@ export function pruefeDurchgaengigkeit(
         befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'nach dem Push gar kein Request dieses Dienstes' });
       }
     }
-    // Dienste ohne Profil: Werte suchen, nur Hinweise (Grundlage für ein neues Profil)
-    for (const d of new Set(danach.map((a) => a.dienst).filter((x) => !conversion.has(x)))) {
+    // Dienste ohne Profil für Wert und Transaktions-ID: Werte suchen, nur Hinweise (Grundlage für ein Profil)
+    const ohneWerte = (x: string) => !conversion.get(x)?.value && !conversion.get(x)?.transaction_id;
+    for (const d of new Set(danach.map((a) => a.dienst).filter(ohneWerte))) {
       for (const { feld, gefunden: wo } of suche(soll, danach.filter((a) => a.dienst === d))) {
         befunde.push({
           stufe: 'info', ereignis: ereignis + nr, dienst: d,
-          text: wo.length ? `${feld} (${feld === 'value' ? soll.value : soll.transaction_id}) gefunden in: ${wo.join(', ')} – kein Profil, nicht geprüft`
-            : `${feld} in keinem Request gefunden – kein Profil`,
+          text: wo.length ? `${feld} (${feld === 'value' ? soll.value : soll.transaction_id}) gefunden in: ${wo.join(', ')} – nicht im Profil, nicht geprüft`
+            : `${feld} in keinem Request gefunden – nicht im Profil`,
         });
       }
     }

@@ -35,8 +35,11 @@ export type KlickIdProfil = Record<string, KlickIdEintrag>;
 export type Feld = string | string[];
 
 export interface ConversionProfil {
-  /** Event-Name im Request: Parameter und ggf. Übersetzung vom dataLayer-Namen (purchase → Purchase) */
-  ereignis?: { parameter: string; werte?: Record<string, string> };
+  /**
+   * Event-Name im Request: Parameter und ggf. Übersetzung vom dataLayer-Namen (purchase → Purchase), auch
+   * mehrere Namen. Groß- und Kleinschreibung zählt nicht.
+   */
+  ereignis?: { parameter: string; werte?: Record<string, string | string[]> };
   /** Nur Requests, deren Pfad passt */
   pfad?: RegExp;
   /** Nur Requests, in denen diese Parameter vorkommen */
@@ -127,12 +130,34 @@ export const DIENST_PROFILE: DienstProfil[] = [
   // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
   { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'] } } },
   { name: 'LinkedIn', klickId: { li_fat_id: { speicher: ['li_fat_id'], request: ['li_fat_id'] } } },
-  { name: 'Reddit', klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } } },
+  {
+    name: 'Reddit',
+    klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
+    // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID
+    conversion: {
+      ereignis: { parameter: 'event', werte: { purchase: 'Purchase', add_to_cart: 'AddToCart', generate_lead: 'Lead', sign_up: 'SignUp' } },
+      event_id: ['m.conversionId', 'm.transactionId'],
+    },
+  },
+  { name: 'Snap', conversion: { ereignis: { parameter: 'ev', werte: { purchase: 'PURCHASE', add_to_cart: 'ADD_CART', sign_up: 'SIGN_UP' } }, event_id: 'cdid' } },
   // Wert steckt im JSON-String pd, den jeder Request hat: kein request-Feld, nur Suche nach dem Wert
-  { name: 'Pinterest', klickId: { epik: { speicher: ['_epik'] } } },
+  {
+    name: 'Pinterest',
+    klickId: { epik: { speicher: ['_epik'] } },
+    // Event im Parameter event (purchase heißt checkout), Event-ID im JSON-Parameter ed
+    conversion: { ereignis: { parameter: 'event', werte: { purchase: 'checkout', add_to_cart: 'addtocart', generate_lead: 'lead', sign_up: 'signup' } }, event_id: 'ed.event_id' },
+  },
   { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
   // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
-  { name: 'TikTok', klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } } },
+  {
+    name: 'TikTok',
+    klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } },
+    // event_id im JSON-Body; ohne Angabe der Seite leer
+    conversion: {
+      ereignis: { parameter: 'event', werte: { purchase: ['CompletePayment', 'PlaceAnOrder', 'Purchase'], add_to_cart: 'AddToCart', begin_checkout: 'InitiateCheckout', generate_lead: 'SubmitForm' } },
+      event_id: 'event_id',
+    },
+  },
 ];
 
 /**
@@ -173,8 +198,14 @@ function flach(obj: unknown, praefix = '', out: Record<string, string> = {}) {
 }
 
 /** Alle Felder eines Requests: URL-Parameter, Formular-Body oder JSON-Body (flach). */
-export function felder(parameter: Record<string, string>, body?: string): Record<string, string> {
-  if (!body) return { ...parameter };
+export function felder(roh: Record<string, string>, body?: string): Record<string, string> {
+  // Parameter mit JSON-Objekt als Wert (z. B. ed bei Pinterest) zusätzlich flach: ed.event_id
+  const parameter = { ...roh };
+  for (const [k, v] of Object.entries(roh)) {
+    if (!v?.startsWith('{')) continue;
+    try { Object.assign(parameter, flach(JSON.parse(v), k)); } catch { /* kein JSON */ }
+  }
+  if (!body) return parameter;
   const text = body.trim();
   if (text.startsWith('{') || text.startsWith('[')) {
     try {

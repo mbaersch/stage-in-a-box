@@ -98,7 +98,7 @@ test.use({ stageOptionen: { pruefungen: {
 - Nachweis: Je Dienst und Event steht in `durchgaengigkeit.json`, welche Felder tatsächlich verglichen wurden („verglichen: value, currency, transaction_id“). So ist sichtbar, was die Prüfung abdeckt; fehlende Felder sind oft eine bewusste Entscheidung im Setup und kein Fehler.
 - Conversions ohne Event-Namen im Request (Google Ads) ordnet die Prüfung jedem Push im Zeitfenster zu. Feuern sie auch bei frühen Events (z. B. Conversion-Manager mit `value: 0` bei `add_to_cart`), Google Ads nur beim `purchase` prüfen: `stage.pruefeDurchgaengigkeit('add_to_cart', ['Google Ads:value'])` für die übrigen Events.
 - **Artikel über die Journey** (läuft mit, sobald `durchgaengigkeit` an ist; dienst `dataLayer`, ereignis `Journey`): Rot, wenn ein Artikel (gleicher `item_name`) zwischen den Events die ID wechselt. Hinweis, wenn Felder wie `item_category` erst später im Kaufprozess dazukommen – üblich; ändert sich das, meldet es die Baseline (jede Abweichung in `ecommerce` ist dort rot).
-- **Dienste ohne Profil** (z. B. TikTok, eigene sGTM-Formate): Die Prüfung sucht Wert und Transaktions-ID in allen Feldern ihrer Requests, auch in JSON-Bodies, und meldet als Hinweis, wo sie stehen („gefunden in: properties.order_id“) oder dass sie fehlen. Daraus ein Profil fürs Projekt ableiten:
+- **Dienste ohne Profil für Wert und Transaktions-ID** (z. B. TikTok, Pinterest, eigene sGTM-Formate): Die Prüfung sucht Wert und Transaktions-ID in allen Feldern ihrer Requests, auch in JSON-Bodies, und meldet als Hinweis, wo sie stehen („gefunden in: properties.order_id“) oder dass sie fehlen. Daraus ein Profil fürs Projekt ableiten:
 
 ```ts
 test.use({ stageOptionen: {

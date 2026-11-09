@@ -28,6 +28,13 @@ test.describe('felder', () => {
     expect(f['cd[value]']).toBe('42.5');
   });
 
+  test('Parameter mit JSON-Objekt werden zusätzlich flach gemacht', () => {
+    const f = felder({ ed: JSON.stringify({ event_id: 'E-1', value: 5 }), tid: '1' });
+    expect(f['ed.event_id']).toBe('E-1');
+    expect(f.ed).toContain('event_id');
+    expect(f.tid).toBe('1');
+  });
+
   test('Text ohne Struktur bleibt außen vor', () => {
     expect(felder({ a: '1' }, 'nur text')).toEqual({ a: '1' });
   });
