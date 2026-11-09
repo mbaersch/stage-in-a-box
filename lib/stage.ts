@@ -1586,8 +1586,17 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (dedup && testInfo.status === 'passed') {
       await stage.warteAufRuhe();
       const o = dedup === true ? {} : dedup;
-      const befunde = pruefeDeduplizierung(stage.tracking.treffer, stage.dienstProfile, o.serverDienste, o.ausnahmen);
+      const befunde = pruefeDeduplizierung(stage.tracking.treffer, stage.dienstProfile, o.serverDienste, o.ausnahmen, o.serverIdFelder);
       await ablegen('deduplizierung.json', befunde);
+      // Pixel ohne ID und zugleich Server-IDs ohne Pixel: Der Server hätte eine ID, das Pixel sendet sie nicht
+      const liste = (art: string) => befunde.filter((b) => b.art === art).map((b) => `${b.dienst} ${b.ereignis}`);
+      if (liste('pixel-ohne-id').length && liste('server-ohne-pixel').length) {
+        testInfo.annotations.push({
+          type: 'Achtung',
+          description: `Deduplizierung: Pixel ohne Event-ID (${liste('pixel-ohne-id').join(', ')}), zugleich Event-IDs am Server-Container ohne Pixel `
+            + `(${liste('server-ohne-pixel').join(', ')}). Prüfen, ob die Pixel die ID des Servers mitsenden sollten (Details: deduplizierung.json)`,
+        });
+      }
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.dienst} ${b.ereignis}: ${b.text}`);
       expect(rot, 'Event-ID zur Deduplizierung (Details: deduplizierung.json)').toEqual([]);
     }

@@ -49,7 +49,7 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 
 ### Event-ID zur Deduplizierung
 
-Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Prüfung `deduplizierung` sucht jede ID aus einem Pixel-Request in den Requests an den Server-Container (Profil `deduplizierung`: Feld der ID, Feld des Event-Namens für den Bericht).
+Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Prüfung `deduplizierung` gleicht die IDs aus Pixel-Requests mit den IDs in den Requests an den Server-Container ab, in beide Richtungen (Profil `deduplizierung`: Feld der ID, Feld des Event-Namens für den Bericht). Am Server-Container ist das Feld nicht genormt; üblich sind `ep.event_id` oder je Plattform `ep.fb_event_id` u. Ä.
 
 | Dienst | Event-ID im Pixel-Request | Event-Name | Stand |
 |---|---|---|---|

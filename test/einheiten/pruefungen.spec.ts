@@ -136,6 +136,27 @@ test.describe('Event-ID zur Deduplizierung', () => {
     expect(befunde.find((b) => b.dienst === 'Pinterest')!.stufe).toBe('rot');
   });
 
+  test('Gegenrichtung: Server-IDs ohne Pixel je Event gesammelt, auch fb_event_id', () => {
+    const befunde = pruefeDeduplizierung([
+      sgtm('en=generate_lead&ep.fb_event_id=L-17\nen=scroll&ep.event_id=S-1\nen=scroll&ep.event_id=S-2'),
+      meta('Lead'),
+    ]);
+    expect(rot(befunde)).toEqual([]);
+    const gegen = befunde.filter((b) => b.art === 'server-ohne-pixel').map((b) => `${b.ereignis}: ${b.text}`);
+    expect(gegen).toEqual([
+      'generate_lead: 1× Event-ID in ep.fb_event_id ohne Pixel-Request mit dieser ID (L-17)',
+      'scroll: 2× Event-ID in ep.event_id ohne Pixel-Request mit dieser ID (S-1, S-2)',
+    ]);
+    expect(befunde.some((b) => b.art === 'pixel-ohne-id' && b.ereignis === 'Lead')).toBe(true);
+  });
+
+  test('Gegenrichtung: ID mit Pixel-Gegenstück wird nicht gemeldet, eigene Feldnamen', () => {
+    const befunde = pruefeDeduplizierung([sgtm('en=purchase&ep.dedup=E-9&ep.event_id=E-9'), meta('Purchase', 'E-9')], undefined, [], [], ['ep.dedup']);
+    expect(befunde.filter((b) => b.art === 'server-ohne-pixel')).toEqual([]);
+    const andere = pruefeDeduplizierung([sgtm('en=purchase&ep.dedup=X-1'), meta('Purchase', 'X-1')], undefined, [], [], ['ep.dedup']);
+    expect(andere.filter((b) => b.art === 'server-ohne-pixel')).toEqual([]);
+  });
+
   test('eigene Regel als Server-Container, Ausnahme je Dienst', () => {
     const eigen = { zeit: 0, dienst: 'Eigener sGTM', host: 'data.shop.de', pfad: '/e', parameter: { id: 'E-9' } };
     expect(rot(pruefeDeduplizierung([eigen, meta('Purchase', 'E-9')], undefined, ['Eigener sGTM']))).toEqual([]);
