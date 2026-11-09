@@ -4,7 +4,10 @@
  * Aufruf: sh build.sh && npm run test:recorder
  */
 import fs from 'node:fs';
-import { chromium } from '@playwright/test';
+import { createRequire } from 'node:module';
+
+// Playwright liegt global (NODE_PATH), ESM-Imports ignorieren NODE_PATH
+const { chromium } = createRequire(import.meta.url)('playwright');
 
 const lies = (datei) => fs.readFileSync(new URL(datei, import.meta.url), 'utf8');
 const PAGE = lies('./page.html');

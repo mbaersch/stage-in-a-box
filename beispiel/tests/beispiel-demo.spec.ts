@@ -14,7 +14,7 @@
  * Für eine echte Website (BASE_URL gesetzt) werden diese Tests übersprungen.
  */
 import { test, expect, type Stage } from '../../lib/stage';
-import type { Page } from '@playwright/test';
+import type { Page } from '../../lib/playwright';
 import fs from 'node:fs';
 
 test.skip(!!process.env.BASE_URL, 'Beispiel läuft nur gegen die Demo-Seite');

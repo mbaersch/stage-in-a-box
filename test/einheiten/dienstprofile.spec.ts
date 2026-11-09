@@ -1,5 +1,5 @@
 /** Felder aus Requests lesen und Dienstprofile zusammenführen (lib/dienstprofile.ts). */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../lib/playwright';
 import { DIENST_PROFILE, feldWert, felder, profileZusammenfuehren } from '../../lib/dienstprofile';
 
 test.describe('felder', () => {

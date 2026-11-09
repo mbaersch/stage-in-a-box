@@ -47,6 +47,7 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 ## Voraussetzungen
 
 - [Node.js](https://nodejs.org/) ab Version 20.12
+- [Playwright](https://playwright.dev/) 1.63 mit Chromium, **global** installiert; `NODE_PATH` muss auf das globale `node_modules` zeigen (Ausgabe von `npm root -g`)
 - Ein Coding-Agent, z. B. [Claude Code](https://claude.com/claude-code)
 - Für die GTM-Vorschau und für Aufzeichnungen: Zugriff auf den GTM-Container der Website (Preview reicht; ohne GTM siehe [Ohne GTM](#ohne-gtm))
 
@@ -55,8 +56,8 @@ Ist eine Journey einmal als Test angelegt, kannst Du sie unter beliebigen Beding
 Einmalig im Hauptordner des Repos:
 
 ```sh
+npm install -g playwright@1.63.0 && playwright install chromium   # einmalig, falls noch nicht global vorhanden
 npm install
-npx playwright install chromium
 npm run erweiterung -- kejbdjndbnbjgmefkgdddjlbokphdefk   # optional: Tag Assistant (Google)
 npm run erweiterung -- cngpoecoknpgfjfaafnekjoaeohaejpb   # optional: Tracking Auditor
 ```
@@ -280,7 +281,7 @@ Dafür bricht der Proxy HTTPS mit eigenen Zertifikaten auf, denen nur der Testbr
 Das Repo bringt in `beispiel/` eine kleine Demo-Seite mit Consent-Banner, Seitenwechsel, Conversion-Button und einem simulierten Server-Container mit. `npm test` ohne Projekt lässt die Beispieltests dagegen laufen:
 
 ```sh
-npm install && npx playwright install chromium && npm test
+npm install && npm test
 ```
 
 Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://atomkraftwerke24.de/), ein WooCommerce-Demoshop, in dem Bestellungen nicht ausgeführt werden.
@@ -352,7 +353,7 @@ npm run pruefen             # TypeScript-Prüfung, auch aller Projekte
 
 GitHub Actions führt dieselben Prüfungen bei jedem Push und Pull Request aus, die Beispieltests auch mit Proxy (`.github/workflows/tests.yml`). Ein eigener Job gleicht die Dienst-Erkennung mit den Schwesterprojekten ab ([`abgleich/README.md` im tracking-auditor](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md)); bei einer Änderung über mehrere Repos ist er rot, bis alle nachgezogen sind. Echte Websites und Zugangsdaten braucht das nicht. Neue reine Logik in `lib/` (Parser, Vergleiche, Regeln) bekommt Unit-Tests in `test/einheiten/`.
 
-Die Versionen sind über `package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
+Playwright ist global installiert und wird über `lib/playwright.ts` geladen (ESM-Imports ignorieren `NODE_PATH`); Tests und `lib/` importieren es von dort, nicht aus `playwright/test`. Die getestete Version steht in `.github/workflows/tests.yml`. Aktualisieren mit `npm install -g playwright@<version>` und `playwright install chromium`, dann die Beispieltests laufen lassen und die Version im Workflow nachziehen. Die übrigen Abhängigkeiten sind über `package-lock.json` festgelegt.
 
 Die `.gitignore` im Hauptverzeichnis lässt nur die bekannten Ordner und Dateien zu und schließt `projects/` ausdrücklich aus. So gelangen keine Aufzeichnungen oder Baselines aus eigenen Tests ins öffentliche Repo.
 

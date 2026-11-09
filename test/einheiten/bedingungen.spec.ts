@@ -1,5 +1,5 @@
 /** Landung, UTM-Prüfung und Browser-Kennung (lib/bedingungen.ts). */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../lib/playwright';
 import { hatClientHints, landungsParameter, passendeClientHints, userAgentAus, utmBefunde, USER_AGENTS } from '../../lib/bedingungen';
 
 test('landungsParameter: Testwerte für Klick-IDs, utm_-Präfix ergänzt', () => {

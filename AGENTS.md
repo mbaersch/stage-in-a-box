@@ -88,7 +88,7 @@ Dienst-Wissen (Endpunkte, Request-Formate, Klick-IDs) teilt sich die Stage mit d
 
 ## Ausführen
 
-Abhängigkeiten sind im Hauptordner einmal installiert (`npm install`, `npx playwright install chromium`); in Projektordnern nie `npm install` ausführen.
+Playwright und Chromium sind global installiert (`NODE_PATH`), die übrigen Abhängigkeiten im Hauptordner (`npm install`); in Projektordnern nie `npm install` ausführen. Playwright nie als lokale Abhängigkeit ergänzen. Werte (`test`, `expect`, `devices`) kommen aus `lib/playwright.ts` bzw. `lib/stage`; reine Typen dürfen per `import type { Page } from 'playwright/test'` kommen.
 
 ```sh
 npm run pruefen                                     # TypeScript-Prüfung, alle Projekte

@@ -31,7 +31,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect } from '@playwright/test';
+import { expect } from './playwright';
 import type { Modus, Stage, Treffer } from './stage';
 import type { Tempo } from './tempo';
 

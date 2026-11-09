@@ -90,7 +90,7 @@ Beide nutzen dieselbe `journey()`-Funktion. Vorbild für beides: `beispiel/tests
 ## Struktur
 
 - Eine Datei pro Journey in `projects/<name>/tests/`, z. B. `kauf.spec.ts`.
-- Immer `import { test, expect } from '../../../lib/stage';` – nie direkt aus `@playwright/test`, sonst fehlt die Stage.
+- Immer `import { test, expect } from '../../../lib/stage';` – nie direkt aus `playwright/test`, sonst fehlt die Stage (und Playwright ist global, ein Wert-Import scheitert). Typen gehen: `import type { Page } from 'playwright/test';`.
 - Journey als Funktion `journey(page, stage, …)` mit `test.step` pro Abschnitt (deutsche Namen).
 - Kein `waitForTimeout`. Warten über `expect(…)`, `toHaveURL`, `erwarteEvent`, `erwarteGa4`.
 - Projektspezifisches (Regeln, Dekodier-Logik, Helfer) bleibt im Projektordner, z. B. `tests/hilfen.ts`. Neue Dienste als `regeln` in den Tests ergänzen.

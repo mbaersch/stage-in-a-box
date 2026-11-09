@@ -3,7 +3,7 @@
  * stageOptionen für eine bestehende Journey eingeschaltet; hier jeweils eine kurze Journey dafür.
  */
 import { test, expect } from '../../lib/stage';
-import type { Page } from '@playwright/test';
+import type { Page } from '../../lib/playwright';
 
 async function zustimmen(page: Page) {
   await page.getByTestId('cmp-accept').click();

@@ -2,7 +2,7 @@
  * Consent gezielt setzen statt über den Banner klicken, für Varianten wie „nur Dienst X“, „nur Kategorie Y“
  * oder Widerruf. Je CMP ein Satz Funktionen; bisher Usercentrics (Browser-API v4).
  */
-import type { Page } from '@playwright/test';
+import type { Page } from './playwright';
 
 export interface UcDienst { id: string; name: string; kategorie: string; zugestimmt: boolean }
 

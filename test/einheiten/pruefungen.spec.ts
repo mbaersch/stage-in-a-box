@@ -1,5 +1,5 @@
 /** Durchgängigkeit, Artikel über die Journey, Cookie-Helfer (lib/pruefungen.ts). */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../lib/playwright';
 import { createHash } from 'node:crypto';
 import {
   cookieMuster, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDeduplizierung, pruefeDurchgaengigkeit, pruefeGa4Grenzen,

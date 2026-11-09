@@ -1,5 +1,5 @@
 /** Filter-Engine mit eigenen Regeln, Listenformate und Ersatzdateien (lib/adblocker.ts, lib/adblocker-ersatz.ts). Ohne Netz. */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../lib/playwright';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

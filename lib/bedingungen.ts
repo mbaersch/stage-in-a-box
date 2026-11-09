@@ -3,7 +3,7 @@
  * Landung über eine Anzeige (Klick-IDs), gedrosseltes Netz und CPU, Gerät und Browser-Kennung.
  * Eingeschaltet über stageOptionen, ausgewertet in lib/stage.ts. Anleitung: docs/anleitung/varianten.md.
  */
-import { devices, type BrowserContext, type Page } from '@playwright/test';
+import { devices, type BrowserContext, type Page } from './playwright';
 import { DIENST_PROFILE, felder, type DienstProfil } from './dienstprofile';
 
 /* ------------------------------------------------------------------ */

@@ -10,7 +10,7 @@
  * Ausgewertet am Testende bzw. im Baseline-Vergleich (lib/baseline.ts). Anleitung:
  * docs/anleitung/varianten.md, „Prüfungen“.
  */
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext } from './playwright';
 import { createHash } from 'node:crypto';
 import { DIENST_PROFILE, feldWert, felder, type ConversionProfil, type DienstProfil, type Feld } from './dienstprofile';
 

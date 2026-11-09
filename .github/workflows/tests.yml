@@ -22,8 +22,14 @@ jobs:
 
       - run: npm ci
 
+      # Wie lokal: Playwright global, geladen über lib/playwright.ts (NODE_PATH)
+      - name: Playwright global
+        run: |
+          npm install -g playwright@1.63.0
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+
       - name: Chromium für Playwright
-        run: npx playwright install --with-deps chromium
+        run: playwright install --with-deps chromium
 
       - name: TypeScript
         run: npm run pruefen

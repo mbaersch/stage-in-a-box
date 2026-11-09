@@ -26,7 +26,7 @@
  * Varianten pro describe-Block:
  *   test.use({ stageOptionen: { regeln: [{ name: 'Meta', muster: /facebook\.com\/tr/, modus: 'blockieren' }] } });
  */
-import { test as base, expect, type BrowserContext, type Page, type Route, type Request, type TestInfo } from '@playwright/test';
+import { test as base, expect, type BrowserContext, type Page, type Route, type Request, type TestInfo } from './playwright';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';

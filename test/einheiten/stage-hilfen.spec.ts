@@ -1,5 +1,5 @@
 /** Kleine Helfer der Stage und Baseline-Vergleich (lib/stage.ts, lib/baseline.ts). */
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../lib/playwright';
 import { mitParameter, vorschauParameter } from '../../lib/stage';
 import { vergleiche, type Baseline } from '../../lib/baseline';
 
