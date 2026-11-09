@@ -49,11 +49,6 @@ export interface ConversionProfil {
   currency?: Feld;
   transaction_id?: Feld;
   /**
-   * Event-ID zur Deduplizierung mit der Conversions API des Dienstes: Die Durchgängigkeit prüft, ob dieser
-   * Wert auch im Request an den Server-Container ankommt.
-   */
-  event_id?: Feld;
-  /**
    * Artikel-IDs: ga4 = pr1, pr2 … (id-Segment); json = JSON-Array (als String in einem Parameter oder im
    * Body), bei Objekten mit schluessel als ID-Feld; liste = kommagetrennt.
    */
@@ -66,10 +61,19 @@ export interface ConversionProfil {
   zeilenweise?: boolean;
 }
 
+/** Event-ID zur Deduplizierung mit der Conversions API (Prüfung deduplizierung) */
+export interface DeduplizierungsProfil {
+  /** Feld mit der Event-ID im Pixel-Request */
+  id: Feld;
+  /** Feld mit dem Event-Namen, nur für den Bericht */
+  ereignis?: Feld;
+}
+
 export interface DienstProfil {
   name: string;
   klickId?: KlickIdProfil;
   conversion?: ConversionProfil;
+  deduplizierung?: DeduplizierungsProfil;
 }
 
 /** Meta-Standard-Events zu GA4-Namen */
@@ -117,9 +121,9 @@ export const DIENST_PROFILE: DienstProfil[] = [
       items: { parameter: 'cd[content_ids]', format: 'json' },
       itemsNurHinweis: true,
       valueNurHinweis: true,
-      // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API)
-      event_id: 'eid',
     },
+    // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API)
+    deduplizierung: { id: 'eid', ereignis: 'ev' },
   },
   {
     name: 'Microsoft Ads',
@@ -134,18 +138,16 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'Reddit',
     klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
     // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID
-    conversion: {
-      ereignis: { parameter: 'event', werte: { purchase: 'Purchase', add_to_cart: 'AddToCart', generate_lead: 'Lead', sign_up: 'SignUp' } },
-      event_id: ['m.conversionId', 'm.transactionId'],
-    },
+    deduplizierung: { id: ['m.conversionId', 'm.transactionId'], ereignis: 'event' },
   },
-  { name: 'Snap', conversion: { ereignis: { parameter: 'ev', werte: { purchase: 'PURCHASE', add_to_cart: 'ADD_CART', sign_up: 'SIGN_UP' } }, event_id: 'cdid' } },
+  // cdid = client_deduplication_id
+  { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev' } },
   // Wert steckt im JSON-String pd, den jeder Request hat: kein request-Feld, nur Suche nach dem Wert
   {
     name: 'Pinterest',
     klickId: { epik: { speicher: ['_epik'] } },
-    // Event im Parameter event (purchase heißt checkout), Event-ID im JSON-Parameter ed
-    conversion: { ereignis: { parameter: 'event', werte: { purchase: 'checkout', add_to_cart: 'addtocart', generate_lead: 'lead', sign_up: 'signup' } }, event_id: 'ed.event_id' },
+    // Event-ID im JSON-Parameter ed
+    deduplizierung: { id: 'ed.event_id', ereignis: 'event' },
   },
   { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
   // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
@@ -153,10 +155,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'TikTok',
     klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } },
     // event_id im JSON-Body; ohne Angabe der Seite leer
-    conversion: {
-      ereignis: { parameter: 'event', werte: { purchase: ['CompletePayment', 'PlaceAnOrder', 'Purchase'], add_to_cart: 'AddToCart', begin_checkout: 'InitiateCheckout', generate_lead: 'SubmitForm' } },
-      event_id: 'event_id',
-    },
+    deduplizierung: { id: 'event_id', ereignis: 'event' },
   },
 ];
 
@@ -179,6 +178,7 @@ export function profileZusammenfuehren(eigene: DienstProfil[] = []): DienstProfi
       name: e.name,
       klickId,
       conversion: v.conversion || e.conversion ? { ...v.conversion, ...e.conversion } : undefined,
+      deduplizierung: e.deduplizierung ?? v.deduplizierung,
     });
   }
   return [...alle.values()];

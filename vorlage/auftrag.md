@@ -87,7 +87,8 @@
 
 <!-- Laufen im Test der Journey mit, keine eigenen Tests. Ankreuzen und ergänzen. -->
 
-- [ ] Durchgängigkeit der Conversion-Werte: <!-- welche Events (Vorgabe: purchase)? Bewusste Unterschiede, z. B. „Google Ads bekommt den Nettowert“. Läuft Meta & Co. zusätzlich über eine Conversions API (sGTM)? Dann wird auch die Event-ID zur Deduplizierung geprüft. -->
+- [ ] Durchgängigkeit der Conversion-Werte: <!-- welche Events (Vorgabe: purchase)? Bewusste Unterschiede, z. B. „Google Ads bekommt den Nettowert“. -->
+- [ ] Deduplizierung mit Conversions APIs: <!-- welche Dienste laufen zusätzlich über eine Conversions API (sGTM)? Geprüft wird, ob jede Event-ID eines Pixels auch beim Server-Container ankommt -->
 - [ ] GA4-Erfassungsgrenzen: <!-- Standard oder GA4 360? Prüft Namenslängen, Zahl der Parameter, Größe der Requests -->
 - [ ] UTM-Parameter kommen an: <!-- bei welchen Diensten muss der erste Request nach der Landung die UTMs tragen (z. B. GA4)? Welche UTMs? -->
 - [ ] Cookies: <!-- welche Cookies wann gesetzt werden, vor oder nach der Consent-Entscheidung; in der Baseline ist ein neues Cookie vor der Entscheidung rot -->

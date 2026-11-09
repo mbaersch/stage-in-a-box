@@ -1,7 +1,7 @@
 /** Durchgängigkeit, Artikel über die Journey, Cookie-Helfer (lib/pruefungen.ts). */
 import { test, expect } from '@playwright/test';
 import {
-  cookieMuster, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDurchgaengigkeit, pruefeGa4Grenzen,
+  cookieMuster, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDeduplizierung, pruefeDurchgaengigkeit, pruefeGa4Grenzen,
 } from '../../lib/pruefungen';
 
 const kauf = (ecommerce: Record<string, unknown>) => ({ zeit: 1000, daten: { event: 'purchase', ecommerce } });
@@ -78,10 +78,9 @@ test.describe('pruefeArtikelVerlauf', () => {
 });
 
 test('ereignisseAus', () => {
-  expect(ereignisseAus(true)).toEqual({ ereignisse: ['purchase'], ausnahmen: [], serverDienste: [] });
-  expect(ereignisseAus(['generate_lead'])).toEqual({ ereignisse: ['generate_lead'], ausnahmen: [], serverDienste: [] });
-  expect(ereignisseAus({ ausnahmen: ['Meta:items'], serverDienste: ['sGTM'] }))
-    .toEqual({ ereignisse: ['purchase'], ausnahmen: ['Meta:items'], serverDienste: ['sGTM'] });
+  expect(ereignisseAus(true)).toEqual({ ereignisse: ['purchase'], ausnahmen: [] });
+  expect(ereignisseAus(['generate_lead'])).toEqual({ ereignisse: ['generate_lead'], ausnahmen: [] });
+  expect(ereignisseAus({ ausnahmen: ['Meta:items'] })).toEqual({ ereignisse: ['purchase'], ausnahmen: ['Meta:items'] });
   expect(ereignisseAus(undefined).ereignisse).toEqual([]);
 });
 
@@ -98,67 +97,49 @@ test('istLoeschung', () => {
 });
 
 test.describe('Event-ID zur Deduplizierung', () => {
-  const push = kauf({ value: 10, currency: 'EUR', transaction_id: 'T-1' });
-  const meta = (eid?: string) => ({
-    zeit: 1100, dienst: 'Meta', host: 'www.facebook.com', pfad: '/tr/',
-    parameter: { ev: 'Purchase', 'cd[value]': '10', 'cd[currency]': 'EUR', ...(eid ? { eid } : {}) },
+  const sgtm = (body: string) => ({ zeit: 0, dienst: 'GA4', host: 'sgtm.shop.de', pfad: '/g/collect', parameter: { v: '2' }, body });
+  const meta = (ev: string, eid?: string) => ({
+    zeit: 0, dienst: 'Meta', host: 'www.facebook.com', pfad: '/tr/', parameter: { ev, ...(eid ? { eid } : {}) },
   });
-  const sgtm = (body: string) => ({ zeit: 1050, dienst: 'GA4', host: 'sgtm.shop.de', pfad: '/g/collect', parameter: { v: '2', cu: 'EUR' }, body });
   const texte = (befunde: { text: string }[]) => befunde.map((b) => b.text);
 
-  test('ID des Pixels kommt beim Server-Container an', () => {
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1&ep.event_id=E-9'), meta('E-9')], 'purchase');
-    expect(rot(befunde)).toEqual([]);
-    expect(texte(befunde)).toContain('event_id E-9 auch im Request an den Server-Container (ep.event_id)');
-  });
-
-  test('ID fehlt im Request an den Server-Container: rot', () => {
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1&ep.event_id=ANDERE'), meta('E-9')], 'purchase');
-    expect(rot(befunde)).toEqual(['event_id E-9 fehlt im Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
+  test('gilt für jedes Event, nicht nur Conversions', () => {
+    const befunde = pruefeDeduplizierung([
+      sgtm('en=page_view&ep.event_id=PV-1\nen=add_to_cart&ep.event_id=ATC-1'),
+      meta('PageView', 'PV-1'), meta('AddToCart', 'ATC-2'),
+    ]);
+    expect(rot(befunde)).toEqual(['Event-ID ATC-2 in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
+    expect(befunde.find((b) => b.ereignis === 'PageView')!.text).toBe('Event-ID PV-1 auch im Request an den Server-Container (ep.event_id)');
   });
 
   test('ID nur als Teil einer längeren ID zählt nicht', () => {
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1&ep.event_id=E-99'), meta('E-9')], 'purchase');
-    expect(rot(befunde)).toHaveLength(1);
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=E-99'), meta('Purchase', 'E-9')]))).toHaveLength(1);
   });
 
-  test('Pixel ohne ID: nur Hinweis', () => {
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), meta()], 'purchase');
+  test('ohne ID: Hinweis je Event mit Anzahl', () => {
+    const befunde = pruefeDeduplizierung([sgtm('en=page_view'), meta('PageView'), meta('PageView')]);
     expect(rot(befunde)).toEqual([]);
-    expect(texte(befunde)).toContain('Pixel ohne event_id – keine Deduplizierung mit der Conversions API möglich');
+    expect(texte(befunde)).toEqual(['2× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)']);
   });
 
   test('ohne Server-Container: nichts zu prüfen', () => {
-    const ga4Google = { ...sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), host: 'region1.google-analytics.com' };
-    const befunde = pruefeDurchgaengigkeit([push], [ga4Google, meta('E-9')], 'purchase');
-    expect(texte(befunde).filter((t) => t.includes('event_id'))).toEqual([]);
+    const google = { ...sgtm('en=page_view'), host: 'region1.google-analytics.com' };
+    expect(texte(pruefeDeduplizierung([google, meta('Purchase', 'E-9')]))).toEqual(['kein Request an einen Server-Container – nichts zu deduplizieren']);
   });
 
-  test('TikTok: event_id im JSON-Body, Event-Name per Liste', () => {
-    const tiktok = { zeit: 1100, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
-      body: JSON.stringify({ event: 'PlaceAnOrder', event_id: 'E-9', context: { pixel: { code: 'CTEST' } } }) };
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1&ep.tt_event_id=E-9'), tiktok], 'purchase');
-    expect(texte(befunde)).toContain('event_id E-9 auch im Request an den Server-Container (ep.tt_event_id)');
+  test('TikTok: event_id im JSON-Body, Pinterest: im JSON-Parameter ed', () => {
+    const tiktok = { zeit: 0, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
+      body: JSON.stringify({ event: 'CompletePayment', event_id: 'TT-1' }) };
+    const pin = { zeit: 0, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/', parameter: { event: 'checkout', ed: JSON.stringify({ event_id: 'P-1' }) } };
+    const befunde = pruefeDeduplizierung([sgtm('en=purchase&ep.tt_id=TT-1'), tiktok, pin]);
+    expect(befunde.find((b) => b.dienst === 'TikTok')!.text).toBe('Event-ID TT-1 auch im Request an den Server-Container (ep.tt_id)');
+    expect(befunde.find((b) => b.dienst === 'Pinterest')!.stufe).toBe('rot');
   });
 
-  test('Pinterest: event_id im JSON-Parameter ed, Groß- und Kleinschreibung egal', () => {
-    const pin = { zeit: 1100, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/',
-      parameter: { event: 'Checkout', tid: '1', ed: JSON.stringify({ event_id: 'P-1', value: 10 }) } };
-    const befunde = pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), pin], 'purchase');
-    expect(rot(befunde)).toEqual(['event_id P-1 fehlt im Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
-  });
-
-  test('Dienst mit Profil nur für die Event-ID: Werte werden weiter gesucht', () => {
-    const tiktok = { zeit: 1100, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
-      body: JSON.stringify({ event: 'CompletePayment', event_id: '', properties: { value: 10, order_id: 'T-1' } }) };
-    const befunde = pruefeDurchgaengigkeit([push], [tiktok], 'purchase');
-    expect(texte(befunde)).toContain('transaction_id (T-1) gefunden in: properties.order_id – nicht im Profil, nicht geprüft');
-  });
-
-  test('eigene Regel als Server-Container und Ausnahme', () => {
-    const eigen = { zeit: 1050, dienst: 'Eigener sGTM', host: 'data.shop.de', pfad: '/e', parameter: { id: 'E-9' } };
-    expect(rot(pruefeDurchgaengigkeit([push], [eigen, meta('E-9')], 'purchase', [], undefined, ['Eigener sGTM']))).toEqual([]);
-    expect(rot(pruefeDurchgaengigkeit([push], [sgtm('en=purchase&epn.value=10&ep.transaction_id=T-1'), meta('E-9')], 'purchase', ['Meta:event_id']))).toEqual([]);
+  test('eigene Regel als Server-Container, Ausnahme je Dienst', () => {
+    const eigen = { zeit: 0, dienst: 'Eigener sGTM', host: 'data.shop.de', pfad: '/e', parameter: { id: 'E-9' } };
+    expect(rot(pruefeDeduplizierung([eigen, meta('Purchase', 'E-9')], undefined, ['Eigener sGTM']))).toEqual([]);
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase'), meta('Purchase', 'E-9')], undefined, [], ['Meta']))).toEqual([]);
   });
 });
 

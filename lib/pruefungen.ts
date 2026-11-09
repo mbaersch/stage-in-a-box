@@ -18,14 +18,7 @@ export interface Pruefungen {
    * true = ['purchase']; oder Liste der Events; oder mit Ausnahmen der Form 'Dienst:feld'
    * (z. B. 'Google Ads:value', wenn Ads bewusst einen anderen Wert bekommt; 'Meta:items' bei anderem ID-Schema).
    */
-  durchgaengigkeit?: boolean | string[] | {
-    ereignisse?: string[]; ausnahmen?: string[];
-    /**
-     * Regeln, deren Requests an den Server-Container gehen (für die Prüfung der Event-ID zur Deduplizierung).
-     * GA4-Requests an eine eigene Domain gelten immer als solche.
-     */
-    serverDienste?: string[];
-  };
+  durchgaengigkeit?: boolean | string[] | { ereignisse?: string[]; ausnahmen?: string[] };
   /** Cookies mit Zeitpunkt, Herkunft, Domain und Laufzeit protokollieren (cookies.json, Baseline). */
   cookies?: boolean;
   /**
@@ -38,6 +31,13 @@ export interface Pruefungen {
    * Parameter und zu große Requests sind rot, überlange Werte ein Hinweis. '360' für Properties mit 360.
    */
   ga4Grenzen?: boolean | '360';
+  /**
+   * Event-ID zur Deduplizierung: Jede ID, die ein Pixel sendet, muss auch in einem Request an den
+   * Server-Container stehen (sonst kann der Server sie nicht an die Conversions API geben). Gilt für alle
+   * Requests der Dienste mit Profil, nicht nur für Conversions. serverDienste: weitere Regeln, deren Requests
+   * an den Server-Container gehen (GA4-Requests an eine eigene Domain gelten immer); ausnahmen: Dienstnamen.
+   */
+  deduplizierung?: boolean | { serverDienste?: string[]; ausnahmen?: string[] };
 }
 
 /* ------------------------------------------------------------------ */
@@ -49,7 +49,6 @@ interface Werte {
   currency?: string;
   transaction_id?: string;
   items?: string[];
-  event_id?: string;
 }
 
 export interface DurchgaengigkeitsBefund {
@@ -122,7 +121,6 @@ function werteAusRequest(ereignis: string, a: Anfrage, f: Record<string, string>
     currency: feldWert(f, c.currency),
     transaction_id: feldWert(f, c.transaction_id),
     items: c.items ? items(f, c.items) : undefined,
-    event_id: feldWert(f, c.event_id),
   };
 }
 
@@ -157,8 +155,6 @@ export function pruefeDurchgaengigkeit(
 ): DurchgaengigkeitsBefund[] {
   const befunde: DurchgaengigkeitsBefund[] = [];
   const conversion = new Map(profile.filter((p) => p.conversion).map((p) => [p.name, p.conversion!]));
-  const anServer = (a: Anfrage) => serverDienste.includes(a.dienst) || (a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
-  const serverImLauf = anfragen.some(anServer);
   pushes.forEach((push, i) => {
     const soll = werteAusPush(push.daten);
     const bis = pushes[i + 1]?.zeit ?? Infinity;
@@ -167,9 +163,6 @@ export function pruefeDurchgaengigkeit(
     const gefunden = new Set<string>();
     // Nachweis je Dienst: welche Felder tatsächlich verglichen wurden
     const verglichen = new Map<string, Set<string>>();
-    // Event-IDs zur Deduplizierung je Dienst; Dienste mit event_id im Profil, deren Request keine trug
-    const eventIds = new Map<string, Set<string>>();
-    const ohneEventId = new Set<string>();
     for (const a of danach) {
       const c = conversion.get(a.dienst);
       if (!c) continue;
@@ -183,14 +176,6 @@ export function pruefeDurchgaengigkeit(
         for (const feld of ['value', 'currency', 'transaction_id', 'items'] as const) {
           if (soll[feld] === undefined || !c[feld]) continue;
           verglichen.get(a.dienst)!.add(ausnahmen.includes(`${a.dienst}:${feld}`) ? `${feld} (Ausnahme)` : feld);
-        }
-        if (c.event_id && !anServer(a)) {
-          if (ist.event_id) {
-            if (!eventIds.has(a.dienst)) eventIds.set(a.dienst, new Set());
-            eventIds.get(a.dienst)!.add(ist.event_id);
-          } else {
-            ohneEventId.add(a.dienst);
-          }
         }
         const melde = (feld: keyof Werte, stufe: 'rot' | 'info', text: string) => {
           if (ausnahmen.includes(`${a.dienst}:${feld}`)) return;
@@ -216,36 +201,6 @@ export function pruefeDurchgaengigkeit(
             melde('items', stufe, `Artikel ${ist.items.join(', ')} statt ${soll.items.join(', ')}`);
           }
         }
-      }
-    }
-    // Deduplizierung: Die Event-ID eines Pixels muss im Request an den Server-Container ankommen, sonst kann
-    // der Server sie nicht an die Conversions API weitergeben. Ohne Server-Container gibt es nichts zu prüfen.
-    const server = danach.filter(anServer);
-    if (serverImLauf) {
-      for (const [d, ids] of eventIds) {
-        if (ausnahmen.includes(`${d}:event_id`)) continue;
-        for (const id of ids) {
-          verglichen.get(d)?.add('event_id');
-          const wo = new Set<string>();
-          for (const s of server) {
-            const zeilen = s.body ? s.body.split(/\r?\n/).filter(Boolean) : [undefined];
-            for (const zeile of zeilen) for (const [k, w] of Object.entries(felder(s.parameter, zeile))) if (enthaeltToken(w, id)) wo.add(k);
-          }
-          if (!server.length) {
-            befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: `event_id ${id}: nach dem Push kein Request an den Server-Container` });
-          } else if (wo.size) {
-            befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: `event_id ${id} auch im Request an den Server-Container (${[...wo].join(', ')})` });
-          } else {
-            befunde.push({
-              stufe: 'rot', ereignis: ereignis + nr, dienst: d,
-              text: `event_id ${id} fehlt im Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen`,
-            });
-          }
-        }
-      }
-      for (const d of ohneEventId) {
-        if (eventIds.has(d) || ausnahmen.includes(`${d}:event_id`)) continue;
-        befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'Pixel ohne event_id – keine Deduplizierung mit der Conversions API möglich' });
       }
     }
     for (const [d, liste] of verglichen) {
@@ -340,11 +295,59 @@ export function pruefeArtikelVerlauf(pushes: Push[]): DurchgaengigkeitsBefund[] 
   return befunde;
 }
 
-export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereignisse: string[]; ausnahmen: string[]; serverDienste: string[] } {
-  if (!option) return { ereignisse: [], ausnahmen: [], serverDienste: [] };
-  if (option === true) return { ereignisse: ['purchase'], ausnahmen: [], serverDienste: [] };
-  if (Array.isArray(option)) return { ereignisse: option, ausnahmen: [], serverDienste: [] };
-  return { ereignisse: option.ereignisse ?? ['purchase'], ausnahmen: option.ausnahmen ?? [], serverDienste: option.serverDienste ?? [] };
+export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereignisse: string[]; ausnahmen: string[] } {
+  if (!option) return { ereignisse: [], ausnahmen: [] };
+  if (option === true) return { ereignisse: ['purchase'], ausnahmen: [] };
+  if (Array.isArray(option)) return { ereignisse: option, ausnahmen: [] };
+  return { ereignisse: option.ereignisse ?? ['purchase'], ausnahmen: option.ausnahmen ?? [] };
+}
+
+/* ------------------------------------------------------------------ */
+/* Event-ID zur Deduplizierung                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Prüft jeden Request eines Dienstes mit Profil für die Deduplizierung: Steht seine Event-ID auch in einem
+ * Request an den Server-Container? Eine ID ist eindeutig, deshalb zählt der ganze Lauf, nicht ein Zeitfenster.
+ * Ohne Server-Container im Lauf gibt es nichts zu deduplizieren.
+ */
+export function pruefeDeduplizierung(
+  anfragen: Anfrage[], profile: DienstProfil[] = DIENST_PROFILE, serverDienste: string[] = [], ausnahmen: string[] = [],
+): DurchgaengigkeitsBefund[] {
+  const anServer = (a: Anfrage) => serverDienste.includes(a.dienst) || (a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
+  const server = anfragen.filter(anServer);
+  if (!server.length) {
+    return [{ stufe: 'info', ereignis: '–', dienst: '–', text: 'kein Request an einen Server-Container – nichts zu deduplizieren' }];
+  }
+  // Alle Felder der Server-Requests (GA4 bündelt Events zeilenweise im Body)
+  const serverFelder: [string, string][] = server.flatMap((s) => {
+    const zeilen = s.body ? s.body.split(/\r?\n/).filter(Boolean) : [undefined];
+    return zeilen.flatMap((z) => Object.entries(felder(s.parameter, z)));
+  });
+  const dedup = new Map(profile.filter((p) => p.deduplizierung && !ausnahmen.includes(p.name)).map((p) => [p.name, p.deduplizierung!]));
+  const befunde: DurchgaengigkeitsBefund[] = [];
+  const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number }>();
+  for (const a of anfragen) {
+    const d = dedup.get(a.dienst);
+    if (!d || anServer(a)) continue;
+    const f = felder(a.parameter, a.body);
+    const ereignis = feldWert(f, d.ereignis) ?? a.pfad;
+    const id = feldWert(f, d.id);
+    if (!id) {
+      const k = `${a.dienst}|${ereignis}`;
+      ohneId.set(k, { dienst: a.dienst, ereignis, anzahl: (ohneId.get(k)?.anzahl ?? 0) + 1 });
+      continue;
+    }
+    const wo = [...new Set(serverFelder.filter(([, w]) => enthaeltToken(w, id)).map(([k]) => k))];
+    befunde.push(wo.length
+      ? { stufe: 'info', ereignis, dienst: a.dienst, text: `Event-ID ${id} auch im Request an den Server-Container (${wo.join(', ')})` }
+      : { stufe: 'rot', ereignis, dienst: a.dienst, text: `Event-ID ${id} in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen` });
+  }
+  for (const { dienst, ereignis, anzahl } of ohneId.values()) {
+    befunde.push({ stufe: 'info', ereignis, dienst, text: `${anzahl}× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)` });
+  }
+  const gesehen = new Set<string>();
+  return befunde.filter((b) => { const k = JSON.stringify(b); if (gesehen.has(k)) return false; gesehen.add(k); return true; });
 }
 
 /* ------------------------------------------------------------------ */

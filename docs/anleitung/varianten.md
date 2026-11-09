@@ -83,7 +83,8 @@ Ebenfalls keine eigenen Tests: `stageOptionen.pruefungen` schaltet zusätzliche 
 
 ```ts
 test.use({ stageOptionen: { pruefungen: {
-  durchgaengigkeit: ['purchase'],   // oder true (= purchase), oder { ereignisse, ausnahmen: ['Google Ads:value'], serverDienste }
+  durchgaengigkeit: ['purchase'],   // oder true (= purchase), oder { ereignisse, ausnahmen: ['Google Ads:value'] }
+  deduplizierung: true,             // oder { serverDienste: ['Eigener sGTM'], ausnahmen: ['Snap'] }
   cookies: true,
   utm: ['GA4'],                     // braucht landung mit utm und stage.landen()
   ga4Grenzen: true,                 // oder '360'
@@ -94,7 +95,6 @@ test.use({ stageOptionen: { pruefungen: {
 
 - Rot (nur Dienste mit Profil): Währung oder Transaktions-ID weichen ab oder fehlen; Wert, außer das Profil sagt `valueNurHinweis` (Google Ads, Meta, Microsoft Ads: dort steht oft gewollt Netto, Marge o. Ä.; Änderungen fängt die Baseline); Artikel-IDs, außer das Profil sagt `itemsNurHinweis` (Werbedienste mit Feed-IDs).
 - Hinweis: Dienst mit Profil ohne passenden Request nach dem Push, oder ganz ohne Request nach dem Push (Test endete zu früh, Tag feuert nicht).
-- **Event-ID zur Deduplizierung:** Trägt der Pixel-Request eines Dienstes mit `event_id` im Profil eine ID (Meta: `eid`), muss sie in einem Request an den Server-Container nach dem Push ankommen, sonst kann der Server sie nicht an die Conversions API geben: rot. Als Server-Container gelten GA4-Requests an eine eigene Domain und Regeln aus `serverDienste`. Pixel ohne ID ist ein Hinweis (kann gewollt sein, z. B. ohne Conversions API), ohne Server-Container im Lauf wird nichts geprüft. Bewusst anders: Ausnahme `'Meta:event_id'`. Stand der Felder je Dienst: [`../wissen/dienste.md`](../wissen/dienste.md).
 - Nachweis: Je Dienst und Event steht in `durchgaengigkeit.json`, welche Felder tatsächlich verglichen wurden („verglichen: value, currency, transaction_id“). So ist sichtbar, was die Prüfung abdeckt; fehlende Felder sind oft eine bewusste Entscheidung im Setup und kein Fehler.
 - Conversions ohne Event-Namen im Request (Google Ads) ordnet die Prüfung jedem Push im Zeitfenster zu. Feuern sie auch bei frühen Events (z. B. Conversion-Manager mit `value: 0` bei `add_to_cart`), Google Ads nur beim `purchase` prüfen: `stage.pruefeDurchgaengigkeit('add_to_cart', ['Google Ads:value'])` für die übrigen Events.
 - **Artikel über die Journey** (läuft mit, sobald `durchgaengigkeit` an ist; dienst `dataLayer`, ereignis `Journey`): Rot, wenn ein Artikel (gleicher `item_name`) zwischen den Events die ID wechselt. Hinweis, wenn Felder wie `item_category` erst später im Kaufprozess dazukommen – üblich; ändert sich das, meldet es die Baseline (jede Abweichung in `ecommerce` ist dort rot).
@@ -126,6 +126,8 @@ dienstProfile: [
 Ein Identifier ohne Angaben (`wbraid: {}`) gehört zum Dienst, Ablage und Parameter sind aber unbekannt; dann zählt nur die Suche nach dem Wert. Bewährt sich ein Profil, als Vorschlag für `lib/dienstprofile.ts` und `docs/wissen/dienste.md` melden – nur mit belegten Fakten.
 - Bewusste Unterschiede (z. B. Ads bekommt den Nettowert) als `ausnahmen: ['Google Ads:value']` eintragen und im Bericht begründen.
 - Läuft nur, wenn der Test bis zum Ende kommt – mit `CONVERSION=aus` also nicht. Ergebnis in `durchgaengigkeit.json`; `stage.pruefeDurchgaengigkeit(event)` auch für eigene Aufrufe.
+
+**Event-ID zur Deduplizierung:** Schicken Pixel und Conversions API (über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Geprüft wird jeder Request der Dienste mit Profil im ganzen Lauf, nicht nur Conversions: Jede ID, die ein Pixel sendet, muss in irgendeinem Feld eines Requests an den Server-Container stehen, sonst kann der Server sie nicht an die Conversions API geben (rot). Als Server-Container gelten GA4-Requests an eine eigene Domain und Regeln aus `serverDienste`. Requests ohne ID sind ein Hinweis mit Anzahl je Event, denn ohne Conversions API für dieses Event ist das gewollt; ohne Server-Container im Lauf wird nichts geprüft. Ergebnis in `deduplizierung.json`. Felder je Dienst: [`../wissen/dienste.md`](../wissen/dienste.md).
 
 **GA4-Erfassungsgrenzen:** Prüft jedes GA4-Event in den Requests (auch gebündelte) gegen die Grenzen von Google, die GA4 ohne Fehlermeldung durchsetzt. Rot: Eventname über 40 Zeichen, mehr als 25 eigene Parameter (`ep.`/`epn.`; mit `'360'`: 100), Parametername über 40, Name einer User Property über 24 Zeichen, Request über 16 KB (GA4 verwirft dann alle Events darin). Hinweis: Werte über 100 Zeichen, `page_location` über 1.000, `page_title` über 300, `page_referrer` über 420 (360: je 500), Werte von User Properties über 36, Requests ab 80 % der 16 KB. Ergebnis in `ga4-grenzen.json`. Code: `GA4_GRENZEN` in `lib/pruefungen.ts`.
 
