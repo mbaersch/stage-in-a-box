@@ -11,7 +11,7 @@
  * docs/anleitung/varianten.md, „Prüfungen“.
  */
 import type { BrowserContext } from '@playwright/test';
-import { DIENST_PROFILE, feldWert, felder, type ConversionProfil, type DienstProfil } from './dienstprofile';
+import { DIENST_PROFILE, feldWert, felder, type ConversionProfil, type DienstProfil, type Feld } from './dienstprofile';
 
 export interface Pruefungen {
   /**
@@ -32,13 +32,12 @@ export interface Pruefungen {
    */
   ga4Grenzen?: boolean | '360';
   /**
-   * Event-ID zur Deduplizierung, in beide Richtungen und für alle Events: Jede ID, die ein Pixel sendet, muss
-   * auch in einem Request an den Server-Container stehen (sonst rot). Event-IDs in Requests an den
-   * Server-Container ohne Pixel mit derselben ID werden aufgelistet. serverDienste: weitere Regeln, deren
-   * Requests an den Server-Container gehen (GA4-Requests an eine eigene Domain gelten immer); ausnahmen:
-   * Dienstnamen; serverIdFelder: Felder mit Event-IDs im Server-Request zusätzlich zu …event_id/…eventId.
+   * Event-ID zur Deduplizierung für alle Events (siehe pruefeDeduplizierung). serverDienste: weitere Regeln,
+   * deren Requests an den Server-Container gehen (GA4-Requests an eine eigene Domain gelten immer);
+   * ausnahmen: Dienstnamen; serverIdFelder: Feld je Dienst, in dem der Server-Request dessen ID trägt,
+   * z. B. { Meta: 'ep.fb_event_id' } – dann werden auch IDs am Server ohne passendes Pixel gemeldet.
    */
-  deduplizierung?: boolean | { serverDienste?: string[]; ausnahmen?: string[]; serverIdFelder?: string[] };
+  deduplizierung?: boolean | { serverDienste?: string[]; ausnahmen?: string[]; serverIdFelder?: Record<string, string | string[]> };
 }
 
 /* ------------------------------------------------------------------ */
@@ -57,8 +56,8 @@ export interface DurchgaengigkeitsBefund {
   ereignis: string;
   dienst: string;
   text: string;
-  /** Nur Deduplizierung: Pixel-Requests ohne ID bzw. Server-IDs ohne Pixel (zusammen ein Warnzeichen) */
-  art?: 'pixel-ohne-id' | 'server-ohne-pixel';
+  /** Nur Deduplizierung: Art des Hinweises (für die Anmerkung „Achtung“) */
+  art?: 'pixel-ohne-id' | 'server-ohne-pixel' | 'id-mehrfach';
 }
 
 interface Push { zeit: number; daten: any }
@@ -310,48 +309,54 @@ export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereigni
 /* ------------------------------------------------------------------ */
 
 /**
- * Prüft jeden Request eines Dienstes mit Profil für die Deduplizierung: Steht seine Event-ID auch in einem
- * Request an den Server-Container? Eine ID ist eindeutig, deshalb zählt der ganze Lauf, nicht ein Zeitfenster.
- * Ohne Server-Container im Lauf gibt es nichts zu deduplizieren.
+ * Event-ID zur Deduplizierung, über alle Requests der Dienste mit Profil im ganzen Lauf (eine ID ist
+ * eindeutig, deshalb kein Zeitfenster und keine Zuordnung einzelner Requests, die das Batching verhindert):
+ * - rot: ID eines Pixels steht in keinem Request an den Server-Container
+ * - Hinweis: Pixel-Requests ohne ID, je Event mit Anzahl
+ * - Hinweis: dieselbe ID an mehreren Requests eines Pixels (verschiedene Events oder dasselbe mehrfach)
+ * - Hinweis, nur mit Zuordnung serverIdFelder (Dienst → Feld am Server): ID am Server, die kein Pixel
+ *   dieses Dienstes trägt
+ * Ohne Server-Container im Lauf entfällt der Abgleich mit dem Server; doppelte IDs werden trotzdem geprüft.
  */
 export function pruefeDeduplizierung(
   anfragen: Anfrage[], profile: DienstProfil[] = DIENST_PROFILE, serverDienste: string[] = [], ausnahmen: string[] = [],
-  serverIdFelder: string[] = [],
+  serverIdFelder: Record<string, Feld> = {},
 ): DurchgaengigkeitsBefund[] {
   const anServer = (a: Anfrage) => serverDienste.includes(a.dienst) || (a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
   const server = anfragen.filter(anServer);
-  if (!server.length) {
-    return [{ stufe: 'info', ereignis: '–', dienst: '–', text: 'kein Request an einen Server-Container – nichts zu deduplizieren' }];
-  }
-  // Alle Felder der Server-Requests (GA4 bündelt Events zeilenweise im Body)
-  const serverFelder: [string, string][] = server.flatMap((s) => {
+  // Felder der Server-Requests je Event (GA4 bündelt Events zeilenweise im Body)
+  const serverEvents = server.flatMap((s) => {
     const zeilen = s.body ? s.body.split(/\r?\n/).filter(Boolean) : [undefined];
-    return zeilen.flatMap((z) => Object.entries(felder(s.parameter, z)));
+    return zeilen.map((z) => { const f = felder(s.parameter, z); return { dienst: s.dienst, ereignis: f.en ?? s.pfad, f }; });
   });
   const dedup = new Map(profile.filter((p) => p.deduplizierung && !ausnahmen.includes(p.name)).map((p) => [p.name, p.deduplizierung!]));
   const befunde: DurchgaengigkeitsBefund[] = [];
-  const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number }>();
-  const pixelIds = new Set<string>();
-  for (const a of anfragen) {
-    const d = dedup.get(a.dienst);
-    const id = d && !anServer(a) ? feldWert(felder(a.parameter, a.body), d.id) : undefined;
-    if (id) pixelIds.add(id);
+  if (!server.length) {
+    befunde.push({ stufe: 'info', ereignis: '–', dienst: '–', text: 'kein Request an einen Server-Container – Abgleich mit dem Server entfällt' });
   }
+
+  // Pixel-Requests mit ID und Event, je Dienst und Konto (mehrere Pixel einer Seite dürfen dieselbe ID tragen)
+  const pixel: { dienst: string; konto: string; ereignis: string; id?: string }[] = [];
   for (const a of anfragen) {
     const d = dedup.get(a.dienst);
     if (!d || anServer(a)) continue;
     const f = felder(a.parameter, a.body);
-    const ereignis = feldWert(f, d.ereignis) ?? a.pfad;
-    const id = feldWert(f, d.id);
-    if (!id) {
-      const k = `${a.dienst}|${ereignis}`;
-      ohneId.set(k, { dienst: a.dienst, ereignis, anzahl: (ohneId.get(k)?.anzahl ?? 0) + 1 });
+    pixel.push({ dienst: a.dienst, konto: feldWert(f, d.konto) ?? '', ereignis: feldWert(f, d.ereignis) ?? a.pfad, id: feldWert(f, d.id) });
+  }
+
+  // Pixel → Server
+  const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number }>();
+  for (const p of pixel) {
+    if (!p.id) {
+      const k = `${p.dienst}|${p.ereignis}`;
+      ohneId.set(k, { dienst: p.dienst, ereignis: p.ereignis, anzahl: (ohneId.get(k)?.anzahl ?? 0) + 1 });
       continue;
     }
-    const wo = [...new Set(serverFelder.filter(([, w]) => enthaeltToken(w, id)).map(([k]) => k))];
+    if (!server.length) continue;
+    const wo = [...new Set(serverEvents.flatMap((e) => Object.entries(e.f).filter(([, w]) => enthaeltToken(w, p.id!)).map(([k]) => k)))];
     befunde.push(wo.length
-      ? { stufe: 'info', ereignis, dienst: a.dienst, text: `Event-ID ${id} auch im Request an den Server-Container (${wo.join(', ')})` }
-      : { stufe: 'rot', ereignis, dienst: a.dienst, text: `Event-ID ${id} in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen` });
+      ? { stufe: 'info', ereignis: p.ereignis, dienst: p.dienst, text: `Event-ID ${p.id} auch im Request an den Server-Container (${wo.join(', ')})` }
+      : { stufe: 'rot', ereignis: p.ereignis, dienst: p.dienst, text: `Event-ID ${p.id} in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen` });
   }
   for (const { dienst, ereignis, anzahl } of ohneId.values()) {
     befunde.push({
@@ -359,30 +364,42 @@ export function pruefeDeduplizierung(
       text: `${anzahl}× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)`,
     });
   }
-  // Gegenrichtung: Event-IDs in Server-Requests, zu denen kein Pixel-Request dieselbe ID trägt. Oft gewollt
-  // (ID global am Google-Tag, auch an Events ohne Pixel), deshalb je Event gesammelt und nur als Hinweis.
-  const istIdFeld = (k: string) => serverIdFelder.includes(k) || /(^|[._-])event[_-]?id$/i.test(k);
-  const serverOhnePixel = new Map<string, { dienst: string; ereignis: string; feld: string; ids: string[] }>();
-  for (const s of server) {
-    const zeilen = s.body ? s.body.split(/\r?\n/).filter(Boolean) : [undefined];
-    for (const z of zeilen) {
-      const f = felder(s.parameter, z);
-      const ereignis = f.en ?? f.event ?? f.event_name ?? s.pfad;
-      for (const [k, w] of Object.entries(f)) {
-        if (!w || !istIdFeld(k) || pixelIds.has(w)) continue;
-        const schluessel = `${s.dienst}|${ereignis}|${k}`;
-        if (!serverOhnePixel.has(schluessel)) serverOhnePixel.set(schluessel, { dienst: s.dienst, ereignis, feld: k, ids: [] });
-        const e = serverOhnePixel.get(schluessel)!;
-        if (!e.ids.includes(w)) e.ids.push(w);
-      }
-    }
+
+  // Dieselbe ID mehrfach bei einem Pixel: zählt beim Dienst nur einmal bzw. ist nicht je Event erzeugt
+  const jeId = new Map<string, { dienst: string; id: string; ereignisse: string[] }>();
+  for (const p of pixel.filter((x) => x.id)) {
+    const k = `${p.dienst}|${p.konto}|${p.id}`;
+    if (!jeId.has(k)) jeId.set(k, { dienst: p.dienst, id: p.id!, ereignisse: [] });
+    jeId.get(k)!.ereignisse.push(p.ereignis);
   }
-  for (const e of serverOhnePixel.values()) {
-    const beispiele = e.ids.slice(0, 3).join(', ') + (e.ids.length > 3 ? ' …' : '');
+  for (const { dienst, id, ereignisse } of jeId.values()) {
+    if (ereignisse.length < 2) continue;
+    const namen = [...new Set(ereignisse)];
     befunde.push({
-      stufe: 'info', ereignis: e.ereignis, dienst: e.dienst, art: 'server-ohne-pixel',
-      text: `${e.ids.length}× Event-ID in ${e.feld} ohne Pixel-Request mit dieser ID (${beispiele})`,
+      stufe: 'info', ereignis: namen.join(', '), dienst, art: 'id-mehrfach',
+      text: namen.length > 1
+        ? `Event-ID ${id} an verschiedenen Events (${namen.join(', ')}) – die ID wird nicht je Event erzeugt`
+        : `Event-ID ${id} ${ereignisse.length}× an ${namen[0]} – zählt beim Dienst nur einmal (doppelt gefeuert oder ID nicht je Event erzeugt)`,
     });
+  }
+
+  // Server → Pixel, nur mit Zuordnung: ID im Feld für diesen Dienst, die kein Pixel des Dienstes trägt
+  for (const [dienst, feld] of Object.entries(serverIdFelder)) {
+    const ids = new Set(pixel.filter((p) => p.dienst === dienst && p.id).map((p) => p.id!));
+    const jeEvent = new Map<string, string[]>();
+    for (const e of serverEvents) {
+      const id = feldWert(e.f, feld);
+      if (!id || ids.has(id)) continue;
+      if (!jeEvent.has(e.ereignis)) jeEvent.set(e.ereignis, []);
+      if (!jeEvent.get(e.ereignis)!.includes(id)) jeEvent.get(e.ereignis)!.push(id);
+    }
+    for (const [ereignis, liste] of jeEvent) {
+      const beispiele = liste.slice(0, 3).join(', ') + (liste.length > 3 ? ' …' : '');
+      befunde.push({
+        stufe: 'info', ereignis, dienst, art: 'server-ohne-pixel',
+        text: `${liste.length}× Event-ID für ${dienst} am Server-Container (${[feld].flat().join('/')}) ohne Pixel-Request mit dieser ID (${beispiele})`,
+      });
+    }
   }
   const gesehen = new Set<string>();
   return befunde.filter((b) => { const k = JSON.stringify(b); if (gesehen.has(k)) return false; gesehen.add(k); return true; });

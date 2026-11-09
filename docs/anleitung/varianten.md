@@ -84,7 +84,7 @@ Ebenfalls keine eigenen Tests: `stageOptionen.pruefungen` schaltet zusätzliche 
 ```ts
 test.use({ stageOptionen: { pruefungen: {
   durchgaengigkeit: ['purchase'],   // oder true (= purchase), oder { ereignisse, ausnahmen: ['Google Ads:value'] }
-  deduplizierung: true,             // oder { serverDienste: ['Eigener sGTM'], ausnahmen: ['Snap'] }
+  deduplizierung: true,             // oder { serverDienste, ausnahmen: ['Snap'], serverIdFelder: { Meta: 'ep.fb_event_id' } }
   cookies: true,
   utm: ['GA4'],                     // braucht landung mit utm und stage.landen()
   ga4Grenzen: true,                 // oder '360'
@@ -131,9 +131,9 @@ Ein Identifier ohne Angaben (`wbraid: {}`) gehört zum Dienst, Ablage und Parame
 
 - **Pixel → Server (rot):** Eine Event-ID aus einem Pixel-Request (Felder je Dienst: [`../wissen/dienste.md`](../wissen/dienste.md)) steht in keinem Feld eines Requests an den Server-Container. Der Server kann sie dann nicht an die Conversions API geben.
 - **Pixel ohne ID (Hinweis):** je Dienst und Event mit Anzahl. Gewollt, wenn das Event nicht auch über die Conversions API geht.
-- **Server → Pixel (Hinweis):** Event-IDs in Requests an den Server-Container (Felder `…event_id`/`…eventId`, z. B. `ep.event_id`, `ep.fb_event_id`; weitere über `serverIdFelder`), die kein Pixel-Request trägt, je Event gesammelt. Oft gewollt, etwa wenn die ID global am Google-Tag hängt und damit auch an `scroll`.
-- **Beides zusammen** (Pixel ohne ID und Server-IDs ohne Pixel): Anmerkung „Achtung“ mit beiden Listen. Der Server hätte eine ID, das Pixel sendet sie womöglich nicht mit.
-- Als Server-Container gelten GA4-Requests an eine eigene Domain und Regeln aus `serverDienste`; ohne Server-Container im Lauf wird nichts geprüft. Dienste ausnehmen: `ausnahmen: ['Snap']`. Ergebnis in `deduplizierung.json`.
+- **Dieselbe ID mehrfach (Hinweis, Anmerkung „Achtung“):** an verschiedenen Events eines Pixels (ID wird nicht je Event erzeugt, z. B. einmal pro Seite) oder mehrfach am selben Event (zählt beim Dienst nur einmal: doppelt gefeuert oder ID nicht je Event). Mehrere Pixel desselben Dienstes auf einer Seite dürfen dieselbe ID tragen (unterschieden nach Pixel-ID).
+- **Server → Pixel, nur mit Zuordnung (Hinweis):** Wo der Server-Request die ID für einen Dienst trägt, ist nicht genormt; IDs am Server ohne passendes Pixel sind ohne Zuordnung der Normalfall (globale ID am Google-Tag, Events nur über die Conversions API). Mit `serverIdFelder: { Meta: 'ep.fb_event_id' }` werden IDs in diesem Feld gemeldet, die kein Meta-Pixel trägt. Gibt es zugleich Meta-Pixel ohne ID, bekommt der Test die Anmerkung „Achtung“: Der Server hätte eine ID, das Pixel sendet sie womöglich nicht mit. Ein gemeinsames Feld für mehrere Dienste geht auch (`{ Meta: 'ep.event_id', TikTok: 'ep.event_id' }`), meldet dann aber auch Events, die es nur am Server gibt.
+- Als Server-Container gelten GA4-Requests an eine eigene Domain und Regeln aus `serverDienste`; ohne Server-Container im Lauf entfällt der Abgleich mit dem Server, doppelte IDs werden trotzdem geprüft. Dienste ausnehmen: `ausnahmen: ['Snap']`. Ergebnis in `deduplizierung.json`.
 
 **GA4-Erfassungsgrenzen:** Prüft jedes GA4-Event in den Requests (auch gebündelte) gegen die Grenzen von Google, die GA4 ohne Fehlermeldung durchsetzt. Rot: Eventname über 40 Zeichen, mehr als 25 eigene Parameter (`ep.`/`epn.`; mit `'360'`: 100), Parametername über 40, Name einer User Property über 24 Zeichen, Request über 16 KB (GA4 verwirft dann alle Events darin). Hinweis: Werte über 100 Zeichen, `page_location` über 1.000, `page_title` über 300, `page_referrer` über 420 (360: je 500), Werte von User Properties über 36, Requests ab 80 % der 16 KB. Ergebnis in `ga4-grenzen.json`. Code: `GA4_GRENZEN` in `lib/pruefungen.ts`.
 

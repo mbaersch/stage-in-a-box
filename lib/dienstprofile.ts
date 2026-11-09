@@ -67,6 +67,8 @@ export interface DeduplizierungsProfil {
   id: Feld;
   /** Feld mit dem Event-Namen, nur für den Bericht */
   ereignis?: Feld;
+  /** Feld mit der Pixel- bzw. Konto-ID: Mehrere Pixel einer Seite dürfen dieselbe Event-ID tragen */
+  konto?: Feld;
 }
 
 export interface DienstProfil {
@@ -123,7 +125,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
       valueNurHinweis: true,
     },
     // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API)
-    deduplizierung: { id: 'eid', ereignis: 'ev' },
+    deduplizierung: { id: 'eid', ereignis: 'ev', konto: 'id' },
   },
   {
     name: 'Microsoft Ads',
@@ -138,16 +140,16 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'Reddit',
     klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
     // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID
-    deduplizierung: { id: ['m.conversionId', 'm.transactionId'], ereignis: 'event' },
+    deduplizierung: { id: ['m.conversionId', 'm.transactionId'], ereignis: 'event', konto: 'id' },
   },
   // cdid = client_deduplication_id
-  { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev' } },
+  { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev', konto: 'pid' } },
   // Wert steckt im JSON-String pd, den jeder Request hat: kein request-Feld, nur Suche nach dem Wert
   {
     name: 'Pinterest',
     klickId: { epik: { speicher: ['_epik'] } },
     // Event-ID im JSON-Parameter ed
-    deduplizierung: { id: 'ed.event_id', ereignis: 'event' },
+    deduplizierung: { id: 'ed.event_id', ereignis: 'event', konto: 'tid' },
   },
   { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
   // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
@@ -155,7 +157,7 @@ export const DIENST_PROFILE: DienstProfil[] = [
     name: 'TikTok',
     klickId: { ttclid: { speicher: ['ttclid'], request: ['context.ad.callback'] } },
     // event_id im JSON-Body; ohne Angabe der Seite leer
-    deduplizierung: { id: 'event_id', ereignis: 'event' },
+    deduplizierung: { id: 'event_id', ereignis: 'event', konto: ['context.pixel.code', 'context.pixel.codes'] },
   },
 ];
 

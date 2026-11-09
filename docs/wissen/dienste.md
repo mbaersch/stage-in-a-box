@@ -49,18 +49,18 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 
 ### Event-ID zur Deduplizierung
 
-Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Prüfung `deduplizierung` gleicht die IDs aus Pixel-Requests mit den IDs in den Requests an den Server-Container ab, in beide Richtungen (Profil `deduplizierung`: Feld der ID, Feld des Event-Namens für den Bericht). Am Server-Container ist das Feld nicht genormt; üblich sind `ep.event_id` oder je Plattform `ep.fb_event_id` u. Ä.
+Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Prüfung `deduplizierung` sucht jede ID aus einem Pixel-Request in den Requests an den Server-Container und meldet IDs, die ein Pixel mehrfach verwendet (Profil `deduplizierung`: Feld der ID, Feld des Event-Namens für den Bericht, Feld der Pixel-ID). Am Server-Container ist das Feld nicht genormt; üblich sind `ep.event_id` oder je Plattform `ep.fb_event_id` u. Ä.
 
-| Dienst | Event-ID im Pixel-Request | Event-Name | Stand |
-|---|---|---|---|
-| Meta | `eid` (im `fbq`-Aufruf `eventID`) | `ev` | im Profil |
-| TikTok | `event_id` im JSON-Body, leer ohne Angabe der Seite | `event` | im Profil |
-| Pinterest | `event_id` im JSON-Parameter `ed` | `event` | im Profil |
-| Reddit | `m.conversionId` (empfohlen), sonst `m.transactionId` | `event` | im Profil |
-| Snap | `cdid` (client_deduplication_id) | `ev` | im Profil |
-| OpenAI Ads | `id` je Event im JSON-Body; ohne Angabe der Seite erzeugt das SDK eine UUID v4 | `type` je Event | offen (mehrere Events pro Request) |
-| LinkedIn | `eventId` (dokumentiert für das Image-Pixel an `/collect`) | – | Insight Tag offen |
-| Microsoft Ads | `eventId` (UET und Conversions API, CAPI noch Beta) | – | Feld im UET-Request offen |
+| Dienst | Event-ID im Pixel-Request | Event-Name | Pixel-ID | Stand |
+|---|---|---|---|---|
+| Meta | `eid` (im `fbq`-Aufruf `eventID`) | `ev` | `id` | im Profil |
+| TikTok | `event_id` im JSON-Body, leer ohne Angabe der Seite | `event` | `context.pixel.code` | im Profil |
+| Pinterest | `event_id` im JSON-Parameter `ed` | `event` | `tid` | im Profil |
+| Reddit | `m.conversionId` (empfohlen), sonst `m.transactionId` | `event` | `id` | im Profil |
+| Snap | `cdid` (client_deduplication_id) | `ev` | `pid` | im Profil |
+| OpenAI Ads | `id` je Event im JSON-Body; ohne Angabe der Seite erzeugt das SDK eine UUID v4 | `type` je Event | `pid` | offen (mehrere Events pro Request) |
+| LinkedIn | `eventId` (dokumentiert für das Image-Pixel an `/collect`) | – | – | Insight Tag offen |
+| Microsoft Ads | `eventId` (UET und Conversions API, CAPI noch Beta) | – | – | Feld im UET-Request offen |
 
 Quelle für TikTok, Pinterest, Reddit, Snap und OpenAI: die Parser der [Tracking Auditor Extension](https://github.com/mbaersch/tracking-auditor-extension) (Kopie in `pii-lib/` des Tracking Auditors).
 

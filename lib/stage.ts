@@ -1588,13 +1588,21 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       const o = dedup === true ? {} : dedup;
       const befunde = pruefeDeduplizierung(stage.tracking.treffer, stage.dienstProfile, o.serverDienste, o.ausnahmen, o.serverIdFelder);
       await ablegen('deduplizierung.json', befunde);
-      // Pixel ohne ID und zugleich Server-IDs ohne Pixel: Der Server hätte eine ID, das Pixel sendet sie nicht
-      const liste = (art: string) => befunde.filter((b) => b.art === art).map((b) => `${b.dienst} ${b.ereignis}`);
-      if (liste('pixel-ohne-id').length && liste('server-ohne-pixel').length) {
+      const liste = (art: string, dienst?: string) => befunde.filter((b) => b.art === art && (!dienst || b.dienst === dienst));
+      // Je Dienst: Pixel ohne ID, während der Server IDs für diesen Dienst hat (nur mit serverIdFelder)
+      for (const dienst of new Set(liste('server-ohne-pixel').map((b) => b.dienst))) {
+        const ohne = liste('pixel-ohne-id', dienst);
+        if (!ohne.length) continue;
         testInfo.annotations.push({
           type: 'Achtung',
-          description: `Deduplizierung: Pixel ohne Event-ID (${liste('pixel-ohne-id').join(', ')}), zugleich Event-IDs am Server-Container ohne Pixel `
-            + `(${liste('server-ohne-pixel').join(', ')}). Prüfen, ob die Pixel die ID des Servers mitsenden sollten (Details: deduplizierung.json)`,
+          description: `Deduplizierung ${dienst}: Pixel ohne Event-ID (${ohne.map((b) => b.ereignis).join(', ')}), am Server-Container aber IDs für ${dienst} `
+            + `ohne Pixel (${liste('server-ohne-pixel', dienst).map((b) => b.ereignis).join(', ')}). Sendet das Pixel die ID mit? (Details: deduplizierung.json)`,
+        });
+      }
+      if (liste('id-mehrfach').length) {
+        testInfo.annotations.push({
+          type: 'Achtung',
+          description: `Deduplizierung: dieselbe Event-ID mehrfach (${liste('id-mehrfach').map((b) => `${b.dienst} ${b.ereignis}`).join('; ')}) (Details: deduplizierung.json)`,
         });
       }
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.dienst} ${b.ereignis}: ${b.text}`);

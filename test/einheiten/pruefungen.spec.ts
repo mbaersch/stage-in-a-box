@@ -98,10 +98,11 @@ test('istLoeschung', () => {
 
 test.describe('Event-ID zur Deduplizierung', () => {
   const sgtm = (body: string) => ({ zeit: 0, dienst: 'GA4', host: 'sgtm.shop.de', pfad: '/g/collect', parameter: { v: '2' }, body });
-  const meta = (ev: string, eid?: string) => ({
-    zeit: 0, dienst: 'Meta', host: 'www.facebook.com', pfad: '/tr/', parameter: { ev, ...(eid ? { eid } : {}) },
+  const meta = (ev: string, eid?: string, pixel = '111') => ({
+    zeit: 0, dienst: 'Meta', host: 'www.facebook.com', pfad: '/tr/', parameter: { id: pixel, ev, ...(eid ? { eid } : {}) },
   });
   const texte = (befunde: { text: string }[]) => befunde.map((b) => b.text);
+  const art = <T extends { art?: string }>(befunde: T[], a: string) => befunde.filter((b) => b.art === a);
 
   test('gilt für jedes Event, nicht nur Conversions', () => {
     const befunde = pruefeDeduplizierung([
@@ -112,49 +113,55 @@ test.describe('Event-ID zur Deduplizierung', () => {
     expect(befunde.find((b) => b.ereignis === 'PageView')!.text).toBe('Event-ID PV-1 auch im Request an den Server-Container (ep.event_id)');
   });
 
+  test('ohne Zuordnung keine Meldung für IDs am Server ohne Pixel', () => {
+    const befunde = pruefeDeduplizierung([sgtm('en=scroll&ep.event_id=S-1\nen=generate_lead&ep.event_id=L-1'), meta('Lead')]);
+    expect(art(befunde, 'server-ohne-pixel')).toEqual([]);
+    expect(texte(art(befunde, 'pixel-ohne-id'))).toEqual(['1× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)']);
+  });
+
+  test('mit Zuordnung: ID für Meta am Server ohne Meta-Pixel mit dieser ID', () => {
+    const befunde = pruefeDeduplizierung(
+      [sgtm('en=generate_lead&ep.fb_event_id=L-17\nen=purchase&ep.fb_event_id=P-1\nen=scroll&ep.event_id=S-1'), meta('Lead'), meta('Purchase', 'P-1')],
+      undefined, [], [], { Meta: 'ep.fb_event_id' },
+    );
+    expect(texte(art(befunde, 'server-ohne-pixel'))).toEqual(['1× Event-ID für Meta am Server-Container (ep.fb_event_id) ohne Pixel-Request mit dieser ID (L-17)']);
+  });
+
   test('ID nur als Teil einer längeren ID zählt nicht', () => {
     expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=E-99'), meta('Purchase', 'E-9')]))).toHaveLength(1);
   });
 
-  test('ohne ID: Hinweis je Event mit Anzahl', () => {
-    const befunde = pruefeDeduplizierung([sgtm('en=page_view'), meta('PageView'), meta('PageView')]);
-    expect(rot(befunde)).toEqual([]);
-    expect(texte(befunde)).toEqual(['2× ohne Event-ID – keine Deduplizierung möglich (gewollt, wenn das Event nicht auch über die Conversions API geht)']);
+  test('dieselbe ID an verschiedenen Events bzw. mehrfach am selben Event', () => {
+    const befunde = pruefeDeduplizierung([
+      sgtm('en=x&ep.event_id=A-1&ep.b=B-1'),
+      meta('PageView', 'A-1'), meta('AddToCart', 'A-1'), meta('Purchase', 'B-1'), meta('Purchase', 'B-1'),
+    ]);
+    expect(texte(art(befunde, 'id-mehrfach'))).toEqual([
+      'Event-ID A-1 an verschiedenen Events (PageView, AddToCart) – die ID wird nicht je Event erzeugt',
+      'Event-ID B-1 2× an Purchase – zählt beim Dienst nur einmal (doppelt gefeuert oder ID nicht je Event erzeugt)',
+    ]);
   });
 
-  test('ohne Server-Container: nichts zu prüfen', () => {
+  test('mehrere Pixel einer Seite dürfen dieselbe ID tragen', () => {
+    const befunde = pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=E-9'), meta('Purchase', 'E-9', '111'), meta('Purchase', 'E-9', '222')]);
+    expect(art(befunde, 'id-mehrfach')).toEqual([]);
+  });
+
+  test('ohne Server-Container: Abgleich entfällt, doppelte IDs trotzdem', () => {
     const google = { ...sgtm('en=page_view'), host: 'region1.google-analytics.com' };
-    expect(texte(pruefeDeduplizierung([google, meta('Purchase', 'E-9')]))).toEqual(['kein Request an einen Server-Container – nichts zu deduplizieren']);
+    const befunde = pruefeDeduplizierung([google, meta('PageView', 'E-9'), meta('AddToCart', 'E-9')]);
+    expect(rot(befunde)).toEqual([]);
+    expect(texte(befunde)[0]).toBe('kein Request an einen Server-Container – Abgleich mit dem Server entfällt');
+    expect(art(befunde, 'id-mehrfach')).toHaveLength(1);
   });
 
   test('TikTok: event_id im JSON-Body, Pinterest: im JSON-Parameter ed', () => {
     const tiktok = { zeit: 0, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel', parameter: {},
-      body: JSON.stringify({ event: 'CompletePayment', event_id: 'TT-1' }) };
-    const pin = { zeit: 0, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/', parameter: { event: 'checkout', ed: JSON.stringify({ event_id: 'P-1' }) } };
+      body: JSON.stringify({ event: 'CompletePayment', event_id: 'TT-1', context: { pixel: { code: 'C1' } } }) };
+    const pin = { zeit: 0, dienst: 'Pinterest', host: 'ct.pinterest.com', pfad: '/v3/', parameter: { event: 'checkout', tid: '1', ed: JSON.stringify({ event_id: 'P-1' }) } };
     const befunde = pruefeDeduplizierung([sgtm('en=purchase&ep.tt_id=TT-1'), tiktok, pin]);
     expect(befunde.find((b) => b.dienst === 'TikTok')!.text).toBe('Event-ID TT-1 auch im Request an den Server-Container (ep.tt_id)');
     expect(befunde.find((b) => b.dienst === 'Pinterest')!.stufe).toBe('rot');
-  });
-
-  test('Gegenrichtung: Server-IDs ohne Pixel je Event gesammelt, auch fb_event_id', () => {
-    const befunde = pruefeDeduplizierung([
-      sgtm('en=generate_lead&ep.fb_event_id=L-17\nen=scroll&ep.event_id=S-1\nen=scroll&ep.event_id=S-2'),
-      meta('Lead'),
-    ]);
-    expect(rot(befunde)).toEqual([]);
-    const gegen = befunde.filter((b) => b.art === 'server-ohne-pixel').map((b) => `${b.ereignis}: ${b.text}`);
-    expect(gegen).toEqual([
-      'generate_lead: 1× Event-ID in ep.fb_event_id ohne Pixel-Request mit dieser ID (L-17)',
-      'scroll: 2× Event-ID in ep.event_id ohne Pixel-Request mit dieser ID (S-1, S-2)',
-    ]);
-    expect(befunde.some((b) => b.art === 'pixel-ohne-id' && b.ereignis === 'Lead')).toBe(true);
-  });
-
-  test('Gegenrichtung: ID mit Pixel-Gegenstück wird nicht gemeldet, eigene Feldnamen', () => {
-    const befunde = pruefeDeduplizierung([sgtm('en=purchase&ep.dedup=E-9&ep.event_id=E-9'), meta('Purchase', 'E-9')], undefined, [], [], ['ep.dedup']);
-    expect(befunde.filter((b) => b.art === 'server-ohne-pixel')).toEqual([]);
-    const andere = pruefeDeduplizierung([sgtm('en=purchase&ep.dedup=X-1'), meta('Purchase', 'X-1')], undefined, [], [], ['ep.dedup']);
-    expect(andere.filter((b) => b.art === 'server-ohne-pixel')).toEqual([]);
   });
 
   test('eigene Regel als Server-Container, Ausnahme je Dienst', () => {
