@@ -132,7 +132,8 @@ function werteAusRequest(ereignis: string, a: Anfrage, f: Record<string, string>
 
 /** Darstellungen einer Zahl, wie sie in Requests vorkommen: 119.9, 119.90, 11990 (Cent) */
 function zahlFormen(v: number) {
-  return new Set([String(v), v.toFixed(2), String(Math.round(v * 100))]);
+  // Komma als Dezimaltrenner (laut Parser der Extension bei Reddit m.valueDecimal); Cent bei OpenAI
+  return new Set([String(v), v.toFixed(2), v.toFixed(2).replace('.', ','), String(v).replace('.', ','), String(Math.round(v * 100))]);
 }
 
 /** Ohne Profil: Wo tauchen die Werte des Pushes in den Requests eines Dienstes auf? Nur Hinweise. */

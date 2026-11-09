@@ -49,6 +49,13 @@ test.describe('pruefeDurchgaengigkeit', () => {
     expect(text).toBe('transaction_id (253) gefunden in: oid – nicht im Profil, nicht geprüft');
   });
 
+  test('Dienst ohne Profil: Wert mit Komma und in Cent gefunden', () => {
+    const p = kauf({ value: 99.95, transaction_id: 'T-9' });
+    const fremd = { zeit: 1100, dienst: 'Eigen', pfad: '/t', parameter: { 'm.valueDecimal': '99,95', amount: '9995' } };
+    const text = pruefeDurchgaengigkeit([p], [fremd], 'purchase').map((b) => b.text).find((t) => t.startsWith('value'));
+    expect(text).toBe('value (99.95) gefunden in: m.valueDecimal, amount – nicht im Profil, nicht geprüft');
+  });
+
   test('Push ohne Werte: Nachweis sagt, dass nichts verglichen wurde', () => {
     const befunde = pruefeDurchgaengigkeit([{ zeit: 1000, daten: { event: 'purchase' } }], [ga4('en=purchase')], 'purchase');
     expect(befunde.map((b) => b.text)).toEqual(['verglichen: nichts – Push und Profil des Dienstes haben keine gemeinsamen Werte']);
