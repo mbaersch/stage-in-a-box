@@ -18,7 +18,14 @@ export interface Pruefungen {
    * true = ['purchase']; oder Liste der Events; oder mit Ausnahmen der Form 'Dienst:feld'
    * (z. B. 'Google Ads:value', wenn Ads bewusst einen anderen Wert bekommt; 'Meta:items' bei anderem ID-Schema).
    */
-  durchgaengigkeit?: boolean | string[] | { ereignisse?: string[]; ausnahmen?: string[] };
+  durchgaengigkeit?: boolean | string[] | {
+    ereignisse?: string[]; ausnahmen?: string[];
+    /**
+     * Regeln, deren Requests an den Server-Container gehen (für die Prüfung der Event-ID zur Deduplizierung).
+     * GA4-Requests an eine eigene Domain gelten immer als solche.
+     */
+    serverDienste?: string[];
+  };
   /** Cookies mit Zeitpunkt, Herkunft, Domain und Laufzeit protokollieren (cookies.json, Baseline). */
   cookies?: boolean;
   /**
@@ -26,6 +33,11 @@ export interface Pruefungen {
    * tragen (z. B. ['GA4']). Braucht stageOptionen.landung mit utm.
    */
   utm?: string[];
+  /**
+   * GA4-Requests gegen die Erfassungsgrenzen von GA4 prüfen: zu lange Event- und Parameternamen, zu viele
+   * Parameter und zu große Requests sind rot, überlange Werte ein Hinweis. '360' für Properties mit 360.
+   */
+  ga4Grenzen?: boolean | '360';
 }
 
 /* ------------------------------------------------------------------ */
@@ -37,6 +49,7 @@ interface Werte {
   currency?: string;
   transaction_id?: string;
   items?: string[];
+  event_id?: string;
 }
 
 export interface DurchgaengigkeitsBefund {
@@ -47,7 +60,16 @@ export interface DurchgaengigkeitsBefund {
 }
 
 interface Push { zeit: number; daten: any }
-interface Anfrage { zeit: number; dienst: string; pfad: string; parameter: Record<string, string>; body?: string }
+interface Anfrage { zeit: number; dienst: string; host?: string; pfad: string; parameter: Record<string, string>; body?: string; url?: string }
+
+/** Hosts von Google selbst; GA4-Requests an andere Hosts gehen an einen Server-Container */
+const GOOGLE_HOST = /(^|\.)(google-analytics\.com|analytics\.google\.com|google\.com|doubleclick\.net)(:\d+)?$/;
+
+/** Wert als eigenständiges Token in einem Feld (nicht als Teil einer längeren ID) */
+function enthaeltToken(feld: string, wert: string) {
+  const w = wert.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return feld === wert || new RegExp(`(^|[^A-Za-z0-9_-])${w}($|[^A-Za-z0-9_-])`).test(feld);
+}
 
 const zahl = (v: unknown) => (v === undefined || v === null || v === '' ? undefined : Number(v));
 
@@ -97,6 +119,7 @@ function werteAusRequest(ereignis: string, a: Anfrage, f: Record<string, string>
     currency: feldWert(f, c.currency),
     transaction_id: feldWert(f, c.transaction_id),
     items: c.items ? items(f, c.items) : undefined,
+    event_id: feldWert(f, c.event_id),
   };
 }
 
@@ -127,9 +150,12 @@ function suche(soll: Werte, anfragen: Anfrage[]): { feld: keyof Werte; gefunden:
 
 export function pruefeDurchgaengigkeit(
   pushes: Push[], anfragen: Anfrage[], ereignis: string, ausnahmen: string[] = [], profile: DienstProfil[] = DIENST_PROFILE,
+  serverDienste: string[] = [],
 ): DurchgaengigkeitsBefund[] {
   const befunde: DurchgaengigkeitsBefund[] = [];
   const conversion = new Map(profile.filter((p) => p.conversion).map((p) => [p.name, p.conversion!]));
+  const anServer = (a: Anfrage) => serverDienste.includes(a.dienst) || (a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
+  const serverImLauf = anfragen.some(anServer);
   pushes.forEach((push, i) => {
     const soll = werteAusPush(push.daten);
     const bis = pushes[i + 1]?.zeit ?? Infinity;
@@ -138,6 +164,9 @@ export function pruefeDurchgaengigkeit(
     const gefunden = new Set<string>();
     // Nachweis je Dienst: welche Felder tatsächlich verglichen wurden
     const verglichen = new Map<string, Set<string>>();
+    // Event-IDs zur Deduplizierung je Dienst; Dienste mit event_id im Profil, deren Request keine trug
+    const eventIds = new Map<string, Set<string>>();
+    const ohneEventId = new Set<string>();
     for (const a of danach) {
       const c = conversion.get(a.dienst);
       if (!c) continue;
@@ -151,6 +180,14 @@ export function pruefeDurchgaengigkeit(
         for (const feld of ['value', 'currency', 'transaction_id', 'items'] as const) {
           if (soll[feld] === undefined || !c[feld]) continue;
           verglichen.get(a.dienst)!.add(ausnahmen.includes(`${a.dienst}:${feld}`) ? `${feld} (Ausnahme)` : feld);
+        }
+        if (c.event_id && !anServer(a)) {
+          if (ist.event_id) {
+            if (!eventIds.has(a.dienst)) eventIds.set(a.dienst, new Set());
+            eventIds.get(a.dienst)!.add(ist.event_id);
+          } else {
+            ohneEventId.add(a.dienst);
+          }
         }
         const melde = (feld: keyof Werte, stufe: 'rot' | 'info', text: string) => {
           if (ausnahmen.includes(`${a.dienst}:${feld}`)) return;
@@ -176,6 +213,36 @@ export function pruefeDurchgaengigkeit(
             melde('items', stufe, `Artikel ${ist.items.join(', ')} statt ${soll.items.join(', ')}`);
           }
         }
+      }
+    }
+    // Deduplizierung: Die Event-ID eines Pixels muss im Request an den Server-Container ankommen, sonst kann
+    // der Server sie nicht an die Conversions API weitergeben. Ohne Server-Container gibt es nichts zu prüfen.
+    const server = danach.filter(anServer);
+    if (serverImLauf) {
+      for (const [d, ids] of eventIds) {
+        if (ausnahmen.includes(`${d}:event_id`)) continue;
+        for (const id of ids) {
+          verglichen.get(d)?.add('event_id');
+          const wo = new Set<string>();
+          for (const s of server) {
+            const zeilen = s.body ? s.body.split(/\r?\n/).filter(Boolean) : [undefined];
+            for (const zeile of zeilen) for (const [k, w] of Object.entries(felder(s.parameter, zeile))) if (enthaeltToken(w, id)) wo.add(k);
+          }
+          if (!server.length) {
+            befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: `event_id ${id}: nach dem Push kein Request an den Server-Container` });
+          } else if (wo.size) {
+            befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: `event_id ${id} auch im Request an den Server-Container (${[...wo].join(', ')})` });
+          } else {
+            befunde.push({
+              stufe: 'rot', ereignis: ereignis + nr, dienst: d,
+              text: `event_id ${id} fehlt im Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen`,
+            });
+          }
+        }
+      }
+      for (const d of ohneEventId) {
+        if (eventIds.has(d) || ausnahmen.includes(`${d}:event_id`)) continue;
+        befunde.push({ stufe: 'info', ereignis: ereignis + nr, dienst: d, text: 'Pixel ohne event_id – keine Deduplizierung mit der Conversions API möglich' });
       }
     }
     for (const [d, liste] of verglichen) {
@@ -269,11 +336,63 @@ export function pruefeArtikelVerlauf(pushes: Push[]): DurchgaengigkeitsBefund[] 
   return befunde;
 }
 
-export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereignisse: string[]; ausnahmen: string[] } {
-  if (!option) return { ereignisse: [], ausnahmen: [] };
-  if (option === true) return { ereignisse: ['purchase'], ausnahmen: [] };
-  if (Array.isArray(option)) return { ereignisse: option, ausnahmen: [] };
-  return { ereignisse: option.ereignisse ?? ['purchase'], ausnahmen: option.ausnahmen ?? [] };
+export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereignisse: string[]; ausnahmen: string[]; serverDienste: string[] } {
+  if (!option) return { ereignisse: [], ausnahmen: [], serverDienste: [] };
+  if (option === true) return { ereignisse: ['purchase'], ausnahmen: [], serverDienste: [] };
+  if (Array.isArray(option)) return { ereignisse: option, ausnahmen: [], serverDienste: [] };
+  return { ereignisse: option.ereignisse ?? ['purchase'], ausnahmen: option.ausnahmen ?? [], serverDienste: option.serverDienste ?? [] };
+}
+
+/* ------------------------------------------------------------------ */
+/* GA4-Erfassungsgrenzen                                              */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Grenzen laut Google ([GA4] Event collection limits, Google Analytics 360). Was darüber liegt, verarbeitet
+ * GA4 nicht; Daten über 16 KB pro Request verwirft GA4 für den ganzen Request.
+ */
+export const GA4_GRENZEN = {
+  standard: { eventName: 40, parameter: 25, parameterName: 40, wert: 100, dl: 1000, dt: 300, dr: 420, upName: 24, upWert: 36 },
+  '360': { eventName: 40, parameter: 100, parameterName: 40, wert: 100, dl: 1000, dt: 500, dr: 500, upName: 24, upWert: 36 },
+  requestBytes: 16 * 1024,
+} as const;
+
+/** Prüft GA4-Requests (auch gebündelte Events im Body) gegen die Erfassungsgrenzen. */
+export function pruefeGa4Grenzen(anfragen: Anfrage[], variante: 'standard' | '360' = 'standard'): DurchgaengigkeitsBefund[] {
+  const g = GA4_GRENZEN[variante];
+  const befunde: DurchgaengigkeitsBefund[] = [];
+  const melde = (stufe: 'rot' | 'info', ereignis: string, text: string) => befunde.push({ stufe, ereignis, dienst: 'GA4', text });
+  for (const a of anfragen.filter((x) => x.dienst === 'GA4')) {
+    const query = a.url?.includes('?') ? a.url.slice(a.url.indexOf('?') + 1) : '';
+    const bytes = Buffer.byteLength(query) + Buffer.byteLength(a.body ?? '');
+    const kb = (bytes / 1024).toFixed(1);
+    if (bytes > GA4_GRENZEN.requestBytes) melde('rot', a.parameter.en ?? 'Request', `Request mit ${kb} KB über 16 KB: GA4 verwirft alle Events darin`);
+    else if (bytes > GA4_GRENZEN.requestBytes * 0.8) melde('info', a.parameter.en ?? 'Request', `Request mit ${kb} KB nahe an der Grenze von 16 KB`);
+
+    const zeilen = a.body ? a.body.split(/\r?\n/).filter(Boolean) : [undefined];
+    for (const zeile of zeilen) {
+      const f = { ...a.parameter, ...(zeile ? Object.fromEntries(new URLSearchParams(zeile)) : {}) };
+      const en = f.en ?? '(ohne Namen)';
+      if (en.length > g.eventName) melde('rot', en, `Eventname mit ${en.length} Zeichen über ${g.eventName}: GA4 verarbeitet das Event nicht`);
+      const eigene = Object.keys(f).filter((k) => /^epn?\./.test(k));
+      if (eigene.length > g.parameter) melde('rot', en, `${eigene.length} Parameter über ${g.parameter}: GA4 verarbeitet die übrigen nicht`);
+      for (const k of eigene) {
+        const name = k.replace(/^epn?\./, '');
+        if (name.length > g.parameterName) melde('rot', en, `Parametername ${name} mit ${name.length} Zeichen über ${g.parameterName}`);
+        if (k.startsWith('ep.') && f[k].length > g.wert) melde('info', en, `Wert von ${name} mit ${f[k].length} Zeichen über ${g.wert}`);
+      }
+      for (const [k, grenze, name] of [['dl', g.dl, 'page_location'], ['dt', g.dt, 'page_title'], ['dr', g.dr, 'page_referrer']] as const) {
+        if (f[k] && f[k].length > grenze) melde('info', en, `${name} mit ${f[k].length} Zeichen über ${grenze}`);
+      }
+      for (const k of Object.keys(f).filter((x) => /^upn?\./.test(x))) {
+        const name = k.replace(/^upn?\./, '');
+        if (name.length > g.upName) melde('rot', en, `Name der User Property ${name} mit ${name.length} Zeichen über ${g.upName}`);
+        if (k.startsWith('up.') && f[k].length > g.upWert) melde('info', en, `Wert der User Property ${name} mit ${f[k].length} Zeichen über ${g.upWert}`);
+      }
+    }
+  }
+  const gesehen = new Set<string>();
+  return befunde.filter((b) => { const k = JSON.stringify(b); if (gesehen.has(k)) return false; gesehen.add(k); return true; });
 }
 
 /* ------------------------------------------------------------------ */

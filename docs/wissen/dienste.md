@@ -47,6 +47,21 @@ Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstpro
 | Meta | `ev` (z. B. `Purchase`) | `cd[value]` | `cd[currency]` | – | `cd[content_ids]` |
 | Microsoft Ads | Request mit `gv` | `gv` | `gc` | – | – |
 
+### Event-ID zur Deduplizierung
+
+Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe Event, zählt der Dienst es nur einmal, wenn beide dieselbe Event-ID tragen. Die Durchgängigkeit prüft, ob die ID des Pixels im Request an den Server-Container ankommt (Profilfeld `event_id`).
+
+| Dienst | Im Pixel-Request | Stand |
+|---|---|---|
+| Meta | `eid` (im `fbq`-Aufruf `eventID`) | im Profil |
+| TikTok | `event_id` im Pixel-Payload | Prinzip dokumentiert, Feld im Request offen |
+| Pinterest | `event_id` | Prinzip dokumentiert, Feld im Request offen |
+| OpenAI Ads | `event_id` (dokumentiert für das Image-Tag an `/v1/sdk/events`) | JS-Pixel offen |
+| LinkedIn | `eventId` (dokumentiert für das Image-Pixel an `/collect`) | Insight Tag offen |
+| Microsoft Ads | `eventId` (UET und Conversions API, CAPI noch Beta) | Feld im UET-Request offen |
+
+Wie die ID zum Server-Container gelangt, ist nicht genormt; üblich ist ein Parameter am GA4-Tag (`ep.event_id`), teils je Plattform eine eigene. Gesucht wird deshalb in allen Feldern der Requests an den Server-Container. Offene Felder an einer echten Website ablesen, dann Profil und Tabelle ergänzen.
+
 ### Klick-IDs
 
 Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. einem eigenen Feld des Requests steckt (Seiten-URL und Referrer zählen nicht) oder die Ablage bzw. der Parameter aus dem Profil vorhanden ist (das Format ist Sache des Dienstes):

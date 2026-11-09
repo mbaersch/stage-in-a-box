@@ -40,7 +40,7 @@ import {
   type KlickIdBefund, type Landung, type Netz, type UtmBefund,
 } from './bedingungen';
 import {
-  cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDurchgaengigkeit,
+  cookieBeobachter, cookieBericht, ereignisseAus, istLoeschung, pruefeArtikelVerlauf, pruefeDurchgaengigkeit, pruefeGa4Grenzen,
   type CookieEintrag, type CookieEreignis, type DurchgaengigkeitsBefund, type Pruefungen,
 } from './pruefungen';
 import { profileZusammenfuehren, type DienstProfil } from './dienstprofile';
@@ -742,12 +742,12 @@ export class Stage {
    * Microsoft Ads ankommen. Läuft mit stageOptionen.pruefungen.durchgaengigkeit automatisch am
    * Testende; hier für eigene Aufrufe.
    */
-  async pruefeDurchgaengigkeit(ereignis = 'purchase', ausnahmen: string[] = []): Promise<DurchgaengigkeitsBefund[]> {
+  async pruefeDurchgaengigkeit(ereignis = 'purchase', ausnahmen: string[] = [], serverDienste: string[] = []): Promise<DurchgaengigkeitsBefund[]> {
     await this.warteAufRuhe();
     const pushes = this.dataLayer.eintraege
       .filter((e) => (e.daten?.event === ereignis) || (Array.isArray(e.daten) && e.daten[0] === 'event' && e.daten[1] === ereignis))
       .map((e) => ({ zeit: e.zeit, daten: Array.isArray(e.daten) ? e.daten[2] : e.daten }));
-    return pruefeDurchgaengigkeit(pushes, this.tracking.treffer, ereignis, ausnahmen, this.dienstProfile);
+    return pruefeDurchgaengigkeit(pushes, this.tracking.treffer, ereignis, ausnahmen, this.dienstProfile, serverDienste);
   }
 
   /**
@@ -1580,10 +1580,19 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     }
     if (stage.cookieProtokollAktiv) await ablegen('cookies.json', await stage.cookies().catch(() => []));
     // Durchgängigkeit: nur wenn der Test bis zum Ende lief (nicht bei CONVERSION=aus übersprungen)
-    const { ereignisse, ausnahmen } = ereignisseAus(stageOptionen.pruefungen?.durchgaengigkeit);
+    const { ereignisse, ausnahmen, serverDienste } = ereignisseAus(stageOptionen.pruefungen?.durchgaengigkeit);
+    // GA4-Erfassungsgrenzen (stageOptionen.pruefungen.ga4Grenzen)
+    const grenzen = stageOptionen.pruefungen?.ga4Grenzen;
+    if (grenzen && testInfo.status === 'passed') {
+      await stage.warteAufRuhe();
+      const befunde = pruefeGa4Grenzen(stage.tracking.treffer, grenzen === '360' ? '360' : 'standard');
+      await ablegen('ga4-grenzen.json', befunde);
+      const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis}: ${b.text}`);
+      expect(rot, 'GA4-Erfassungsgrenzen (Details: ga4-grenzen.json)').toEqual([]);
+    }
     if (ereignisse.length && testInfo.status === 'passed') {
       const befunde: DurchgaengigkeitsBefund[] = [];
-      for (const e of ereignisse) befunde.push(...await stage.pruefeDurchgaengigkeit(e, ausnahmen));
+      for (const e of ereignisse) befunde.push(...await stage.pruefeDurchgaengigkeit(e, ausnahmen, serverDienste));
       befunde.push(...pruefeArtikelVerlauf(stage.dataLayer.eintraege));
       await ablegen('durchgaengigkeit.json', befunde);
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis} → ${b.dienst}: ${b.text}`);

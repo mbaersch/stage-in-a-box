@@ -1,6 +1,7 @@
 /**
  * Beispiele für Prüfungen, die in einer Journey mitlaufen (lib/pruefungen.ts): Durchgängigkeit der
- * Conversion-Werte vom dataLayer zu den Diensten und Cookies mit Zeitpunkt zur Consent-Entscheidung.
+ * Conversion-Werte vom dataLayer zu den Diensten, GA4-Erfassungsgrenzen und Cookies mit Zeitpunkt zur
+ * Consent-Entscheidung.
  */
 import { test, expect } from '../../lib/stage';
 import type { Page } from '@playwright/test';
@@ -12,6 +13,15 @@ async function leadJourney(page: Page, zustimmung = true) {
   await page.getByTestId('cta-anfrage').click();
   await expect(page.getByText('Danke für Deine Anfrage!')).toBeVisible();
 }
+
+test.describe('GA4-Erfassungsgrenzen', () => {
+  // Läuft am Testende automatisch; rot bei zu langen Namen, zu vielen Parametern oder Requests über 16 KB
+  test.use({ stageOptionen: { pruefungen: { ga4Grenzen: true } } });
+
+  test('Events der Journey liegen im Rahmen', async ({ page }) => {
+    await leadJourney(page);
+  });
+});
 
 test.describe('Durchgängigkeit', () => {
   // Läuft am Testende automatisch; rot bei Abweichung, Details in durchgaengigkeit.json

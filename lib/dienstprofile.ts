@@ -46,6 +46,11 @@ export interface ConversionProfil {
   currency?: Feld;
   transaction_id?: Feld;
   /**
+   * Event-ID zur Deduplizierung mit der Conversions API des Dienstes: Die Durchgängigkeit prüft, ob dieser
+   * Wert auch im Request an den Server-Container ankommt.
+   */
+  event_id?: Feld;
+  /**
    * Artikel-IDs: ga4 = pr1, pr2 … (id-Segment); json = JSON-Array (als String in einem Parameter oder im
    * Body), bei Objekten mit schluessel als ID-Feld; liste = kommagetrennt.
    */
@@ -109,6 +114,8 @@ export const DIENST_PROFILE: DienstProfil[] = [
       items: { parameter: 'cd[content_ids]', format: 'json' },
       itemsNurHinweis: true,
       valueNurHinweis: true,
+      // eventID im fbq-Aufruf, im Request eid (Doku zur Deduplizierung von Pixel und Conversions API)
+      event_id: 'eid',
     },
   },
   {
