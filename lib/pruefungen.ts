@@ -339,14 +339,25 @@ export function pruefeDeduplizierung(
   const pixel: { dienst: string; konto: string; ereignis: string; id?: string; automatisch?: boolean }[] = [];
   for (const a of anfragen) {
     const d = dedup.get(a.dienst);
-    if (!d || anServer(a)) continue;
+    if (!d || anServer(a) || (d.pfad && !d.pfad.test(a.pfad))) continue;
     const f = felder(a.parameter, a.body);
-    const ereignis = feldWert(f, d.ereignis);
-    if (d.ereignis && !ereignis) continue;
-    if (ereignis && d.ignorieren?.test(ereignis)) continue;
-    const id = feldWert(f, d.id);
-    const automatisch = !!id && !!d.automatisch?.test(id);
-    pixel.push({ dienst: a.dienst, konto: feldWert(f, d.konto) ?? '', ereignis: ereignis ?? a.pfad, id: automatisch ? undefined : id, automatisch });
+    const konto = feldWert(f, d.konto) ?? '';
+    // Mehrere Events je Request (JSON-Array im Body): id und ereignis gelten je Element
+    let events = [f];
+    if (d.liste) {
+      try {
+        const liste = JSON.parse(a.body ?? '')?.[d.liste];
+        events = Array.isArray(liste) ? liste.map((e) => felder({}, JSON.stringify(e))) : [];
+      } catch { events = []; }
+    }
+    for (const e of events) {
+      const ereignis = feldWert(e, d.ereignis);
+      if (d.ereignis && !ereignis) continue;
+      if (ereignis && d.ignorieren?.test(ereignis)) continue;
+      const id = feldWert(e, d.id);
+      const automatisch = !!id && !!d.automatisch?.test(id);
+      pixel.push({ dienst: a.dienst, konto, ereignis: ereignis ?? a.pfad, id: automatisch ? undefined : id, automatisch });
+    }
   }
   // Manche Pixel senden die ID als SHA-256 (Reddit), der Server-Container bekommt sie im Klartext
   const hashes = new Map<string, string>();
@@ -387,12 +398,12 @@ export function pruefeDeduplizierung(
   for (const { dienst, id, ereignisse } of jeId.values()) {
     if (ereignisse.length < 2) continue;
     const namen = [...new Set(ereignisse)];
-    befunde.push({
-      stufe: 'info', ereignis: namen.join(', '), dienst, art: 'id-mehrfach',
-      text: namen.length > 1
-        ? `Event-ID ${id} an verschiedenen Events (${namen.join(', ')}) – die ID wird nicht je Event erzeugt`
-        : `Event-ID ${id} ${ereignisse.length}× an ${namen[0]} – zählt beim Dienst nur einmal (doppelt gefeuert oder ID nicht je Event erzeugt)`,
-    });
+    // Verschiedene Events mit derselben ID: üblich bei einer ID je dataLayer-Push, deshalb ohne „Achtung“
+    befunde.push(namen.length > 1
+      ? { stufe: 'info', ereignis: namen.join(', '), dienst,
+        text: `Event-ID ${id} an verschiedenen Events (${namen.join(', ')}) – gewollt bei einer ID je dataLayer-Push; nur ein Problem, wenn der Dienst allein nach der ID dedupliziert` }
+      : { stufe: 'info', ereignis: namen[0], dienst, art: 'id-mehrfach',
+        text: `Event-ID ${id} ${ereignisse.length}× an ${namen[0]} – zählt beim Dienst nur einmal (doppelt gefeuert oder ID nicht je Event erzeugt)` });
   }
 
   // Server → Pixel, nur mit Zuordnung: ID im Feld für diesen Dienst, die kein Pixel des Dienstes trägt
@@ -448,7 +459,8 @@ export function pruefeGa4Grenzen(anfragen: Anfrage[], variante: 'standard' | '36
       const f = { ...a.parameter, ...(zeile ? Object.fromEntries(new URLSearchParams(zeile)) : {}) };
       const en = f.en ?? '(ohne Namen)';
       if (en.length > g.eventName) melde('rot', en, `Eventname mit ${en.length} Zeichen über ${g.eventName}: GA4 verarbeitet das Event nicht`);
-      const eigene = Object.keys(f).filter((k) => /^epn?\./.test(k));
+      // ep.user_data.* bekommt nur ein Server-Container (Nutzerdaten für Enhanced Conversions), keine Event-Parameter
+      const eigene = Object.keys(f).filter((k) => /^epn?\./.test(k) && !k.startsWith('ep.user_data.'));
       if (eigene.length > g.parameter) melde('rot', en, `${eigene.length} Parameter über ${g.parameter}: GA4 verarbeitet die übrigen nicht`);
       for (const k of eigene) {
         const name = k.replace(/^epn?\./, '');

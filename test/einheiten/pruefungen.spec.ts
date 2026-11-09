@@ -137,10 +137,21 @@ test.describe('Event-ID zur Deduplizierung', () => {
       sgtm('en=x&ep.event_id=A-1&ep.b=B-1'),
       meta('PageView', 'A-1'), meta('AddToCart', 'A-1'), meta('Purchase', 'B-1'), meta('Purchase', 'B-1'),
     ]);
+    // Nur dasselbe Event mehrfach bekommt „Achtung“; verschiedene Events mit einer ID je Push sind üblich
     expect(texte(art(befunde, 'id-mehrfach'))).toEqual([
-      'Event-ID A-1 an verschiedenen Events (PageView, AddToCart) – die ID wird nicht je Event erzeugt',
       'Event-ID B-1 2× an Purchase – zählt beim Dienst nur einmal (doppelt gefeuert oder ID nicht je Event erzeugt)',
     ]);
+    expect(texte(befunde)).toContain('Event-ID A-1 an verschiedenen Events (PageView, AddToCart) – gewollt bei einer ID je dataLayer-Push; nur ein Problem, wenn der Dienst allein nach der ID dedupliziert');
+  });
+
+  test('LinkedIn: eventId nur an /collect, Website-Signale an /wa/ zählen nicht', () => {
+    const li = (pfad: string, parameter: Record<string, string>) => ({ zeit: 0, dienst: 'LinkedIn', host: 'px.ads.linkedin.com', pfad, parameter });
+    const befunde = pruefeDeduplizierung([
+      sgtm('en=generate_lead&evnid=E-19'),
+      li('/collect', { pid: '1', conversionId: '9', eventId: 'E-19' }), li('/collect', { pid: '1', eventId: 'E-21' }), li('/wa/', { medium: 'fetch' }),
+    ]);
+    expect(rot(befunde)).toEqual(['Event-ID E-21 in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
+    expect(art(befunde, 'pixel-ohne-id')).toEqual([]);
   });
 
   test('mehrere Pixel einer Seite dürfen dieselbe ID tragen', () => {
@@ -150,7 +161,7 @@ test.describe('Event-ID zur Deduplizierung', () => {
 
   test('ohne Server-Container: Abgleich entfällt, doppelte IDs trotzdem', () => {
     const google = { ...sgtm('en=page_view'), host: 'region1.google-analytics.com' };
-    const befunde = pruefeDeduplizierung([google, meta('PageView', 'E-9'), meta('AddToCart', 'E-9')]);
+    const befunde = pruefeDeduplizierung([google, meta('Purchase', 'E-9'), meta('Purchase', 'E-9')]);
     expect(rot(befunde)).toEqual([]);
     expect(texte(befunde)[0]).toBe('kein Request an einen Server-Container – Abgleich mit dem Server entfällt');
     expect(art(befunde, 'id-mehrfach')).toHaveLength(1);
@@ -187,6 +198,13 @@ test.describe('Event-ID zur Deduplizierung', () => {
     expect(texte(art(befunde, 'pixel-ohne-id'))[0]).toMatch(/^2× ohne Event-ID der Seite \(2× vom Pixel selbst erzeugt/);
   });
 
+  test('OpenAI: mehrere Events je Request, Events des SDK zählen nicht', () => {
+    const openai = { zeit: 0, dienst: 'OpenAI Ads', host: 'bzr.openai.com', pfad: '/v1/sdk/events', parameter: {},
+      body: JSON.stringify({ pid: 'P1', events: [{ type: 'openai::sdk_init', id: 'u-1' }, { type: 'items_added', id: '1.2.30' }, { type: 'checkout_started', id: '1.2.31' }] }) };
+    const befunde = pruefeDeduplizierung([sgtm('en=add_to_cart&ep.event_id=1.2.30'), openai]);
+    expect(rot(befunde)).toEqual(['Event-ID 1.2.31 in keinem Request an den Server-Container – Deduplizierung mit der Conversions API kann nicht greifen']);
+  });
+
   test('Reddit: conversionId als SHA-256 im Pixel, im Klartext am Server', () => {
     const reddit = { zeit: 0, dienst: 'Reddit', host: 'alb.reddit.com', pfad: '/rp', parameter: {},
       body: `id=a2_x&event=Purchase&m.conversionId=${createHash('sha256').update('ORDER-7').digest('hex')}` };
@@ -218,6 +236,11 @@ test.describe('GA4-Grenzen', () => {
     const viele = Array.from({ length: 26 }, (_, i) => `ep.p${i}=1`).join('&');
     expect(rot(pruefeGa4Grenzen([ga4(`v=2&en=kauf&${viele}`)]))).toEqual(['26 Parameter über 25: GA4 verarbeitet die übrigen nicht']);
     expect(rot(pruefeGa4Grenzen([ga4(`v=2&en=kauf&${viele}`)], '360'))).toEqual([]);
+  });
+
+  test('Nutzerdaten an den Server-Container (ep.user_data.*) zählen nicht als Parameter', () => {
+    const nutzer = Array.from({ length: 30 }, (_, i) => `ep.user_data.address.0._tag_metadata.feld_${i}.mode=1`).join('&');
+    expect(rot(pruefeGa4Grenzen([ga4(`v=2&en=kauf&${nutzer}`)]))).toEqual([]);
   });
 
   test('überlange Werte: nur Hinweis, Ausnahmen für Seitenfelder', () => {

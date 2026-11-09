@@ -73,6 +73,10 @@ export interface DeduplizierungsProfil {
   ignorieren?: RegExp;
   /** IDs, die das Pixel ohne Angabe der Seite selbst erzeugt: Die kennt der Server nicht, sie gelten als „ohne ID“. */
   automatisch?: RegExp;
+  /** Mehrere Events je Request: Schlüssel des JSON-Arrays im Body; id und ereignis gelten dann je Element */
+  liste?: string;
+  /** Nur Requests, deren Pfad passt (andere Requests der Regel sind keine Events) */
+  pfad?: RegExp;
 }
 
 export interface DienstProfil {
@@ -139,7 +143,12 @@ export const DIENST_PROFILE: DienstProfil[] = [
   },
   // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
   { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'] } } },
-  { name: 'LinkedIn', klickId: { li_fat_id: { speicher: ['li_fat_id'], request: ['li_fat_id'] } } },
+  {
+    name: 'LinkedIn',
+    klickId: { li_fat_id: { speicher: ['li_fat_id'], request: ['li_fat_id'] } },
+    // Events nur an /collect (Seitenaufruf ohne, Conversion mit conversionId); /wa/ sind Website-Signale
+    deduplizierung: { id: 'eventId', konto: 'pid', pfad: /\/collect\/?$/ },
+  },
   {
     name: 'Reddit',
     klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
@@ -156,7 +165,12 @@ export const DIENST_PROFILE: DienstProfil[] = [
     // Event-ID im JSON-Parameter ed
     deduplizierung: { id: 'ed.event_id', ereignis: 'event', konto: 'tid', ignorieren: /^init$/i },
   },
-  { name: 'OpenAI Ads', klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } } },
+  {
+    name: 'OpenAI Ads',
+    klickId: { oppref: { speicher: ['__oppref'], request: ['oppref'] } },
+    // Events des SDK selbst (openai::sdk_init, oai::diagnostic) tragen eigene UUIDs und gehen nie an den Server
+    deduplizierung: { liste: 'events', id: 'id', ereignis: 'type', konto: 'pid', ignorieren: /^(openai|oai)::/ },
+  },
   // JSON-Body: Wert in context.ad.callback; Cookie ttclid lebt nur 1 Tag
   {
     name: 'TikTok',
