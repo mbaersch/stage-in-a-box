@@ -350,7 +350,7 @@ npm test                    # Unit-Tests (test/einheiten) und Beispieltests gege
 npm run pruefen             # TypeScript-Prüfung, auch aller Projekte
 ```
 
-GitHub Actions führt dieselben Prüfungen bei jedem Push und Pull Request aus, die Beispieltests auch mit Proxy (`.github/workflows/tests.yml`). Echte Websites und Zugangsdaten braucht das nicht. Neue reine Logik in `lib/` (Parser, Vergleiche, Regeln) bekommt Unit-Tests in `test/einheiten/`.
+GitHub Actions führt dieselben Prüfungen bei jedem Push und Pull Request aus, die Beispieltests auch mit Proxy (`.github/workflows/tests.yml`). Ein eigener Job gleicht die Dienst-Erkennung mit den Schwesterprojekten ab ([`abgleich/README.md` im tracking-auditor](https://github.com/mbaersch/tracking-auditor/blob/master/abgleich/README.md)); bei einer Änderung über mehrere Repos ist er rot, bis alle nachgezogen sind. Echte Websites und Zugangsdaten braucht das nicht. Neue reine Logik in `lib/` (Parser, Vergleiche, Regeln) bekommt Unit-Tests in `test/einheiten/`.
 
 Die Versionen sind über `package-lock.json` festgelegt und mit den Beispieltests geprüft. Aktualisieren mit `npm update` und danach `npx playwright install chromium`, dann die Beispieltests laufen lassen.
 
