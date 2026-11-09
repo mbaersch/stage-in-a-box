@@ -364,11 +364,13 @@ export function pruefeDeduplizierung(
       pixel.push({ dienst: a.dienst, konto, ereignis: ereignis ?? a.pfad, id: automatisch ? undefined : id, automatisch });
     }
   }
-  // Manche Pixel senden die ID als SHA-256 (Reddit), der Server-Container bekommt sie im Klartext
+  // Manche Tag-Vorlagen senden die ID als SHA-256 (Reddit im GTM), der Server-Container bekommt sie im Klartext
   const hashes = new Map<string, string>();
   const sha256 = (w: string) => { if (!hashes.has(w)) hashes.set(w, createHash('sha256').update(w).digest('hex')); return hashes.get(w)!; };
   const istHash = (id: string) => /^[0-9a-f]{64}$/.test(id);
-  const passt = (wert: string, id: string) => enthaeltToken(wert, id) || (istHash(id) && sha256(wert) === id);
+  // Exakter Hash, dazu normalisiert (trim, klein), falls ein Dienst IDs wie E-Mail-Adressen behandelt
+  const hashePasst = (wert: string, id: string) => sha256(wert) === id || sha256(wert.trim().toLowerCase()) === id;
+  const passt = (wert: string, id: string) => enthaeltToken(wert, id) || (istHash(id) && hashePasst(wert, id));
 
   // Pixel → Server
   const ohneId = new Map<string, { dienst: string; ereignis: string; anzahl: number; automatisch: number }>();
@@ -417,7 +419,7 @@ export function pruefeDeduplizierung(
     const jeEvent = new Map<string, string[]>();
     for (const e of serverEvents) {
       const id = feldWert(e.f, feld);
-      if (!id || ids.has(id) || ids.has(sha256(id))) continue;
+      if (!id || ids.has(id) || ids.has(sha256(id)) || ids.has(sha256(id.trim().toLowerCase()))) continue;
       if (!jeEvent.has(e.ereignis)) jeEvent.set(e.ereignis, []);
       if (!jeEvent.get(e.ereignis)!.includes(id)) jeEvent.get(e.ereignis)!.push(id);
     }

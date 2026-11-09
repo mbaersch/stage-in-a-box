@@ -224,6 +224,14 @@ test.describe('Event-ID zur Deduplizierung', () => {
     expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=ORDER-7'), reddit]))).toEqual([]);
     expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=ORDER-8'), reddit]))).toHaveLength(1);
   });
+
+  test('Reddit: Transaktions-ID hat Vorrang vor der Conversion-ID', () => {
+    const h = (w: string) => createHash('sha256').update(w).digest('hex');
+    const reddit = { zeit: 0, dienst: 'Reddit', host: 'alb.reddit.com', pfad: '/rp', parameter: {},
+      body: `id=a2_x&event=Purchase&m.transactionId=${h('T-1')}&m.conversionId=${h('E-1')}` };
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.transaction_id=T-1'), reddit]))).toEqual([]);
+    expect(rot(pruefeDeduplizierung([sgtm('en=purchase&ep.event_id=E-1'), reddit]))).toHaveLength(1);
+  });
 });
 
 test.describe('GA4-Grenzen', () => {

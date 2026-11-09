@@ -66,7 +66,7 @@ Schicken Pixel und Conversions API (meist über den Server-Container) dasselbe E
 | Meta | `eid` (im `fbq`-Aufruf `eventID`) | `ev`; `SubscribedButtonClick` (automatisches Event) zählt nicht | `id` | im Profil |
 | TikTok | `event_id` im JSON-Body, leer ohne Angabe der Seite | `event`; `EnrichAM` (Advanced Matching nachgereicht) zählt nicht | `context.pixel.code` | im Profil |
 | Pinterest | `event_id` im JSON-Parameter `ed` | `event`; `init` (Laden des Pixels) zählt nicht | `tid` | im Profil |
-| Reddit | `m.conversionId` (empfohlen), sonst `m.transactionId`; die `conversionId` steht als SHA-256 im Request, verglichen wird deshalb auch mit dem Hash der Werte am Server | `event` | `id` | im Profil, belegt 11/2026 |
+| Reddit | `m.transactionId`, wenn vorhanden (hat laut Reddit Vorrang), sonst `m.conversionId`; die Reddit-Vorlage im GTM sendet beide als SHA-256 des exakten Werts, der Pixel bei direktem `rdt('track', …)` im Klartext; verglichen wird deshalb auch mit dem Hash der Werte am Server | `event` | `id` | im Profil, belegt 11/2026 |
 | Snap | `cdid` (client_deduplication_id); ohne Angabe der Seite erzeugt das Pixel eine eigene mit `@-` davor, die gilt als „ohne ID der Seite“ | `ev` | `pid` | im Profil, belegt 11/2026 |
 | OpenAI Ads | `id` je Element des JSON-Arrays `events` (Profil `liste`); SDK-eigene Events (`openai::…`, `oai::…`) mit UUID v4 zählen nicht | `type` je Element | `pid` | im Profil, belegt 11/2026 |
 | LinkedIn | `eventId` an `/collect`, beim Seitenaufruf und bei Conversions (dann mit `conversionId`) | – (Bericht: Pfad) | `pid` | im Profil, belegt 11/2026. `/wa/` (Website-Signale, Body gzip + Base64) zählt nicht |

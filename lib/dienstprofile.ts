@@ -152,9 +152,9 @@ export const DIENST_PROFILE: DienstProfil[] = [
   {
     name: 'Reddit',
     klickId: { rdt_cid: { speicher: ['_rdt_cid'], request: ['click_id'] } },
-    // Conversion-ID (empfohlener Schlüssel zur Deduplizierung), sonst Transaktions-ID. Im Request steht die
-    // conversionId als SHA-256 (belegt 11/2026); der Abgleich mit dem Server vergleicht deshalb auch Hashes.
-    deduplizierung: { id: ['m.conversionId', 'm.transactionId'], ereignis: 'event', konto: 'id' },
+    // Ist eine Transaktions-ID da, hat sie laut Reddit Vorrang vor der Conversion-ID. Die Reddit-Vorlage im GTM
+    // sendet beide als SHA-256, der Pixel selbst im Klartext (belegt 11/2026); verglichen wird deshalb beides.
+    deduplizierung: { id: ['m.transactionId', 'm.conversionId'], ereignis: 'event', konto: 'id' },
   },
   // cdid = client_deduplication_id; ohne Angabe der Seite erzeugt das Pixel eine eigene mit „@-“ davor (belegt 11/2026)
   { name: 'Snap', deduplizierung: { id: 'cdid', ereignis: 'ev', konto: 'pid', automatisch: /^@-/ } },
