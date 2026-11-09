@@ -1522,6 +1522,14 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       fs.writeFileSync(datei, JSON.stringify(daten, null, 2));
       await testInfo.attach(name, { path: datei, contentType: 'application/json' });
     };
+    if (stage.adblocker) {
+      // Beacons beim Verlassen einer Seite laufen ohne Proxy am Routing vorbei (entwischt). Ein echter Blocker
+      // sieht sie; deshalb nachträglich prüfen, vor dem Ablegen von tracking-treffer.json.
+      const seite = String(testInfo.project.use.baseURL ?? '');
+      for (const t of stage.tracking.treffer.filter((x) => !x.adblocker && x.quelle === 'netlog')) {
+        t.adblocker = stage.adblocker.pruefe(t.url, t.ressourcentyp, seite)?.filter;
+      }
+    }
     await ablegen('dataLayer.json', stage.dataLayer.eintraege);
     await ablegen('tracking-treffer.json', stage.tracking.treffer);
     await ablegen('hosts.json', [...stage.tracking.hosts].sort().map((h) => ({ host: h, ausgeloestVon: stage.tracking.ausloeser.get(h) })));
@@ -1553,13 +1561,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       });
     }
     if (stage.adblocker) {
-      const { name, listen, blockiert, pruefe } = stage.adblocker;
-      // Beacons beim Verlassen einer Seite laufen ohne Proxy am Routing vorbei (entwischt). Ein echter
-      // Blocker sieht sie; deshalb nachträglich prüfen, damit sie nicht als durchgekommen zählen.
-      const seite = String(testInfo.project.use.baseURL ?? '');
-      for (const t of stage.tracking.treffer.filter((x) => !x.adblocker && x.quelle === 'netlog')) {
-        t.adblocker = pruefe(t.url, t.ressourcentyp, seite)?.filter;
-      }
+      const { name, listen, blockiert } = stage.adblocker;
       const dienste = (nurBlockiert: boolean) => [...new Set(stage.tracking.treffer
         .filter((t) => !!t.adblocker === nurBlockiert).map((t) => t.dienst))].sort();
       const durch = dienste(false);
