@@ -22,6 +22,13 @@ Eine eigene Domain allein schützt nicht vor Adblockern; es kommt auf den Pfad a
 - `/gtm.js` wird auf jedem Pfad blockiert (EasyPrivacy, Regel `/gtm.js`), ebenso Skripte auf Subdomains, die mit `sgtm.` beginnen (`://sgtm.*.js?`).
 - Bei `googletagmanager.com/gtm.js` und `/gtag/js` liefert uBlock ein Ersatzskript statt nichts (uBlock filters – Privacy, `redirect=googletagmanager_gtm.js`, bei uBlock ein Alias für den Ersatz von `analytics.js`): Anti-Flicker wird freigegeben und jeder `eventCallback` im dataLayer ausgeführt, der dataLayer selbst bleibt. Weiterleitungen nach einem Push mit `eventCallback` funktionieren für Blocker-Nutzer also; Tags feuern nicht.
 
+Weitere Befunde an einem WooCommerce-Shop mit GTM4WP und Stape (9. November 2026, `ublock` und `streng` gleich):
+
+- **GTM4WP:** EasyPrivacy blockiert die Skripte des Plugins auf der eigenen Domain (Regel `/gtm4wp-$script`). Events, die diese Skripte auslösen (`add_to_cart`, `add_payment_info`, Formular-Events), fehlen dann im dataLayer; Events, die die Seite selbst ausgibt (`view_item`, `view_cart`, `begin_checkout`), bleiben.
+- **Stape Custom Loader:** Ein eigener Pfad für `gtm.js` auf eigener Subdomain kam durch, GTM lief also. Die Tags der Dienste scheiterten trotzdem an ihren Skripten bzw. Endpunkten, GA4 an den Server-Container an `/g/collect`.
+- **Stape Data Tag:** Das Skript von `stapecdn.com` wird blockiert (EasyPrivacy, `||stapecdn.com^$third-party`).
+- Requests eines Tags mit eigenem Pfad und eigenem Format (z. B. JSON Tag) an den Server-Container kamen durch.
+
 Ob ein konkretes Setup durchkommt, zeigt die Variante `adblocker` (siehe [`../anleitung/varianten.md`](../anleitung/varianten.md)). Die Listen ändern sich täglich; die Befunde in `adblocker.json` nennen Regel, Liste und Stand.
 
 ## Referenz
