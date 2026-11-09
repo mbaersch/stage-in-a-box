@@ -1531,6 +1531,9 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (Object.keys(stage.landungsWerte).length) {
       await ablegen('landung.json', { werte: stage.landungsWerte, klickIds: await stage.klickIds().catch(() => []), utm: stage.utm() });
     }
+    // Rote Befunde aller Prüfungen erst am Ende melden: Ein Abbruch in der ersten würde die übrigen samt Dateien überspringen.
+    const rotePruefungen: string[] = [];
+    const sammle = (datei: string, rot: string[]) => rotePruefungen.push(...rot.map((r) => `[${datei}] ${r}`));
     // UTM-Prüfung (stageOptionen.pruefungen.utm): erster Request der genannten Dienste nach der Landung
     if (stageOptionen.pruefungen?.utm?.length && testInfo.status === 'passed' && stage.landungsZeit) {
       const utm = stage.utm();
@@ -1539,7 +1542,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
         if (!b) return [`${d}: kein Request nach der Landung`];
         return b.fehlend.length ? [`${d}: erster Request (${b.ersterRequest.ereignis}) ohne ${b.fehlend.join(', ')}`] : [];
       });
-      expect(rot, 'UTM-Parameter im ersten Request nach der Landung (Details: landung.json)').toEqual([]);
+      sammle('landung.json', rot);
     }
     if (stage.seitenAnzeigen.some((a) => a.persisted)) await ablegen('bfcache.json', stage.seitenAnzeigen);
     if (stage.kennzeichnung) {
@@ -1606,7 +1609,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
         });
       }
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.dienst} ${b.ereignis}: ${b.text}`);
-      expect(rot, 'Event-ID zur Deduplizierung (Details: deduplizierung.json)').toEqual([]);
+      sammle('deduplizierung.json', rot);
     }
     // GA4-Erfassungsgrenzen (stageOptionen.pruefungen.ga4Grenzen)
     const grenzen = stageOptionen.pruefungen?.ga4Grenzen;
@@ -1615,7 +1618,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       const befunde = pruefeGa4Grenzen(stage.tracking.treffer, grenzen === '360' ? '360' : 'standard');
       await ablegen('ga4-grenzen.json', befunde);
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis}: ${b.text}`);
-      expect(rot, 'GA4-Erfassungsgrenzen (Details: ga4-grenzen.json)').toEqual([]);
+      sammle('ga4-grenzen.json', rot);
     }
     if (ereignisse.length && testInfo.status === 'passed') {
       const befunde: DurchgaengigkeitsBefund[] = [];
@@ -1623,8 +1626,9 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       befunde.push(...pruefeArtikelVerlauf(stage.dataLayer.eintraege));
       await ablegen('durchgaengigkeit.json', befunde);
       const rot = befunde.filter((b) => b.stufe === 'rot').map((b) => `${b.ereignis} → ${b.dienst}: ${b.text}`);
-      expect(rot, 'Durchgängigkeit dataLayer → Requests (Details: durchgaengigkeit.json)').toEqual([]);
+      sammle('durchgaengigkeit.json', rot);
     }
+    expect(rotePruefungen, 'Prüfungen: UTM, Deduplizierung, GA4-Grenzen, Durchgängigkeit (Details in der genannten Datei)').toEqual([]);
   },
 });
 

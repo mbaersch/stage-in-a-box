@@ -153,7 +153,6 @@ function suche(soll: Werte, anfragen: Anfrage[]): { feld: keyof Werte; gefunden:
 
 export function pruefeDurchgaengigkeit(
   pushes: Push[], anfragen: Anfrage[], ereignis: string, ausnahmen: string[] = [], profile: DienstProfil[] = DIENST_PROFILE,
-  serverDienste: string[] = [],
 ): DurchgaengigkeitsBefund[] {
   const befunde: DurchgaengigkeitsBefund[] = [];
   const conversion = new Map(profile.filter((p) => p.conversion).map((p) => [p.name, p.conversion!]));
