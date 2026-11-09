@@ -1591,7 +1591,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     if (dedup && testInfo.status === 'passed') {
       await stage.warteAufRuhe();
       const o = dedup === true ? {} : dedup;
-      const befunde = pruefeDeduplizierung(stage.tracking.treffer, stage.dienstProfile, o.serverDienste, o.ausnahmen, o.serverIdFelder);
+      const befunde = pruefeDeduplizierung(stage.tracking.treffer, stage.dienstProfile, o.serverDienste, o.ausnahmen, o.serverIdFelder, o.ga4Server);
       await ablegen('deduplizierung.json', befunde);
       const liste = (art: string, dienst?: string) => befunde.filter((b) => b.art === art && (!dienst || b.dienst === dienst));
       // Je Dienst: Pixel ohne ID, während der Server IDs für diesen Dienst hat (nur mit serverIdFelder)

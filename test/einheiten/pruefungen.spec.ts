@@ -182,6 +182,12 @@ test.describe('Event-ID zur Deduplizierung', () => {
     expect(rot(pruefeDeduplizierung([sgtm('en=purchase'), meta('Purchase', 'E-9')], undefined, [], ['Meta']))).toEqual([]);
   });
 
+  test('ga4Server: false – GA4 auf eigener Domain (Google Tag Gateway) ist kein Server-Container', () => {
+    const befunde = pruefeDeduplizierung([sgtm('en=purchase'), meta('Purchase', 'E-9')], undefined, [], [], {}, false);
+    expect(rot(befunde)).toEqual([]);
+    expect(texte(befunde)[0]).toBe('kein Request an einen Server-Container – Abgleich mit dem Server entfällt');
+  });
+
   test('Requests ohne Event-Namen und technische Events zählen nicht', () => {
     const tiktok = (event?: string) => ({ zeit: 0, dienst: 'TikTok', host: 'analytics.tiktok.com', pfad: '/api/v2/pixel/act', parameter: {},
       body: JSON.stringify({ ...(event ? { event } : {}), event_id: '' }) });

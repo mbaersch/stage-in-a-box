@@ -34,11 +34,14 @@ export interface Pruefungen {
   ga4Grenzen?: boolean | '360';
   /**
    * Event-ID zur Deduplizierung für alle Events (siehe pruefeDeduplizierung). serverDienste: weitere Regeln,
-   * deren Requests an den Server-Container gehen (GA4-Requests an eine eigene Domain gelten immer);
+   * deren Requests an den Server-Container gehen; ga4Server: false, wenn GA4 auf der eigenen Domain kein
+   * Server-Container ist (z. B. Google Tag Gateway; am Request nicht unterscheidbar, Vorgabe: true);
    * ausnahmen: Dienstnamen; serverIdFelder: Feld je Dienst, in dem der Server-Request dessen ID trägt,
    * z. B. { Meta: 'ep.fb_event_id' } – dann werden auch IDs am Server ohne passendes Pixel gemeldet.
    */
-  deduplizierung?: boolean | { serverDienste?: string[]; ausnahmen?: string[]; serverIdFelder?: Record<string, string | string[]> };
+  deduplizierung?: boolean | {
+    serverDienste?: string[]; ga4Server?: boolean; ausnahmen?: string[]; serverIdFelder?: Record<string, string | string[]>;
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -320,9 +323,10 @@ export function ereignisseAus(option: Pruefungen['durchgaengigkeit']): { ereigni
  */
 export function pruefeDeduplizierung(
   anfragen: Anfrage[], profile: DienstProfil[] = DIENST_PROFILE, serverDienste: string[] = [], ausnahmen: string[] = [],
-  serverIdFelder: Record<string, Feld> = {},
+  serverIdFelder: Record<string, Feld> = {}, ga4Server = true,
 ): DurchgaengigkeitsBefund[] {
-  const anServer = (a: Anfrage) => serverDienste.includes(a.dienst) || (a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
+  const anServer = (a: Anfrage) => serverDienste.includes(a.dienst)
+    || (ga4Server && a.dienst === 'GA4' && !!a.host && !GOOGLE_HOST.test(a.host));
   const server = anfragen.filter(anServer);
   // Felder der Server-Requests je Event (GA4 bündelt Events zeilenweise im Body)
   const serverEvents = server.flatMap((s) => {
