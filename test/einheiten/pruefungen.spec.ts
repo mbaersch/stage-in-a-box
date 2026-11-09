@@ -253,11 +253,19 @@ test.describe('GA4-Grenzen', () => {
     expect(rot(befunde)).toEqual(['Eventname mit 45 Zeichen über 40: GA4 verarbeitet das Event nicht']);
   });
 
-  test('Größe des Requests: Hinweis nahe 16 KB, rot darüber', () => {
+  test('Größe des Requests: nur Hinweis über 16 KB (von Google nicht dokumentiert)', () => {
     const zeile = (n: number) => `en=e${n}&ep.text=${'z'.repeat(90)}`;
     const body = (anzahl: number) => Array.from({ length: anzahl }, (_, i) => zeile(i)).join('\n');
-    expect(stufen(pruefeGa4Grenzen([ga4('v=2', body(140))])).some((t) => t.startsWith('info: Request mit'))).toBe(true);
-    expect(rot(pruefeGa4Grenzen([ga4('v=2', body(180))]))[0]).toMatch(/über 16 KB/);
+    expect(pruefeGa4Grenzen([ga4('v=2', body(140))])).toEqual([]);
+    const gross = pruefeGa4Grenzen([ga4('v=2', body(180))]);
+    expect(rot(gross)).toEqual([]);
+    expect(stufen(gross)[0]).toMatch(/^info: Request mit .* über 16 KB/);
+  });
+
+  test('Länge URL-kodiert gezählt, bei 360 Werte bis 500', () => {
+    // „ä“ zählt kodiert 6 Zeichen: 17 × 6 = 102 > 100
+    expect(stufen(pruefeGa4Grenzen([ga4(`v=2&en=kauf&ep.name=${encodeURIComponent('ä'.repeat(17))}`)]))).toEqual(['info: Wert von name mit 102 Zeichen über 100']);
+    expect(pruefeGa4Grenzen([ga4(`v=2&en=kauf&ep.name=${'a'.repeat(400)}`)], '360')).toEqual([]);
   });
 
   test('User Properties', () => {

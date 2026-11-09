@@ -29,7 +29,7 @@ export interface Pruefungen {
   utm?: string[];
   /**
    * GA4-Requests gegen die Erfassungsgrenzen von GA4 prüfen: zu lange Event- und Parameternamen, zu viele
-   * Parameter und zu große Requests sind rot, überlange Werte ein Hinweis. '360' für Properties mit 360.
+   * Parameter sind rot, überlange Werte und Requests über 16 KB ein Hinweis. '360' für Properties mit 360.
    */
   ga4Grenzen?: boolean | '360';
   /**
@@ -433,12 +433,12 @@ export function pruefeDeduplizierung(
 /* ------------------------------------------------------------------ */
 
 /**
- * Grenzen laut Google ([GA4] Event collection limits, Google Analytics 360). Was darüber liegt, verarbeitet
- * GA4 nicht; Daten über 16 KB pro Request verwirft GA4 für den ganzen Request.
+ * Grenzen laut Google (support.google.com/analytics/answer/9267744, für 360: answer/11202874). Was darüber
+ * liegt, verarbeitet GA4 nicht. Gezählt wird die URL-kodierte Länge. requestBytes steht dort nicht, nur Hinweis.
  */
 export const GA4_GRENZEN = {
   standard: { eventName: 40, parameter: 25, parameterName: 40, wert: 100, dl: 1000, dt: 300, dr: 420, upName: 24, upWert: 36 },
-  '360': { eventName: 40, parameter: 100, parameterName: 40, wert: 100, dl: 1000, dt: 500, dr: 500, upName: 24, upWert: 36 },
+  '360': { eventName: 40, parameter: 100, parameterName: 40, wert: 500, dl: 1000, dt: 500, dr: 500, upName: 24, upWert: 36 },
   requestBytes: 16 * 1024,
 } as const;
 
@@ -447,33 +447,35 @@ export function pruefeGa4Grenzen(anfragen: Anfrage[], variante: 'standard' | '36
   const g = GA4_GRENZEN[variante];
   const befunde: DurchgaengigkeitsBefund[] = [];
   const melde = (stufe: 'rot' | 'info', ereignis: string, text: string) => befunde.push({ stufe, ereignis, dienst: 'GA4', text });
+  const len = (w: string) => encodeURIComponent(w).length;
   for (const a of anfragen.filter((x) => x.dienst === 'GA4')) {
     const query = a.url?.includes('?') ? a.url.slice(a.url.indexOf('?') + 1) : '';
     const bytes = Buffer.byteLength(query) + Buffer.byteLength(a.body ?? '');
     const kb = (bytes / 1024).toFixed(1);
-    if (bytes > GA4_GRENZEN.requestBytes) melde('rot', a.parameter.en ?? 'Request', `Request mit ${kb} KB über 16 KB: GA4 verwirft alle Events darin`);
-    else if (bytes > GA4_GRENZEN.requestBytes * 0.8) melde('info', a.parameter.en ?? 'Request', `Request mit ${kb} KB nahe an der Grenze von 16 KB`);
+    if (bytes > GA4_GRENZEN.requestBytes) {
+      melde('info', a.parameter.en ?? 'Request', `Request mit ${kb} KB über 16 KB – von Google nicht dokumentiert, Verarbeitung im Bericht prüfen`);
+    }
 
     const zeilen = a.body ? a.body.split(/\r?\n/).filter(Boolean) : [undefined];
     for (const zeile of zeilen) {
       const f = { ...a.parameter, ...(zeile ? Object.fromEntries(new URLSearchParams(zeile)) : {}) };
       const en = f.en ?? '(ohne Namen)';
-      if (en.length > g.eventName) melde('rot', en, `Eventname mit ${en.length} Zeichen über ${g.eventName}: GA4 verarbeitet das Event nicht`);
+      if (len(en) > g.eventName) melde('rot', en, `Eventname mit ${len(en)} Zeichen über ${g.eventName}: GA4 verarbeitet das Event nicht`);
       // ep.user_data.* bekommt nur ein Server-Container (Nutzerdaten für Enhanced Conversions), keine Event-Parameter
       const eigene = Object.keys(f).filter((k) => /^epn?\./.test(k) && !k.startsWith('ep.user_data.'));
       if (eigene.length > g.parameter) melde('rot', en, `${eigene.length} Parameter über ${g.parameter}: GA4 verarbeitet die übrigen nicht`);
       for (const k of eigene) {
         const name = k.replace(/^epn?\./, '');
-        if (name.length > g.parameterName) melde('rot', en, `Parametername ${name} mit ${name.length} Zeichen über ${g.parameterName}`);
-        if (k.startsWith('ep.') && f[k].length > g.wert) melde('info', en, `Wert von ${name} mit ${f[k].length} Zeichen über ${g.wert}`);
+        if (len(name) > g.parameterName) melde('rot', en, `Parametername ${name} mit ${len(name)} Zeichen über ${g.parameterName}`);
+        if (k.startsWith('ep.') && len(f[k]) > g.wert) melde('info', en, `Wert von ${name} mit ${len(f[k])} Zeichen über ${g.wert}`);
       }
       for (const [k, grenze, name] of [['dl', g.dl, 'page_location'], ['dt', g.dt, 'page_title'], ['dr', g.dr, 'page_referrer']] as const) {
-        if (f[k] && f[k].length > grenze) melde('info', en, `${name} mit ${f[k].length} Zeichen über ${grenze}`);
+        if (f[k] && len(f[k]) > grenze) melde('info', en, `${name} mit ${len(f[k])} Zeichen über ${grenze}`);
       }
       for (const k of Object.keys(f).filter((x) => /^upn?\./.test(x))) {
         const name = k.replace(/^upn?\./, '');
-        if (name.length > g.upName) melde('rot', en, `Name der User Property ${name} mit ${name.length} Zeichen über ${g.upName}`);
-        if (k.startsWith('up.') && f[k].length > g.upWert) melde('info', en, `Wert der User Property ${name} mit ${f[k].length} Zeichen über ${g.upWert}`);
+        if (len(name) > g.upName) melde('rot', en, `Name der User Property ${name} mit ${len(name)} Zeichen über ${g.upName}`);
+        if (k.startsWith('up.') && len(f[k]) > g.upWert) melde('info', en, `Wert der User Property ${name} mit ${len(f[k])} Zeichen über ${g.upWert}`);
       }
     }
   }
