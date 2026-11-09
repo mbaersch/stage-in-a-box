@@ -202,6 +202,16 @@ async function ladeEigene(eintrag: string): Promise<{ text: string; liste: Adblo
 /** Engine je Listenstand einmal pro Prozess bauen; serialisiert in listen/ für die übrigen Worker. */
 const engines = new Map<string, Promise<any>>();
 
+/** Engines älter als zwei Tage löschen: Mit jedem neuen Listenstand entsteht eine neue (bis über 40 MB). */
+function altEnginesLoeschen() {
+  for (const name of fs.readdirSync(ZWISCHENSPEICHER).filter((n) => /^engine-.*\.bin$/.test(n))) {
+    const datei = path.join(ZWISCHENSPEICHER, name);
+    try {
+      if (Date.now() - fs.statSync(datei).mtimeMs > 2 * MAX_ALTER_MS) fs.unlinkSync(datei);
+    } catch { /* von einem anderen Worker gelöscht oder auf einer Freigabe gesperrt */ }
+  }
+}
+
 async function ladeBibliothek(): Promise<any> {
   try {
     return await import('@ghostery/adblocker');
@@ -232,6 +242,7 @@ export async function adblockerLaden(option: Adblocker): Promise<AdblockerSetup>
       const engine = FiltersEngine.parse(text, { loadCosmeticFilters: false, loadNetworkFilters: true, enableOptimizations: false, debug: true });
       fs.mkdirSync(ZWISCHENSPEICHER, { recursive: true });
       schreibe(datei, engine.serialize());
+      altEnginesLoeschen();
       return engine;
     })());
   }

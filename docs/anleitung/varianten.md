@@ -50,7 +50,7 @@ Ohne Änderung an den Tests: `ADBLOCKER=ublock npm test -- projects/<name>` (ode
 | `ublock` | uBlock filters (Ads, Privacy, Unbreak, Quick fixes), EasyList, EasyPrivacy, Peter Lowe | uBlock Origin nach der Installation, ohne die Malware-Listen |
 | `streng` | dazu AdGuard Tracking Protection | Nutzer mit schärferem Tracking-Schutz; kennt auch First-Party-Tracker |
 
-- Die Listen werden beim ersten Lauf geladen und einen Tag lang in `listen/` im Hauptordner zwischengespeichert (nicht im Git, fremde Lizenzen). Ist eine Quelle nicht erreichbar, nimmt die Stage einen Spiegel, sonst die alte Kopie mit Anmerkung „Achtung“. Ohne Netz und ohne Kopie bricht der Test mit Meldung ab.
+- Die Listen werden beim ersten Lauf geladen und einen Tag lang in `listen/` im Hauptordner zwischengespeichert (nicht im Git, fremde Lizenzen), daneben die daraus gebaute Engine (bis über 40 MB, nach zwei Tagen gelöscht). Ist eine Quelle nicht erreichbar, nimmt die Stage einen Spiegel, sonst die alte Kopie mit Anmerkung „Achtung“. Ohne Netz und ohne Kopie bricht der Test mit Meldung ab.
 - Ergebnis in `adblocker.json`: Listen mit Stand, jeder blockierte Request mit Regel und Liste, Dienste blockiert bzw. durchgekommen. Der Test bekommt die Anmerkung „Adblocker“ mit der Zusammenfassung; in `tracking-treffer.json` trägt jeder blockierte Treffer die Regel im Feld `adblocker`. Im Test: `stage.adblocker.blockiert`.
 - Kombinierbar mit allem außer Baseline-Vergleichen (bricht mit Meldung ab). Im Modus `abfangen` sieht man, was ein Blocker durchließe, ohne dass es gesendet wird.
 - Typische Fragen: Kommt die Conversion bei Blocker-Nutzern noch an (sGTM auf eigener Domain, eigener Pfad)? Funktioniert die Seite, wenn GTM oder die CMP blockiert ist? Bleibt der Kauf möglich?
