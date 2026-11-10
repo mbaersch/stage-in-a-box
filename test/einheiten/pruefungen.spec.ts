@@ -42,6 +42,18 @@ test.describe('pruefeDurchgaengigkeit', () => {
     expect(befunde.map((b) => b.text)).toContain('value 99 statt 119.9');
   });
 
+  test('Conversion ohne Wert und Währung (reine Zähl-Conversion): nur Hinweis', () => {
+    const ads = { zeit: 1100, dienst: 'Google Ads', pfad: '/pagead/conversion/123/', parameter: { label: 'x', oid: 'T-1' } };
+    const befunde = pruefeDurchgaengigkeit([push], [ads], 'purchase');
+    expect(rot(befunde)).toEqual([]);
+    expect(befunde.map((b) => b.text)).toContain('currency fehlt, value auch – Conversion ohne Wert (dataLayer: EUR)');
+  });
+
+  test('Wert ohne Währung bleibt rot', () => {
+    const ads = { zeit: 1100, dienst: 'Google Ads', pfad: '/pagead/conversion/123/', parameter: { label: 'x', value: '119.9', oid: 'T-1' } };
+    expect(rot(pruefeDurchgaengigkeit([push], [ads], 'purchase'))).toEqual(['currency fehlt (dataLayer: EUR)']);
+  });
+
   test('Dienst ohne Profil: kurze Transaktions-ID nicht als Teil einer Seiten-URL', () => {
     const p = kauf({ value: 5, transaction_id: '253' });
     const fremd = { zeit: 1100, dienst: 'Eigen', pfad: '/t', parameter: { dl: 'https://shop.de/order-received/253/', oid: '253' } };

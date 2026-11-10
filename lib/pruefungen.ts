@@ -193,7 +193,9 @@ export function pruefeDurchgaengigkeit(
           else if (Math.abs(ist.value - soll.value) > 0.005) melde('value', stufe, `value ${ist.value} statt ${soll.value}`);
         }
         if (soll.currency !== undefined && c.currency) {
-          if (ist.currency === undefined) melde('currency', 'rot', `currency fehlt (dataLayer: ${soll.currency})`);
+          // Ohne Wert ist die Währung bedeutungslos: reine Zähl-Conversion, eine Entscheidung im Setup
+          if (ist.currency === undefined && ist.value === undefined) melde('currency', 'info', `currency fehlt, value auch – Conversion ohne Wert (dataLayer: ${soll.currency})`);
+          else if (ist.currency === undefined) melde('currency', 'rot', `currency fehlt (dataLayer: ${soll.currency})`);
           else if (ist.currency.toUpperCase() !== soll.currency.toUpperCase()) melde('currency', 'rot', `currency ${ist.currency} statt ${soll.currency}`);
         }
         if (soll.transaction_id !== undefined && c.transaction_id) {
