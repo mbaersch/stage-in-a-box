@@ -98,6 +98,8 @@ test.describe('Variante: Adblocker mit Filterregeln', () => {
   test('Seite funktioniert, GA4 kommt nicht durch', async ({ page, stage }) => {
     await journey(page, stage, 'akzeptieren');
     expect(stage.tracking.ga4('generate_lead')).toHaveLength(1);
+    // Die Regel steht erst nach requestfailed am Treffer, also asynchron.
+    await stage.warteAufRuhe();
     expect(stage.tracking.treffer.every((t) => t.adblocker === '/g/collect?')).toBe(true);
     expect(stage.adblocker?.blockiert.every((b) => b.dienst === 'GA4')).toBe(true);
   });
