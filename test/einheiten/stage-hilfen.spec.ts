@@ -93,6 +93,23 @@ test.describe('Baseline-Vergleich', () => {
     expect(vergleiche(b, lauf)).toEqual([]);
   });
 
+  test('optionales Event fehlt oder ändert sich: nur Hinweis, andere Events bleiben rot', () => {
+    const b = basis();
+    b.events.push({ name: 'bot_pruefung', quelle: 'push', daten: { pruefung: 'x', ecommerce: { x: 1 } } });
+    const ohne = basis();
+    expect(rot(b, ohne)).toEqual(['Event fehlt: bot_pruefung']);
+    const befunde = vergleiche(b, ohne, { optionaleEvents: ['bot_pruefung'] });
+    expect(befunde.filter((x) => x.stufe === 'rot')).toEqual([]);
+    expect(befunde.map((x) => x.text)).toContain('Event fehlt: bot_pruefung (optional)');
+    const anders = basis();
+    anders.events.push({ name: 'bot_pruefung', quelle: 'push', daten: { ecommerce: { x: 2 } } });
+    expect(vergleiche(b, anders, { optionaleEvents: ['bot_pruefung'] }).filter((x) => x.stufe === 'rot')).toEqual([]);
+    const ohneKauf = basis();
+    ohneKauf.events = [];
+    expect(vergleiche(basis(), ohneKauf, { optionaleEvents: ['bot_pruefung'] }).filter((x) => x.stufe === 'rot').map((x) => x.text))
+      .toContain('Event fehlt: purchase');
+  });
+
   test('Request fehlt: rot', () => {
     const lauf = basis();
     lauf.anfragen = [];

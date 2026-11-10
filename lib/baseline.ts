@@ -41,6 +41,11 @@ export interface BaselineOptionen {
   fluechtigeKeys?: string[];
   /** Zusätzliche Request-Parameter, deren Werte sich bei jedem Lauf ändern. */
   fluechtigeParameter?: string[];
+  /**
+   * dataLayer-Events, die nicht in jedem Lauf zuverlässig kommen (z. B. ein Bot-Schutz, der mal lädt, mal nicht):
+   * Fehlen, Mehrfach und geänderter Inhalt sind nur Hinweise, markiert mit „(optional)“.
+   */
+  optionaleEvents?: string[];
   /** Request-Parameter, deren Änderung den Test rot macht. Ersetzt die Vorgabe. */
   rotParameter?: string[];
   /** Ablageort relativ zum Projektordner. Vorgabe: baselines */
@@ -315,14 +320,16 @@ const zeige = (v: unknown) => (typeof v === 'string' ? `"${v}"` : JSON.stringify
 
 function anzahlBefunde(
   bereich: Befund['bereich'], basis: Map<string, unknown[]>, lauf: Map<string, unknown[]>, art: string,
+  optional: Set<string> = new Set(),
 ): Befund[] {
   const befunde: Befund[] = [];
   for (const [k, b] of basis) {
     const r = lauf.get(k)?.length ?? 0;
-    const stufe = nurHinweis(k) ? 'info' : 'rot';
-    if (r === 0) befunde.push({ stufe, bereich, text: `${art} fehlt: ${k}` });
-    else if (r < b.length) befunde.push({ stufe, bereich, text: `${art} fehlt teilweise: ${k} (${r} statt ${b.length})` });
-    else if (r > b.length) befunde.push({ stufe, bereich, text: `${art} mehrfach: ${k} (${r} statt ${b.length})` });
+    const stufe = nurHinweis(k) || optional.has(k) ? 'info' : 'rot';
+    const zusatz = optional.has(k) ? ' (optional)' : '';
+    if (r === 0) befunde.push({ stufe, bereich, text: `${art} fehlt: ${k}${zusatz}` });
+    else if (r < b.length) befunde.push({ stufe, bereich, text: `${art} fehlt teilweise: ${k} (${r} statt ${b.length})${zusatz}` });
+    else if (r > b.length) befunde.push({ stufe, bereich, text: `${art} mehrfach: ${k} (${r} statt ${b.length})${zusatz}` });
   }
   for (const [k, r] of lauf) {
     if (!basis.has(k)) befunde.push({ stufe: 'info', bereich, text: `Neu: ${k} (${r.length}×)` });
@@ -335,13 +342,15 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   const fluechtigeKeys = new Set([...FLUECHTIGE_KEYS, ...(optionen.fluechtigeKeys ?? [])]);
   const fluechtigeParameter = new Set([...FLUECHTIGE_PARAMETER, ...(optionen.fluechtigeParameter ?? [])]);
   const rotParameter = new Set(optionen.rotParameter ?? ROT_PARAMETER);
+  const optional = new Set(optionen.optionaleEvents ?? []);
 
   // dataLayer-Events
   const evBasis = gruppiere(basis.events, (e) => e.name);
   const evLauf = gruppiere(lauf.events, (e) => e.name);
-  befunde.push(...anzahlBefunde('dataLayer', evBasis, evLauf, 'Event'));
+  befunde.push(...anzahlBefunde('dataLayer', evBasis, evLauf, 'Event', optional));
   for (const [name, liste] of evBasis) {
     const andere = evLauf.get(name) ?? [];
+    const inhalt = befunde.length;
     for (let i = 0; i < Math.min(liste.length, andere.length); i++) {
       const nr = liste.length > 1 ? ` #${i + 1}` : '';
       const a = flach(liste[i].daten, fluechtigeKeys);
@@ -366,6 +375,7 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
         }
       }
     }
+    if (optional.has(name)) for (const x of befunde.slice(inhalt)) { x.stufe = 'info'; x.text += ' (optional)'; }
   }
   const reihenfolge = (b: Baseline) => b.events.map((e) => e.name).filter((n) => evBasis.has(n) && evLauf.has(n));
   if (JSON.stringify(reihenfolge(basis)) !== JSON.stringify(reihenfolge(lauf))) {

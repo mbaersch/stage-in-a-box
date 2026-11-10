@@ -40,6 +40,7 @@ Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.m
 - Bei beiden ist eine abweichende Anzahl nur ein Hinweis; Consent-Parameter bleiben rot.
 - **Rauschen ohne Aussage** (Sitzungsaufzeichnung, eigene Statistik der Website mit Zeitstempel im Parameter): Regel mit `nichtProtokollieren: true` – wird weiter gesteuert, aber nicht verglichen.
 - **Echte Unsicherheit** (Tag feuert mal, mal nicht): nicht wegfiltern, sondern melden; oft ein Timing-Problem der Website oder ein zu schnelles Tempo.
+- **Event, das die Website nicht zuverlässig sendet** (z. B. ein Bot-Schutz, der nur in manchen Läufen lädt): nach Rücksprache mit dem Menschen in `optionaleEvents` eintragen. Fehlen, Mehrfach und geänderter Inhalt sind dann nur Hinweise mit „(optional)“; im Bericht nennen.
 
 Neue dienstübergreifende Erkenntnisse (flüchtige Parameter, Begleit- oder Timing-Requests eines Dienstes) gehören in `lib/baseline.ts` und als Fakt nach [`../wissen/dienste.md`](../wissen/dienste.md).
 
