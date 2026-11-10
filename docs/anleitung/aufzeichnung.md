@@ -10,7 +10,7 @@ Ergebnis: vorausgefüllte `auftrag.md`, ergänzte `.env.example`, Rückfrage an 
 | Aufnahme-Sitzung (`aufnahme-<Zeit>.json`) | `npm run aufnahme -- projects/<name>`: sichtbarer Browser, Mensch geht den Weg, schließt den Browser | Aktionen (auch in iframes), dataLayer ab Seitenstart, Consent, alle Tracking-Requests | Tags (welcher Tag, Trigger, pausierte Tags) |
 | Konsolen-Mitschnitt (`*.log`/`*.txt`) | `dist/recorder.js` per Override, Konsole speichern | Aktionen | Events, Tags, Requests |
 
-Die Aufnahme-Sitzung braucht weder GTM-Zugang noch Recorder-Tag. Sie läuft im Browser der Stage mit frischem Profil (Startseite: `BASE_URL`), Requests gehen echt raus wie bei einem Besuch. Projekte, die vor ihr angelegt wurden, haben `tests/aufnahme.spec.ts` noch nicht: aus `vorlage/tests/` kopieren. Texteingaben sind maskiert; Klartext mit `aufnahme: { werte: 'full' }` in der Datei. Schritte aus einem iframe tragen in der Zeitleiste den Hinweis „im iframe“; im Test braucht es dort `page.frameLocator(…)`.
+Die Aufnahme-Sitzung braucht weder GTM-Zugang noch Recorder-Tag. Sie läuft im Browser der Stage mit frischem Profil, Requests gehen echt raus wie bei einem Besuch. Startadresse und Vorschau-Link kommen aus dem Auftrag: Vor der Aufnahme legst Du ihn an (`auftrag-<name>.md` aus `vorlage/auftrag.md`, Startadresse unter Einstellungen) und startest mit `AUFTRAG=<name>`, wenn es mehrere gibt. Projekte, die vor ihr angelegt wurden, haben `tests/aufnahme.spec.ts` noch nicht: aus `vorlage/tests/` kopieren. Texteingaben sind maskiert; Klartext mit `aufnahme: { werte: 'full' }` in der Datei. Schritte aus einem iframe tragen in der Zeitleiste den Hinweis „im iframe“; im Test braucht es dort `page.frameLocator(…)`.
 
 ## Aufzeichnung auswerten
 
@@ -44,7 +44,7 @@ Vollständige Beschreibung: [`../aufzeichnungsformat.md`](../aufzeichnungsformat
 
 ## Auftrag vorausfüllen
 
-- Fülle in `auftrag.md` alle Felder, die sich aus der Zeitleiste ableiten lassen: Startadresse, Ablauf in Worten, vermutete Conversion, Events mit wichtigen Werten, Tags pro Aktion, Felder mit Testdaten, sich ändernde Werte. Übernimm die Auffälligkeiten unter „Hinweise“.
+- Fülle im Auftrag alle Felder, die sich aus der Zeitleiste ableiten lassen: Startadresse (unter Einstellungen), Ablauf in Worten, vermutete Conversion, Events mit wichtigen Werten, Tags pro Aktion, Felder mit Testdaten, sich ändernde Werte. Übernimm die Auffälligkeiten unter „Hinweise“.
 - Markiere alles Abgeleitete mit *(aus Aufzeichnung)*. Was der Mensch schon eingetragen hat, bleibt unverändert; Widersprüche zur Aufzeichnung notierst Du unter „Hinweise“.
 - Fehlt etwas, das sich nicht ableiten lässt (echte Bestellung erlaubt? Baseline gewünscht?), lass das Feld leer.
 - Ergänze `.env.example` um die nötigen Variablen (Login, Formularfelder mit `[redacted]` oder maskierten Werten).

@@ -32,6 +32,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
+import { projektOrdner } from './auftrag';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
@@ -141,7 +142,7 @@ export interface StageOptionen {
   automationVerbergen?: boolean;
   /**
    * GTM-Vorschau per Injection: Link aus GTM „Vorschau“/„Vorschau teilen“ (mit id, gtm_auth, gtm_preview).
-   * Vorgabe: Umgebungsvariable GTM_VORSCHAU_LINK. Hängt die Vorschau-Parameter an jedes Laden des Containers.
+   * Vorgabe: GTM-Vorschau-Link des Auftrags. Hängt die Vorschau-Parameter an jedes Laden des Containers.
    */
   vorschauLink?: string;
   /** Eigene Loader ohne id=GTM-… in der URL (z. B. Stape /<pfad>/<datei>.js?<kodiert>), die ebenfalls die Vorschau laden sollen. */
@@ -224,11 +225,6 @@ async function aufnahmeSpeichern(stage: Stage, testInfo: TestInfo, option: NonNu
   console.log(`Aufnahme gespeichert: ${path.relative(process.cwd(), datei)} – auswerten mit: npm run analyse -- ${path.relative(process.cwd(), datei).split(path.sep).join('/')}`);
 }
 
-/** Ordner des Projekts (bzw. des Beispiels), in dem der Test liegt. */
-function projektOrdner(testInfo: TestInfo) {
-  return path.dirname(testInfo.project.testDir);
-}
-
 function zustandsDatei(testInfo: TestInfo, name: string) {
   const datei = name.toLowerCase().normalize('NFKD').replace(/[^\w]+/g, '-').replace(/^-|-$/g, '');
   return path.join(projektOrdner(testInfo), 'zustaende', `${datei}.json`);
@@ -244,13 +240,13 @@ function dauerMs(dauer: string | number): number {
 }
 
 /** Liest id, gtm_auth und gtm_preview aus einem Vorschau-Link; die Parameter stehen dort teils im Hash. */
-export function vorschauParameter(link?: string, variable = 'GTM_VORSCHAU_LINK') {
+export function vorschauParameter(link?: string, quelle = 'GTM-Vorschau-Link') {
   if (!link) return undefined;
   const wert = (name: string) => link.match(new RegExp(`[?&#/]${name}=([^&#]+)`))?.[1];
   const id = wert('id'), auth = wert('gtm_auth'), env = wert('gtm_preview');
   if (!id || !auth || !env) {
-    throw new Error(`${variable} braucht id, gtm_auth und gtm_preview (Link aus GTM „Vorschau teilen“). `
-      + 'Enthält der Link ein #, muss er in .env in Anführungszeichen stehen, sonst wird er dort abgeschnitten.');
+    throw new Error(`${quelle} braucht id, gtm_auth und gtm_preview (Link aus GTM „Vorschau teilen“).`
+      + (/^[A-Z_]+$/.test(quelle) ? ' Enthält der Link ein #, muss er in .env in Anführungszeichen stehen, sonst wird er dort abgeschnitten.' : ''));
   }
   return { id: decodeURIComponent(id), auth: decodeURIComponent(auth), env: decodeURIComponent(env) };
 }
@@ -609,17 +605,17 @@ export class Stage {
   }
 
   /**
-   * Optionaler Einstieg über die GTM-Vorschau im Tag Assistant (Link aus GTM „Vorschau“ bzw.
-   * „Vorschau teilen“, enthält gtm_auth und gehört deshalb in .env). Klickt auf den Start-Button
-   * und liefert den neuen Tab mit der Website; die Journey läuft dann in diesem Tab weiter.
+   * Optionaler Einstieg über die GTM-Vorschau im Tag Assistant (Link aus GTM „Vorschau teilen“).
+   * Ohne link: GTM-Vorschau-Link des Auftrags. Klickt auf den Start-Button und liefert den neuen Tab
+   * mit der Website; die Journey läuft dann in diesem Tab weiter.
    * Der Tab mit dem Tag Assistant muss offen bleiben, sonst endet die Vorschau.
    */
   async vorschauStarten(seite: Page, link?: string, startKnopf = '#domain-start-button') {
-    // Offene Sitzungen haben einen eigenen Link: GTM_VORSCHAU_LINK schaltet die Vorschau für alle Tests ein.
-    const variable = this.testInfo.title.includes('@sitzung') ? 'SITZUNG_VORSCHAU_LINK' : 'GTM_VORSCHAU_LINK';
-    link ??= process.env[variable];
-    if (!link) throw new Error(`${variable} fehlt in .env`);
-    vorschauParameter(link, variable);
+    const sitzung = this.testInfo.title.includes('@sitzung');
+    // Alte Projekte: Links in .env. Sitzungen bekommen ihren Link sonst aus tests/sitzung.spec.ts.
+    link ??= sitzung ? process.env.SITZUNG_VORSCHAU_LINK : (this.testInfo.project.metadata?.vorschauLink ?? process.env.GTM_VORSCHAU_LINK);
+    if (!link) throw new Error(sitzung ? 'Vorschau-Link fehlt (VORSCHAU_LINK in tests/sitzung.spec.ts)' : 'GTM-Vorschau-Link fehlt im Auftrag (Abschnitt Einstellungen)');
+    vorschauParameter(link);
     await seite.goto(link);
     const [website] = await Promise.all([
       this.context.waitForEvent('page', { timeout: 30_000 }),
@@ -1181,7 +1177,7 @@ export async function richteStageEin(
 
   // Vorschau zuerst registrieren: Playwright fragt später registrierte Routen zuerst, die übrigen
   // Routen reichen Container-Requests per fallback() bis hierher durch.
-  const vorschau = vorschauParameter(optionen.vorschauLink ?? process.env.GTM_VORSCHAU_LINK);
+  const vorschau = vorschauParameter(optionen.vorschauLink ?? testInfo.project.metadata?.vorschauLink ?? process.env.GTM_VORSCHAU_LINK);
   if (vorschau) {
     const istContainer = (url: URL) => url.searchParams.get('id') === vorschau.id || !!optionen.vorschauLoader?.test(url.href);
     await context.route(istContainer, async (route: Route) => {
@@ -1727,6 +1723,9 @@ export const sitzung = test.extend({
     playwright, launchOptions, headless, contextOptions, baseURL, locale, timezoneId, httpCredentials,
     proxy, ignoreHTTPSErrors, serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch,
   }, use) => {
+    if (!baseURL) {
+      throw new Error('Keine Startadresse: Auftrag wählen (AUFTRAG=<name> vor dem Befehl) oder Startadresse im Auftrag eintragen');
+    }
     const erweiterungen = erweiterungsOrdner();
     const args = [...(launchOptions.args ?? [])];
     if (erweiterungen.length) {

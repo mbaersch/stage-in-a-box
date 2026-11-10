@@ -1,10 +1,10 @@
 # Staging im Browser (offene Sitzung)
 
-Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Kein `auftrag.md`, keine Phasen. Bei Unklarheit (welcher Push, welcher Wert, welche Seite) kurz nachfragen.
+Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Kein Auftrag nötig, keine Phasen. Bei Unklarheit (welcher Push, welcher Wert, welche Seite) kurz nachfragen.
 
 ## Sitzung
 
-Jedes neue Projekt hat `tests/sitzung.spec.ts`. `npm run sitzung -- projects/<name>` öffnet damit die Website (`BASE_URL`) im sichtbaren Browser, mit den `stageOptionen` dieser Datei und allen Extensions aus `erweiterungen/`; mit `SITZUNG_VORSCHAU_LINK` in `.env` verbindet sich vorher der Tag Assistant (siehe [`gtm-vorschau.md`](gtm-vorschau.md)). Die Sitzung endet, wenn der Mensch den Browser schließt.
+Jedes neue Projekt hat `tests/sitzung.spec.ts`. `npm run sitzung -- projects/<name>` öffnet damit die Website im sichtbaren Browser, mit den `stageOptionen` dieser Datei und allen Extensions aus `erweiterungen/`. Startadresse: `START` in der Datei, sonst die des Auftrags (bei mehreren `AUFTRAG=<name>`). Beides trägst Du selbst ein. Mit `VORSCHAU_LINK` in der Datei verbindet sich vorher der Tag Assistant (siehe [`gtm-vorschau.md`](gtm-vorschau.md)). Die Sitzung endet, wenn der Mensch den Browser schließt.
 
 - Die Sitzung startest Du für den Menschen im Hintergrund (`npm run sitzung -- projects/<name>`); der Browser erscheint auf seinem Bildschirm. Ebenso die Aufnahme-Sitzung (`npm run aufnahme`, siehe [`aufzeichnung.md`](aufzeichnung.md)); sie schreibt beim Schließen eine Aufzeichnung.
 - `trackingModus` ist in Sitzungen `durchlassen` (wie ein echter Besuch). `abfangen` nur auf Wunsch.

@@ -43,7 +43,7 @@ test.use({ stageOptionen: { adblocker: 'streng' } });   // zusätzlich AdGuard T
 test.use({ stageOptionen: { adblocker: { profil: 'ublock', listen: ['filter/eigene.txt'], regeln: ['||example.com/pixel^'] } } });
 ```
 
-Ohne Änderung an den Tests: `ADBLOCKER=ublock npm test -- projects/<name>` (oder in `.env`).
+Ohne Änderung an den Tests: `ADBLOCKER=ublock npm test -- projects/<name>` (oder Adblocker unter Einstellungen im Auftrag).
 
 | Profil | Listen | Steht für |
 |---|---|---|
@@ -165,7 +165,7 @@ Was über einzelne CMPs bekannt ist: [`../wissen/cmp.md`](../wissen/cmp.md).
 
 ## Proxy
 
-Mit `PROXY=ein` (in `.env`) oder `stageOptionen: { proxy: true }` laufen alle Requests des Testbrowsers über einen lokalen Proxy (`lib/proxy.ts`). Der Proxy sieht und steuert alles im Netzwerk:
+Mit Proxy `ein` (Einstellungen im Auftrag oder `PROXY=ein` vor dem Befehl) oder `stageOptionen: { proxy: true }` laufen alle Requests des Testbrowsers über einen lokalen Proxy (`lib/proxy.ts`). Der Proxy sieht und steuert alles im Netzwerk:
 
 - Beacons beim Verlassen einer Seite (GA4 `user_engagement`, Microsoft Ads u. a.) werden erfasst, mit Body, und im Modus `abfangen` wirklich abgefangen.
 - Service Worker sind erlaubt wie bei echten Besuchern; ihre Requests sind sichtbar.
@@ -175,10 +175,10 @@ Die Testumgebung ist ohne Proxy einfacher, mit Proxy vollständiger. Was der Auf
 
 **Test-Traffic kennzeichnen:** Echte Requests (Baseline, Sitzungen) landen in den Daten von GA4. Der Proxy kann jeden GA4-Request kennzeichnen, benannt wie die Felder in GA4:
 
-| Option | `.env` | Im Request | Datenfilter in GA4 |
+| Option | Einstellung im Auftrag | Im Request | Datenfilter in GA4 |
 |---|---|---|---|
-| `trafficType: '<wert>'` | `TRAFFIC_TYPE=<wert>` | `tt=<wert>` | „Interner Traffic“ mit genau diesem Wert |
-| `debugMode: true` | `DEBUG_MODE=ein` | `_dbg=1` | „Entwickler-Traffic“; Events erscheinen außerdem in der DebugView |
+| `trafficType: '<wert>'` | Traffic-Type: `<wert>` | `tt=<wert>` | „Interner Traffic“ mit genau diesem Wert |
+| `debugMode: true` | Debug-Mode: `ein` | `_dbg=1` | „Entwickler-Traffic“; Events erscheinen außerdem in der DebugView |
 
 - Welcher Wert und welche Kennzeichnung passen, hängt davon ab, welche Filter in der Property existieren und welchen Status sie haben: Erst ein **aktiver** Filter schließt Daten aus. Im Status „Testing“ (so steht der vorkonfigurierte Filter für `internal` ab Werk) werden die Daten nur markiert, aber weiter berichtet. Keine Vorgabe annehmen, sondern im Auftrag klären; beides lässt sich kombinieren.
 - Nur mit Proxy (sonst bricht der Test mit Meldung ab), damit auch Beacons beim Verlassen einer Seite gekennzeichnet sind. Vorhandene Werte der Seite werden ersetzt. Der Test bekommt die Anmerkung „Test-Traffic“. Baseline und Vergleich mit derselben Einstellung laufen lassen, sonst meldet der Vergleich die Parameter als Hinweis.

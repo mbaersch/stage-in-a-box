@@ -4,22 +4,23 @@ Der schnellste Einstieg in Tracking-Tests, ohne Aufzeichnung und ohne Trigger-Ka
 
 ## 1. Angaben aufnehmen
 
-Aus dem Chat in `auftrag.md` übernehmen (Projekt vorher mit `npm run neu -- <name>` anlegen), **Art: Kurzauftrag**:
+Aus dem Chat in den Auftrag übernehmen (`auftrag.md`, bei mehreren Prozessen `auftrag-<name>.md`; Projekt vorher mit `npm run neu -- <name>` anlegen), **Art: Kurzauftrag**:
 
 | Angabe | Beispiele | Wenn sie fehlt |
 |---|---|---|
 | Consent | Selektoren für Zustimmen und Ablehnen, oder nur der Name der CMP | nachfragen |
 | Einstieg und Weg | „Einstieg auf Seite A, dann zur Danke-Seite B“; Klicks oder Formulare dazwischen | nachfragen |
 | Conversion-Aktion | Selektor, oder der Text des Buttons („Jetzt anfragen“) | Weg endet auf der letzten Seite |
+| Startadresse | URL, auf der der Weg beginnt | nachfragen |
 | Wünsche | „Tests zu Klick-IDs und CAPI-Event-IDs“, Vorschau-Link für den Umbau | aus der Messung vorschlagen |
 
 - **Nur die CMP genannt:** Selektoren aus der CMP-Bibliothek des Tracking Auditors nehmen (`accept`, `reject`, ggf. `rejectSteps`, `shadowDom`), siehe [`../wissen/cmp.md`](../wissen/cmp.md). Im Erkundungslauf prüfen, ob sie auf dieser Website greifen.
 - **Button per Text:** `page.getByRole('button', { name: 'Jetzt anfragen' })` bzw. `getByRole('link', …)`; ist der Text nicht eindeutig, auf den sichtbaren Bereich eingrenzen (`page.locator('main').getByRole(…)`) und im Bericht nennen.
-- Zugangsdaten, Testdaten und `BASE_URL` gehören wie immer in `.env`, die der Mensch füllt.
+- Startadresse und Vorschau-Link trägst Du selbst unter **Einstellungen** im Auftrag ein. Nur Zugangs- und Testdaten gehören in `.env`, die der Mensch füllt.
 
 ## 2. Erkundungslauf
 
-**Oder selbst durchgehen:** Will der Mensch den Weg lieber einmal selbst gehen, statt ihn zu beschreiben, startet er eine Aufnahme-Sitzung (`npm run aufnahme -- projects/<name>`, siehe [`aufzeichnung.md`](aufzeichnung.md)). Die Aufnahme ersetzt Angaben zum Weg und Erkundungslauf; weiter mit der Analyse der Aufnahme und Schritt 3. Requests gehen dabei echt raus.
+**Oder selbst durchgehen:** Will der Mensch den Weg lieber einmal selbst gehen, statt ihn zu beschreiben, startet er eine Aufnahme-Sitzung (`npm run aufnahme -- projects/<name>`, bei mehreren Aufträgen mit `AUFTRAG=<name>`, siehe [`aufzeichnung.md`](aufzeichnung.md)). Die Aufnahme ersetzt Angaben zum Weg und Erkundungslauf; weiter mit der Analyse der Aufnahme und Schritt 3. Requests gehen dabei echt raus.
 
 Eine minimale Journey nach den Angaben (Tests bauen wie in [`tests-bauen.md`](tests-bauen.md), nur ohne feste Erwartungen), im Modus `abfangen`: Beim Erkunden geht nichts echt raus. Folge-Requests eines Server-Containers fehlen dabei; die kommen erst mit der Baseline.
 
@@ -55,7 +56,7 @@ Wie die Bedingungen und Prüfungen aussehen: [`varianten.md`](varianten.md). Dan
 
 ## 5. Umbau prüfen
 
-Gibt es einen Vorschau-Link für den veränderten Stand: `GTM_VORSCHAU_LINK` in `.env`, dieselben Tests gegen die Vorschau, Abweichungen als erwartet oder unerwartet einordnen ([`container-umbau.md`](container-umbau.md), Schritte 5 und 6; Grenzen der Vorschau: [`gtm-vorschau.md`](gtm-vorschau.md)). Nach der Veröffentlichung dieselben Tests ohne Vorschau gegen live. Die Baseline erst danach und nur nach Freigabe neu ziehen.
+Gibt es einen Vorschau-Link für den veränderten Stand: als GTM-Vorschau-Link unter Einstellungen in den Auftrag, dieselben Tests gegen die Vorschau, Abweichungen als erwartet oder unerwartet einordnen ([`container-umbau.md`](container-umbau.md), Schritte 5 und 6; Grenzen der Vorschau: [`gtm-vorschau.md`](gtm-vorschau.md)). Nach der Veröffentlichung den Link wieder entfernen und dieselben Tests gegen live. Die Baseline erst danach und nur nach Freigabe neu ziehen.
 
 ## Bericht
 

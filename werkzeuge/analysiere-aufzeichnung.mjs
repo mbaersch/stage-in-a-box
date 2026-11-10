@@ -635,7 +635,7 @@ function markdown(a, z, dateiname) {
   p('```ts');
   try {
     const start = new URL(a.startUrl);
-    p(`await page.goto(${js(start.pathname + start.search)}); // relativ zu BASE_URL=${start.origin}`);
+    p(`await page.goto(${js(start.pathname + start.search)}); // relativ zur Domain der Startadresse (${start.origin})`);
   } catch { /* keine Startadresse */ }
   for (const s of z.schritte) {
     if (s.seite !== seite) {

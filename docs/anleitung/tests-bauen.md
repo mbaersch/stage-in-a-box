@@ -6,7 +6,7 @@ Voraussetzung: `auftrag.md` mit **Status: bestätigt**. Ergebnis: Tests, stabil 
 
 Ein Request, der zu fehlen scheint, fehlt nicht unbedingt; er kann über einen eigenen Pfad und in eigenem Format rausgehen (Hintergrund: [`../wissen/eigene-formate.md`](../wissen/eigene-formate.md)). Deshalb, bevor Erwartungen entstehen:
 
-1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen, mit `stage.conversionPunkt()`) mit `CONVERSION=aus` laufen lassen, am besten mit `PROXY=ein`.
+1. Die Journey als Gerüst-Test (nur Navigation, keine Erwartungen, mit `stage.conversionPunkt()`) mit `CONVERSION=aus` laufen lassen, am besten mit Proxy (Conversion und Proxy unter Einstellungen im Auftrag oder vor dem Befehl).
 2. In `projects/<name>/test-results/<test>/` die Dateien `hosts.json` (mit dem Auslöser des ersten Requests je Host: Skript oder HTML der Seite), `tracking-treffer.json` und `weitere-requests.json` ansehen. Tracking-Kandidaten ohne Regel (POST an Pfade auf der eigenen oder einer Subdomain, auffällige Parameter, Base64-Bodies) mit dem Tag-Assistant-Export abgleichen: Welcher Tag feuerte zur selben Zeit?
 3. Für erkannte Formate eigene `regeln` anlegen und im Auftrag unter „Hinweise“ festhalten. Was nur diese Website betrifft, zusätzlich in `projekt.md`.
 
@@ -68,7 +68,7 @@ Kommt ein Name mehrfach vor, den umgebenden Container eingrenzen (z. B. `page.lo
 
 ## Tempo
 
-Zwischen den Schritten steht `await stage.denkpause(<ms>)` mit dem aufgezeichneten Abstand. Wie lange tatsächlich gewartet wird, bestimmt `TEMPO` (in `.env` oder als Umgebungsvariable): `schnell` (Vorgabe, keine Pausen), `mittel`, `langsam` oder `aufzeichnung` (Pausen wie aufgezeichnet). Zeitabhängige Requests wie GA4 `user_engagement`, Timer- oder Scroll-Trigger hängen davon ab. Die Pausen also immer im Code lassen, auch wenn sie bei `schnell` nichts tun.
+Zwischen den Schritten steht `await stage.denkpause(<ms>)` mit dem aufgezeichneten Abstand. Wie lange tatsächlich gewartet wird, bestimmt das Tempo (Einstellungen im Auftrag oder `TEMPO=` vor dem Befehl): `schnell` (Vorgabe, keine Pausen), `mittel`, `langsam` oder `aufzeichnung` (Pausen wie aufgezeichnet). Zeitabhängige Requests wie GA4 `user_engagement`, Timer- oder Scroll-Trigger hängen davon ab. Die Pausen also immer im Code lassen, auch wenn sie bei `schnell` nichts tun.
 
 ## Zwei Arten von Tests
 

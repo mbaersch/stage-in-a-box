@@ -62,7 +62,7 @@ npm run erweiterung -- kejbdjndbnbjgmefkgdddjlbokphdefk   # optional: Tag Assist
 npm run erweiterung -- cngpoecoknpgfjfaafnekjoaeohaejpb   # optional: Tracking Auditor
 ```
 
-Pro Website ein Projekt anlegen und `BASE_URL` in `projects/mein-shop/.env` eintragen:
+Pro Website ein Projekt anlegen und dem Agent sagen, auf welcher Adresse die Sitzung starten soll. Er trägt sie selbst ein (`START` in `tests/sitzung.spec.ts` oder die Startadresse im Auftrag):
 
 ```sh
 npm run neu -- mein-shop
@@ -71,7 +71,7 @@ npm run sitzung -- projects/mein-shop
 
 Der Browser öffnet die Website, und Du bedienst sie selbst; schließt Du ihn, endet die Sitzung. Jede Sitzung startet mit frischem Profil, ohne Cookies, der Consent-Banner erscheint also wieder. Requests gehen wie bei einem echten Besuch raus.
 
-**Mit GTM-Vorschau:** Link aus GTM *Vorschau teilen* als `SITZUNG_VORSCHAU_LINK` in `.env`, in Anführungszeichen. Dann verbindet sich zuerst der Tag Assistant mit Deinem Workspace und öffnet die Website in einem neuen Tab. Den Tab des Tag Assistant offen lassen.
+**Mit GTM-Vorschau:** Link aus GTM *Vorschau teilen* als `VORSCHAU_LINK` in `tests/sitzung.spec.ts` (das übernimmt auch der Agent). Dann verbindet sich zuerst der Tag Assistant mit Deinem Workspace und öffnet die Website in einem neuen Tab. Den Tab des Tag Assistant offen lassen.
 
 **Mit sGTM-Vorschau:** Header-Wert aus der Vorschau des Server-Containers als `SITZUNG_SGTM_HEADER` und dessen Host als `SITZUNG_SGTM_HOST` in `.env`. Dann landen die Requests an den Server-Container in dessen Vorschau.
 
@@ -102,7 +102,7 @@ Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Tr
 ```
  1. Recorder-Tag im GTM anlegen         (einmalig, 5 Minuten)
  2. Journey im Preview durchklicken      → Tag-Assistant-Export
- 3. Projekt anlegen, Agent: Analyse      → auftrag.md, Liste für .env, ggf. Testdaten
+ 3. Projekt anlegen, Agent: Analyse      → Auftrag mit Einstellungen, Liste für .env, ggf. Testdaten
  4. Du: Auftrag prüfen, .env ausfüllen   → Status „bestätigt“
  5. Agent: Tests bauen                   → Testsuite, bis vor die Conversion stabil,
                                            dann ein vollständiger Lauf
@@ -110,7 +110,7 @@ Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Tr
  7. Tests laufen lassen                  (jederzeit, mit Varianten, nach jeder Änderung)
 ```
 
-**Ohne GTM, im Browser der Stage:** `npm run aufnahme -- projects/<name>` öffnet einen sichtbaren Browser mit frischem Profil. Du gehst einmal durch den Prozess und schließt ihn; Klicks, Eingaben, dataLayer und alle Tracking-Requests landen in `aufzeichnungen/aufnahme-<Zeit>.json`. Ab Schritt 3 geht es gleich weiter. Was gegenüber dem Tag Assistant fehlt, sind die Tags (welcher Tag bei welchem Trigger gefeuert hat); dafür sind auch Requests anderer Dienste und Klicks in iframes dabei.
+**Ohne GTM, im Browser der Stage:** Der Agent legt einen Auftrag mit Deiner Startadresse an, dann öffnet `npm run aufnahme -- projects/<name>` (bei mehreren Aufträgen mit `AUFTRAG=<name>` davor) einen sichtbaren Browser mit frischem Profil. Du gehst einmal durch den Prozess und schließt ihn; Klicks, Eingaben, dataLayer und alle Tracking-Requests landen in `aufzeichnungen/aufnahme-<Zeit>.json`. Ab Schritt 3 geht es gleich weiter. Was gegenüber dem Tag Assistant fehlt, sind die Tags (welcher Tag bei welchem Trigger gefeuert hat); dafür sind auch Requests anderer Dienste und Klicks in iframes dabei.
 
 **Ganz ohne Aufzeichnung (Kurzauftrag):** Im Chat genügen Consent (Selektoren oder Name der CMP), Einstieg und Weg (z. B. „Startseite, dann zur Danke-Seite“) und ggf. der Text des Conversion-Buttons. Der Agent misst in einem Erkundungslauf, was feuert, füllt daraus den Auftrag, zieht nach Deiner Freigabe die Baseline und prüft sie mit einem zweiten Lauf gegen das unveränderte Setup (A/A). Die Tests sind damit sofort da und lassen sich später ausbauen ([`docs/anleitung/kurzauftrag.md`](docs/anleitung/kurzauftrag.md)).
 
@@ -156,7 +156,7 @@ Installation wie im [Schnellstart](#schnellstart-staging-im-browser), dann pro W
 npm run neu -- mein-shop
 ```
 
-Das legt `projects/mein-shop/` mit Auftrag, `projekt.md`, `.env`, dem Gerüst für Sitzungen und leeren Ordnern an. Abhängigkeiten werden dort nicht noch einmal installiert. `projects/` ist von Git ausgeschlossen. Trag `BASE_URL` in `projects/mein-shop/.env` ein, leg den Export nach `projects/mein-shop/aufzeichnungen/` und starte den Agent **im Hauptordner**, zum Beispiel mit:
+Das legt `projects/mein-shop/` mit Auftrag, `projekt.md`, `.env`, dem Gerüst für Sitzungen und leeren Ordnern an. Abhängigkeiten werden dort nicht noch einmal installiert. `projects/` ist von Git ausgeschlossen. Leg den Export nach `projects/mein-shop/aufzeichnungen/` und starte den Agent **im Hauptordner**, zum Beispiel mit:
 
 > Projekt mein-shop: Analysiere die Aufzeichnung und fülle den Auftrag vor.
 
@@ -182,14 +182,11 @@ Dann setzt Du oben den Status auf **bestätigt**.
 
 Werte stehen direkt hinter dem `=`. Leer gelassene Einträge gelten als nicht gesetzt, dann greift die Vorgabe. Steht ein Wert in einer Zeile mit `#` davor, wirkt er nicht; der Testlauf warnt dann mit dem Namen der Variable.
 
-**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*. Er enthält `gtm_auth` und `gtm_preview` und damit einen Zugangsschlüssel, deshalb gehört er in `.env`, in Anführungszeichen (er enthält oft ein `#`). Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Es gibt zwei Variablen dafür:
+**Einstellungen im Auftrag:** Startadresse, GTM-Vorschau-Link und Schalter wie Tempo, Proxy oder Conversion stehen oben im Auftrag unter *Einstellungen*. Sie sind nicht geheim; der Agent trägt sie selbst ein, und Du kannst sie jederzeit ändern. Sie wirken beim nächsten Lauf. Ein Wert auf der Kommandozeile (`TEMPO=langsam npm test …`) geht vor. Für getrennte Prozesse mit eigenem Setup gibt es mehrere Aufträge in einem Projekt: `auftrag-<name>.md`, die Tests dazu in `tests/<name>/`, jeweils mit eigener Startadresse und Vorschau. In `.env` bleibt nur Schützenswertes.
 
-- `GTM_VORSCHAU_LINK`: **alle** Tests des Projekts laufen gegen die Vorschau, z. B. um einen Umbau vor dem Veröffentlichen mit der Live-Baseline zu vergleichen.
-- `SITZUNG_VORSCHAU_LINK`: nur die [Sitzung im Browser](#schnellstart-staging-im-browser) startet damit den Tag Assistant; alle übrigen Tests bleiben beim Live-Container.
+**Tests gegen die GTM-Vorschau:** Den Link holst Du in GTM über *Vorschau teilen*; er ist teilbar und gibt keine Schreibrechte. Ein Tag-Assistant-Link mit nur `gtm_debug` startet keine Vorschau des Workspaces. Als GTM-Vorschau-Link im Auftrag laufen **alle** Tests dieses Auftrags gegen die Vorschau, z. B. um einen Umbau vor dem Veröffentlichen mit der Live-Baseline zu vergleichen. Die [Sitzung im Browser](#schnellstart-staging-im-browser) hat einen eigenen Link (`VORSCHAU_LINK` in `tests/sitzung.spec.ts`) und startet damit den Tag Assistant.
 
-Nicht denselben Link in beide eintragen.
-
-Ist `GTM_VORSCHAU_LINK` gesetzt, laden alle Tests des Projekts den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe [`docs/anleitung/gtm-vorschau.md`](docs/anleitung/gtm-vorschau.md)).
+Steht im Auftrag ein Vorschau-Link, laden alle Tests des Auftrags den Container als Vorschau: Die Testumgebung hängt die Vorschau-Parameter an jedes Laden von `gtm.js` mit dieser Container-ID. Der Tag Assistant ist dafür nicht nötig, und dataLayer und Requests werden vollständig protokolliert. Lädt die Website GTM über einen eigenen Loader ohne `id=GTM-…` in der URL (z. B. Stape), gibt der Test das Muster dieses Loaders als `vorschauLoader` an. Einschränkung: Ohne angeschlossenen Tag Assistant ist die GTM-Variable *Debug Mode* `false`. Blocker, die Tags außerhalb des Debug-Modus sperren, greifen also weiter. Für diesen Fall gibt es zusätzlich den Weg über den Tag Assistant (`stage.vorschauStarten()`, siehe [`docs/anleitung/gtm-vorschau.md`](docs/anleitung/gtm-vorschau.md)).
 
 ## 5. Tests bauen lassen
 
@@ -220,9 +217,9 @@ PROXY=ein npm test -- projects/mein-shop                  # über den Proxy (sie
 ADBLOCKER=ublock npm test -- projects/mein-shop           # mit Filterlisten eines Adblockers
 ```
 
-Solange Tests eingerichtet werden, laufen sie mit `CONVERSION=aus` (in `.env` oder vor dem Befehl) nur bis direkt vor den Kauf bzw. das Absenden und gelten dann als übersprungen. So wird beim Ausprobieren nichts Echtes ausgelöst; die Conversion selbst prüft erst der vollständige Lauf.
+Solange Tests eingerichtet werden, laufen sie mit Conversion `aus` (im Auftrag oder `CONVERSION=aus` vor dem Befehl) nur bis direkt vor den Kauf bzw. das Absenden und gelten dann als übersprungen. So wird beim Ausprobieren nichts Echtes ausgelöst; die Conversion selbst prüft erst der vollständige Lauf.
 
-Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: `TEMPO`, `PROXY`, `ADBLOCKER` und `TRACKING_MODUS` in der `.env` des Projekts setzen.
+Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regulären Ausdruck, ein `\` findet keine Tests. Statt über den Pfad lässt sich das Projekt auch mit `PROJEKT=mein-shop` wählen. Unter Windows oder dauerhaft: Tempo, Proxy, Adblocker und Tracking-Modus unter Einstellungen im Auftrag setzen. Einen einzelnen Auftrag wählst Du über seinen Ordner (`npm test -- projects/mein-shop/tests/b2b`) oder mit `AUFTRAG=b2b`.
 
 ![HTML-Report von Playwright mit den Beispieltests gegen die Demo-Seite: Journeys mit Zustimmung und Ablehnung, Adblocker, CSP, Baseline-Abgleich](res/demo-testergebnisse.png)
 
@@ -276,7 +273,7 @@ Ohne Proxy beobachtet und steuert die Testumgebung Requests über Playwright. Da
 - **Beacons beim Verlassen einer Seite** (GA4 `user_engagement`, Microsoft Ads und viele andere senden bei `pagehide`) sieht Playwright nicht und kann sie nicht abfangen. Sie werden über das Netzwerkprotokoll des Browsers nachträglich erkannt, aber ohne Inhalt. Im Modus „abfangen“ gehen sie trotzdem raus.
 - **Service Worker** müssen abgeschaltet werden, sonst entgehen deren Requests der Kontrolle. Das ist weniger realistisch als ein echter Besuch.
 
-Mit `PROXY=ein` (in `.env`) laufen alle Requests des Testbrowsers über einen lokalen Proxy. Der sieht jeden Request mit Inhalt, kann ihn abfangen, blockieren oder verzögern, auch auf Pfaden der eigenen Domain (sGTM). Service Worker laufen dann wie bei echten Besuchern. Mit `TRAFFIC_TYPE=<wert>` bzw. `DEBUG_MODE=ein` kennzeichnet er echte GA4-Requests zusätzlich mit traffic_type bzw. debug_mode, passend zu den Datenfiltern in GA4.
+Mit Proxy `ein` (im Auftrag oder `PROXY=ein` vor dem Befehl) laufen alle Requests des Testbrowsers über einen lokalen Proxy. Der sieht jeden Request mit Inhalt, kann ihn abfangen, blockieren oder verzögern, auch auf Pfaden der eigenen Domain (sGTM). Service Worker laufen dann wie bei echten Besuchern. Mit Traffic-Type bzw. Debug-Mode im Auftrag kennzeichnet er echte GA4-Requests zusätzlich mit traffic_type bzw. debug_mode, passend zu den Datenfiltern in GA4.
 
 Dafür bricht der Proxy HTTPS mit eigenen Zertifikaten auf, denen nur der Testbrowser vertraut. Zwischen Browser und Proxy gilt HTTP/1.1. Für Tracking-Tests spielt das keine Rolle, bei Performance-Messungen schon. Mit Proxy entstehen eigene Baselines (`<journey>.proxy.json`). Der Proxy braucht eine zusätzliche Abhängigkeit (`node-forge`, wird mit `npm install` installiert).
 
@@ -328,7 +325,8 @@ listen/                   zwischengespeicherte Filterlisten für den Adblocker, 
 projects/                 Deine Projekte, nicht in Git
   <name>/
     projekt.md            Anweisungen und Erkenntnisse nur für dieses Projekt
-    auftrag.md            Auftrag (vom Agent vorausgefüllt, von Dir bestätigt)
+    auftrag.md            Auftrag mit Einstellungen (vom Agent vorausgefüllt, von Dir bestätigt);
+                          weitere als auftrag-<name>.md, Tests dazu in tests/<name>/
     .env                  Zugangs- und Testdaten (nur Du)
     testdaten.aufzeichnung.env   optional: Eingaben aus der Aufzeichnung
     aufzeichnungen/       Exporte und Analysen

@@ -34,6 +34,7 @@ import path from 'node:path';
 import { expect } from './playwright';
 import type { Modus, Stage, Treffer } from './stage';
 import type { Tempo } from './tempo';
+import { projektOrdner } from './auftrag';
 
 export interface BaselineOptionen {
   /** Zusätzliche dataLayer-Keys, deren Werte sich bei jedem Lauf ändern (Name auf beliebiger Ebene). */
@@ -509,9 +510,10 @@ function dateiname(journey: string, mitProxy: boolean) {
 
 export async function vergleicheMitBaseline(stage: Stage, journey: string, optionen: BaselineOptionen = {}) {
   const { testInfo } = stage;
-  // testDir ist <projekt>/tests; die Baselines liegen daneben
-  const projekt = path.dirname(testInfo.project.testDir);
-  const datei = path.join(projekt, optionen.verzeichnis ?? 'baselines', dateiname(journey, stage.mitProxy));
+  // Baselines eines benannten Auftrags in baselines/<name>/, damit sich gleichnamige Journeys nicht überschreiben
+  const projekt = projektOrdner(testInfo);
+  const auftrag: string = testInfo.project.metadata?.auftrag ?? '';
+  const datei = path.join(projekt, optionen.verzeichnis ?? path.join('baselines', auftrag), dateiname(journey, stage.mitProxy));
   if (stage.adblocker) {
     throw new Error(
       `Baseline "${journey}" nicht mit Adblocker (${stage.adblocker.name}): Er verändert, was gesendet wird. `

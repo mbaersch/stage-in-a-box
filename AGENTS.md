@@ -48,16 +48,16 @@ Die Session läuft immer im Hauptordner. Testumgebung, Abhängigkeiten (`node_mo
 | Datei / Ordner | Inhalt |
 |---|---|
 | `projekt.md` | Anweisungen und Erkenntnisse nur für dieses Projekt – **vor jeder Arbeit am Projekt lesen**, gilt zusätzlich zu den Anleitungen |
-| `auftrag.md` | Was der Mensch will: Journey, Conversion, Testkonto, Baseline, Varianten, Grenzen |
+| `auftrag.md`, `auftrag-<name>.md` | Was der Mensch will: Einstellungen (Startadresse, Vorschau-Link, Schalter), Journey, Conversion, Testkonto, Baseline, Varianten, Grenzen. Mehrere Aufträge pro Projekt für getrennte Prozesse bzw. Setups |
 | `aufzeichnungen/` | Tag-Assistant-Exporte (`*.json`) oder Konsolen-Mitschnitte (`*.log`/`*.txt`, Zeilen `[rec] {...}`), daneben die Analysen |
-| `tests/`, `baselines/` | Tests und gespeicherte Baselines des Projekts |
-| `.env`, `.env.example` | Zugangsdaten und Testdaten (siehe unten) |
+| `tests/`, `baselines/` | Tests und Baselines; zu `auftrag-<name>.md` in `tests/<name>/` und `baselines/<name>/` |
+| `.env`, `.env.example` | nur Schützenswertes: Zugangsdaten und Testdaten (siehe unten) |
 | `testdaten.aufzeichnung.env` | optional: Eingaben aus einer Aufzeichnung im Modus `full` |
 
 - Neues Projekt: `npm run neu -- <name>` (kopiert `vorlage/`). Nicht von Hand aus einem anderen Projekt kopieren.
 - Nennt der Mensch kein Projekt und gibt es mehrere, nachfragen.
 - `projects/` ist nicht im Git des Repos. Nichts aus einem Projekt in Dateien außerhalb von `projects/` übernehmen (keine Domains, Selektoren, Testdaten).
-- Pfade in den Anleitungen ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
+- Pfade in den Anleitungen ohne `projects/<name>/` davor beziehen sich auf den Projektordner, wenn es dort so eine Datei gibt (`auftrag.md` bzw. `auftrag-<name>.md`, `tests/`, `.env` …), sonst auf den Hauptordner (`lib/`, `werkzeuge/`, `docs/`, `beispiel/`).
 
 ## Wissen festhalten
 
@@ -74,13 +74,22 @@ Dienst-Wissen (Endpunkte, Request-Formate, Klick-IDs) teilt sich die Stage mit d
 
 Änderungen außerhalb von `projects/` schlägst Du dem Menschen vor – allgemein formuliert, ohne Projektdaten (keine Domains, Konto-IDs, Selektoren, Testdaten).
 
+## Einstellungen im Auftrag
+Startadresse, GTM-Vorschau-Link und Schalter (Tempo, Proxy, Tracking-Modus, Conversion, Adblocker, Unbekannte Requests, Traffic-Type, Debug-Mode) stehen im Abschnitt **Einstellungen** des Auftrags. Sie sind unkritisch: Du trägst sie selbst ein und pflegst sie, statt den Menschen darum zu bitten. Die Config liest sie bei jedem Lauf.
+
+- Jeder Auftrag mit eigenem Ordner `tests/<name>/` ist ein eigenes Playwright-Projekt mit eigener `baseURL` und eigener Vorschau. Ein Auftrag allein: `npm test -- projects/<projekt>/tests/<name>` oder `AUFTRAG=<name>`.
+- Sitzung, Aufnahme und Tests direkt in `tests/` nutzen den Hauptauftrag: `AUFTRAG=<name>`, sonst `auftrag.md`, sonst den einzigen – jeweils nur unter denen mit Startadresse.
+- Schalter wirken für den ganzen Lauf; setzen mehrere Aufträge im Lauf denselben Schalter verschieden, bricht die Config ab. Ein Wert auf der Kommandozeile geht immer vor.
+- Die Startadresse darf einen Pfad haben. `page.goto('/…')` geht trotzdem von der Domain aus; zur Startadresse selbst mit `page.goto(baseURL)`.
+- Alte Projekte ohne Einstellungen: `BASE_URL` und `GTM_VORSCHAU_LINK` aus `.env` gelten weiter, wenn der Auftrag nichts nennt.
+
 ## Umgang mit `.env` und Testdaten
 
 - `.env` füllt ausschließlich der Mensch aus. Du schreibst sie nie, auch nicht teilweise, und gibst ihre Werte nie aus (auch nicht in Logs oder Berichten).
 - `testdaten.aufzeichnung.env` schreibt nur das Analyse-Script (`--testdaten`), Du bearbeitest sie nicht und gibst ihre Werte nie aus. Die Tests laden zuerst `.env`, dann diese Datei; was in `.env` steht, hat Vorrang.
 - Braucht ein Test Zugangs- oder Testdaten, ergänzt Du in `.env.example` den Variablennamen mit kurzem Kommentar und nennst ihn dem Menschen. Variablen stehen dort nicht auskommentiert und ohne Wert (`NAME=`); leere Einträge gelten als nicht gesetzt. Kommentare nur in eigenen Zeilen, damit niemand den Wert hinter ein `#` schreibt (`playwright.config.ts` warnt dann, ohne Werte zu nennen).
 - Ob eine Variable gesetzt ist, nur mit einem Script prüfen, das ausschließlich Namen ausgibt (z. B. `gesetzt`/`FEHLT`), und beide Dateien berücksichtigen.
-- `BASE_URL` ist Pflicht; ohne sie bricht jeder Testlauf des Projekts mit einer Meldung ab.
+- In `.env` gehört nur Schützenswertes. Startadresse, Vorschau-Link und Schalter nie dorthin verweisen, sondern in den Auftrag eintragen (siehe oben).
 - Im Code nur `process.env.NAME`. Fehlt eine Variable, soll der Test mit klarer Meldung abbrechen:
   ```ts
   const passwort = process.env.TEST_LOGIN_PASSWORT ?? test.skip(true, 'TEST_LOGIN_PASSWORT in .env fehlt') as never;

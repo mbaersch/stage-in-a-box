@@ -7,6 +7,9 @@
 > vorzufüllen. Vorausgefüllte Angaben sind mit *(aus Aufzeichnung)* markiert. Prüfe und
 > korrigiere sie, dann setze den Status auf **bestätigt**.
 >
+> Mehrere Aufträge pro Projekt: `auftrag-<name>.md` (z. B. `auftrag-b2b.md`), Tests dazu in `tests/<name>/`.
+> Startadresse, Vorschau-Link und Schalter stehen unter **Einstellungen** und wirken beim nächsten Lauf.
+>
 > Zugangsdaten und Testdaten gehören **nicht** in diese Datei, sondern in `.env`.
 > Die füllst nur Du aus; der Agent nennt Dir die nötigen Variablennamen. Eingaben aus einer
 > Aufzeichnung im Modus `full` kann das Analyse-Script auf Wunsch in `testdaten.aufzeichnung.env`
@@ -14,12 +17,25 @@
 
 **Art:** <!-- Journey (aus einer Aufzeichnung) / Kurzauftrag (aus wenigen Angaben und einem Erkundungslauf; Angaben dann mit *(gemessen)*) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / Kombinationen. Für reines Staging im Browser ist dieser Auftrag nicht nötig: siehe tests/sitzung.spec.ts -->
 
+## Einstellungen
+
+<!-- Liest die Stage bei jedem Lauf. Leer = Vorgabe. Ein Wert auf der Kommandozeile (z. B. TEMPO=langsam npm test …) geht vor. -->
+
+- **Startadresse:** <!-- Pflicht, z. B. https://www.example.de/shop – Pfade in den Tests (page.goto('/…')) beziehen sich auf deren Domain -->
+- **GTM-Vorschau-Link:** <!-- leer = Live-Container. Link aus GTM „Vorschau teilen“: alle Tests dieses Auftrags laden die Vorschau -->
+- **Tempo:** <!-- schnell (Vorgabe) / mittel / langsam / aufzeichnung (Pausen wie aufgezeichnet) -->
+- **Proxy:** <!-- ein / aus (Vorgabe). Sieht auch Beacons beim Verlassen und Service Worker -->
+- **Tracking-Modus:** <!-- abfangen (Vorgabe) / blockieren / durchlassen; Baseline-Tests senden immer echt -->
+- **Conversion:** <!-- ein (Vorgabe) / aus: Tests enden vor der Aktion, die die Conversion auslöst -->
+- **Adblocker:** <!-- aus (Vorgabe) / ublock / streng -->
+- **Unbekannte Requests:** <!-- protokollieren (Vorgabe) / abfangen: Fetch, XHR, Beacons an fremde Domains wie Tracking behandeln -->
+- **Traffic-Type:** <!-- traffic_type für echte GA4-Requests, passend zum Datenfilter „Interner Traffic“; braucht Proxy -->
+- **Debug-Mode:** <!-- ein: debug_mode für echte GA4-Requests (DebugView, „Entwickler-Traffic“); braucht Proxy -->
+
 ## Website
 
-- **Startadresse:** <!-- z. B. https://www.example.de/ – kommt auch als BASE_URL in .env -->
 - **Umgebung:** <!-- Live / Staging / lokal -->
 - **Zugang nötig?** <!-- Basic Auth (BASIC_AUTH_BENUTZER / BASIC_AUTH_PASSWORT in .env), IP-Freigabe … -->
-- **GTM-Vorschau nötig?** <!-- nein (Live-Container) / ja: Vorschau-Link aus GTM („Vorschau teilen“) als GTM_VORSCHAU_LINK in .env -->
 - **Consent-Banner:** <!-- Name der CMP oder Selektoren für Zustimmen/Ablehnen, dazu nötige Schritte bis zum Banner (z. B. erst nach Scrollen sichtbar). Pflicht, wenn GTM erst nach der Zustimmung lädt: Dann fehlt der Banner-Klick in der Aufzeichnung. -->
 
 ## Journey
@@ -50,9 +66,8 @@
 ## Baseline
 
 - **Baseline anlegen?** <!-- ja / nein. Baseline-Läufe senden echte Requests an alle Dienste. -->
-- **Testtraffic erkennbar bzw. gefiltert?** <!-- z. B. Testkonto, IP-Filter. GA4: welche Datenfilter sind aktiv – interner Traffic (mit welchem traffic_type-Wert?), Entwickler-Traffic, keiner? Danach TRAFFIC_TYPE bzw. DEBUG_MODE (braucht den Proxy) -->
-- **Mit Proxy?** <!-- ja (empfohlen: sieht auch Beacons beim Verlassen und Service Worker) / nein -->
-- **Tempo:** <!-- schnell / mittel / langsam / aufzeichnung (Pausen wie aufgezeichnet). Baseline und Vergleich laufen immer im selben Tempo. -->
+- **Testtraffic erkennbar bzw. gefiltert?** <!-- z. B. Testkonto, IP-Filter. GA4: welche Datenfilter sind aktiv – interner Traffic (mit welchem traffic_type-Wert?), Entwickler-Traffic, keiner? Danach Traffic-Type bzw. Debug-Mode unter Einstellungen -->
+<!-- Proxy (empfohlen) und Tempo unter Einstellungen; Baseline und Vergleich laufen immer im selben Tempo. -->
 
 ## Container-Umbau
 
@@ -60,7 +75,7 @@
 
 - **Was wird umgebaut?** <!-- z. B. Google-Tags auf Destinations, CMP-Wechsel, Aufräumen; Workspace-Name bzw. -Nummer -->
 - **Vorher:** <!-- Live-Container (Vorgabe) oder eine bestimmte Vorschau -->
-- **Nachher:** <!-- Vorschau des Workspaces (Link als GTM_VORSCHAU_LINK in .env) und/oder nach der Veröffentlichung -->
+- **Nachher:** <!-- Vorschau des Workspaces (GTM-Vorschau-Link unter Einstellungen) und/oder nach der Veröffentlichung -->
 - **Seiten:** <!-- Seiten mit eigenen Triggern, z. B. /en, /kontakt, /danke -->
 - **Auslöser:** <!-- Klicks und Events, die Tags auslösen: tel, mailto, PDF, CTAs (Text oder Klasse), dataLayer-Events wie formSubmission. Leer lassen: der Agent leitet sie aus dem Container ab (Container-Export oder Tag Manager API) und fragt nach. -->
 - **Consent-Szenarien:** <!-- z. B. alle ablehnen, alle akzeptieren, je Dienst einzeln -->

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { SLOW_MO, tempoAusUmgebung } from './lib/tempo';
 import { netlogArgumente } from './lib/netlog';
 import { proxyArgumente } from './lib/proxy';
+import { ladeAuftraege, waehleHauptauftrag, type Auftrag } from './lib/auftrag';
 
 const WURZEL = path.dirname(fileURLToPath(import.meta.url));
 const BEISPIEL = path.join(WURZEL, 'beispiel');
@@ -31,6 +32,9 @@ function projektVerzeichnis(): string {
 
 const PROJEKT = projektVerzeichnis();
 const istBeispiel = PROJEKT === BEISPIEL;
+
+// Was vor dem Laden der .env schon gesetzt ist, kam von der Kommandozeile und geht den Einstellungen im Auftrag vor.
+const VON_AUSSEN = new Set(Object.keys(process.env));
 
 function ladeEnv(datei: string) {
   if (!fs.existsSync(datei)) return;
@@ -61,8 +65,49 @@ if (fs.existsSync(envDatei) && !process.env.STAGE_ENV_GEWARNT) {
   }
 }
 
-if (!istBeispiel && !process.env.BASE_URL) {
-  throw new Error(`BASE_URL fehlt in ${path.relative(WURZEL, envDatei)}`);
+/**
+ * Aufträge (auftrag.md, auftrag-<name>.md) mit Startadresse, Vorschau-Link und Schaltern. Tests zu auftrag-<name>.md
+ * liegen in tests/<name>/ und bilden ein eigenes Playwright-Projekt; Sitzung, Aufnahme und übrige Tests in tests/
+ * nutzen den Hauptauftrag (AUFTRAG=<name>, sonst auftrag.md, sonst den einzigen mit Startadresse).
+ */
+const AUFTRAEGE = istBeispiel ? [] : ladeAuftraege(PROJEKT);
+const TESTS = path.join(PROJEKT, 'tests');
+const gewaehlt = process.env.AUFTRAG ?? (() => {
+  for (const arg of process.argv.slice(2)) {
+    const name = arg.replace(/\\/g, '/').match(/(?:^|\/)tests\/([^/]+)/)?.[1];
+    if (name && AUFTRAEGE.some((a) => a.name === name)) return (process.env.AUFTRAG = name);
+  }
+  return undefined;
+})();
+// Alte Projekte: BASE_URL und GTM_VORSCHAU_LINK aus .env, wenn der Auftrag keine nennt.
+const startadresse = (a?: Auftrag) => a?.einstellungen.startadresse ?? process.env.BASE_URL;
+const vorschauLink = (a?: Auftrag) => a?.einstellungen.vorschauLink ?? process.env.GTM_VORSCHAU_LINK;
+
+// Ohne Wahl nur Aufträge mit Startadresse: Eine leere auftrag.md aus der Vorlage soll keinem benannten im Weg stehen.
+const kandidaten = gewaehlt !== undefined ? AUFTRAEGE : AUFTRAEGE.filter((a) => startadresse(a));
+const HAUPT = AUFTRAEGE.find((a) => a.name === waehleHauptauftrag(kandidaten.map((a) => a.name), gewaehlt));
+
+// Schalter wirken über Umgebungsvariablen und damit für den ganzen Lauf: Bei mehreren Aufträgen müssen sie gleich sein.
+const imLauf = gewaehlt !== undefined ? AUFTRAEGE.filter((a) => a.name === gewaehlt) : AUFTRAEGE;
+const schalter: Record<string, { wert: string; datei: string }> = {};
+for (const a of imLauf) {
+  for (const [variable, wert] of Object.entries(a.einstellungen.umgebung)) {
+    const bisher = schalter[variable];
+    if (bisher && bisher.wert !== wert) {
+      throw new Error(`${path.basename(bisher.datei)} und ${path.basename(a.datei)} setzen ${variable} verschieden. `
+        + 'Aufträge einzeln laufen lassen: AUFTRAG=<name> vor dem Befehl oder Pfad projects/<projekt>/tests/<name>');
+    }
+    schalter[variable] = { wert, datei: a.datei };
+  }
+}
+for (const [variable, { wert }] of Object.entries(schalter)) if (!VON_AUSSEN.has(variable)) process.env[variable] = wert;
+
+const benannt = AUFTRAEGE.filter((a) => a.name && fs.existsSync(path.join(TESTS, a.name)));
+for (const a of benannt) {
+  if (!startadresse(a)) throw new Error(`Startadresse fehlt in ${path.relative(WURZEL, a.datei)} (Abschnitt Einstellungen)`);
+}
+if (!istBeispiel && !benannt.length && !startadresse(HAUPT)) {
+  throw new Error(`Startadresse fehlt: im Auftrag unter Einstellungen eintragen (${path.relative(WURZEL, PROJEKT)}/auftrag-<name>.md)`);
 }
 
 // Das Beispiel läuft gegen die mitgelieferte Demo-Seite.
@@ -85,7 +130,7 @@ export default defineConfig({
     ['@sitzung', '@aufnahme'].filter((t) => !process.argv.some((a) => a.includes(t)))),
   reporter: [['list'], ['html', { open: 'never', outputFolder: path.join(PROJEKT, 'playwright-report') }]],
   use: {
-    baseURL: process.env.BASE_URL ?? `http://localhost:${DEMO_PORT}`,
+    baseURL: istBeispiel ? `http://localhost:${DEMO_PORT}` : startadresse(HAUPT),
     httpCredentials,
     locale: 'de-DE',
     timezoneId: 'Europe/Berlin',
@@ -103,7 +148,18 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      testIgnore: benannt.map((a) => new RegExp(`[\\\\/]tests[\\\\/]${a.name.replace(/[.]/g, '\\.')}[\\\\/]`)),
+      metadata: { projektOrdner: PROJEKT, auftrag: HAUPT?.name ?? '', vorschauLink: istBeispiel ? undefined : vorschauLink(HAUPT) },
+      use: { ...devices['Desktop Chrome'] },
+    },
+    ...benannt.map((a) => ({
+      name: a.name,
+      testDir: path.join(TESTS, a.name),
+      metadata: { projektOrdner: PROJEKT, auftrag: a.name, vorschauLink: vorschauLink(a) },
+      use: { ...devices['Desktop Chrome'], baseURL: startadresse(a) },
+    })),
     // Unit-Tests der reinen Funktionen in lib/ (ohne Browser), nur beim Lauf ohne Projekt
     ...(istBeispiel ? [{ name: 'einheiten', testDir: path.join(WURZEL, 'test', 'einheiten') }] : []),
   ],
