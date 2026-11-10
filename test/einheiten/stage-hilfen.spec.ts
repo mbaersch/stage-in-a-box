@@ -1,6 +1,6 @@
 /** Kleine Helfer der Stage und Baseline-Vergleich (lib/stage.ts, lib/baseline.ts). */
 import { test, expect } from '../../lib/playwright';
-import { mitParameter, vorschauParameter, trefferTeile } from '../../lib/stage';
+import { mitParameter, vorschauParameter, trefferTeile, bekannteTreffer } from '../../lib/stage';
 import { vergleiche, bodyParameter, ohneTestzeit, type Baseline } from '../../lib/baseline';
 
 test('trefferTeile: getunnelter Request wird dekodiert, Host bleibt', () => {
@@ -98,4 +98,17 @@ test.describe('Baseline-Vergleich', () => {
     lauf.anfragen = [];
     expect(rot(basis(), lauf).length).toBeGreaterThan(0);
   });
+});
+
+test('bekannteTreffer: als abgebrochen gemeldete, aber durchgelassene Requests zählen, abgefangene nicht', () => {
+  const url = 'https://region1.google-analytics.com/g/collect?en=page_view';
+  const treffer = [
+    { url, quelle: 'browser', modus: 'durchlassen', fehler: 'net::ERR_ABORTED' },
+    { url, quelle: 'browser', modus: 'durchlassen' },
+    { url, quelle: 'browser', modus: 'abfangen', fehler: 'net::ERR_FAILED' },
+    { url, quelle: 'browser', modus: 'durchlassen', fehler: 'net::ERR_CONNECTION_REFUSED' },
+    { url, quelle: 'netlog', modus: 'durchlassen' },
+    { url: 'https://andere.de/', quelle: 'browser', modus: 'durchlassen' },
+  ];
+  expect(bekannteTreffer(treffer, url)).toEqual([treffer[0], treffer[1], treffer[4]]);
 });

@@ -251,6 +251,18 @@ export function vorschauParameter(link?: string, quelle = 'GTM-Vorschau-Link') {
   return { id: decodeURIComponent(id), auth: decodeURIComponent(auth), env: decodeURIComponent(env) };
 }
 
+// Playwright meldet Keepalive-Fetches und Beacons oft als abgebrochen, obwohl sie gesendet wurden (NetLog: 200/204).
+const ABGEBROCHEN = 'net::ERR_ABORTED';
+
+/**
+ * Treffer, die zu einem NetLog-Eintrag mit dieser URL gehören können (in Reihenfolge): frühere NetLog-Treffer und
+ * Requests, die Playwright mit echtem Netzwerkzugriff gesehen hat, auch als abgebrochen gemeldete.
+ */
+export function bekannteTreffer<T extends { url: string; quelle?: string; modus?: string; fehler?: string }>(treffer: T[], url: string): T[] {
+  return treffer.filter((t) => t.url === url
+    && (t.quelle === 'netlog' || (t.modus === 'durchlassen' && (!t.fehler || t.fehler === ABGEBROCHEN))));
+}
+
 /** CONVERSION=aus: Tests enden an stage.conversionPunkt(), z. B. solange sie eingerichtet werden. */
 export function conversionAus(): boolean {
   return /^(aus|nein|0|false|off|no)$/i.test(process.env.CONVERSION ?? '');
@@ -569,10 +581,15 @@ export class Stage {
       if (!regel || regel.nichtProtokollieren || this.werkzeugUrls.has(r.url)) continue;
       const anzahl = (imNetz.get(r.url) ?? 0) + 1;
       imNetz.set(r.url, anzahl);
-      // Requests, die Playwright mit echtem Netzwerkzugriff gesehen hat, nicht doppelt zählen
-      const bekannt = this.tracking.treffer.filter((t) => t.url === r.url
-        && (t.quelle === 'netlog' || (t.modus === 'durchlassen' && !t.fehler))).length;
-      if (anzahl <= bekannt) continue;
+      const bekannt = bekannteTreffer(this.tracking.treffer, r.url);
+      if (anzahl <= bekannt.length) {
+        const partner = bekannt[anzahl - 1];
+        if (partner.quelle !== 'netlog' && partner.fehler === ABGEBROCHEN) {
+          partner.status = r.status;
+          partner.fehler = r.fehler;
+        }
+        continue;
+      }
       const modus = regel.modus ?? this.modus;
       this.tracking.treffer.push({
         nr: this.tracking.treffer.length,
