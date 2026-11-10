@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * Abnahme: Baseline-Test(s) sichtbar und mit offenen DevTools; die Stage schreibt dataLayer-Events und Requests
- * lesbar in die Konsole; der Browser bleibt offen, bis der Mensch ihn schließt. Aufruf: npm run abnahme -- projects/<name>/tests/<auftrag> [weitere Playwright-Argumente]
+ * lesbar in die Konsole; der Browser bleibt offen, bis der Mensch ihn schließt.
+ * Aufruf: npm run abnahme -- projects/<name>/tests/<auftrag> [weitere Playwright-Argumente]
  */
 import { spawn } from 'node:child_process';
 
 const args = process.argv.slice(2);
-if (!args.some((a) => a.replace(/\/g, '/').includes('projects/'))) {
+if (!args.some((a) => a.replaceAll('\\', '/').includes('projects/'))) {
   console.error('Aufruf: npm run abnahme -- projects/<name>/tests/<auftrag>   (ohne -g: alle Tests mit "Baseline" im Namen)');
   process.exit(1);
 }
