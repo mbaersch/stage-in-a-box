@@ -141,8 +141,8 @@ export const DIENST_PROFILE: DienstProfil[] = [
     klickId: { msclkid: { speicher: ['_uetmsclkid'] } },
     conversion: { pflicht: ['gv'], value: 'gv', currency: 'gc', valueNurHinweis: true },
   },
-  // Request-Parameter für dclid nicht belegt (kein Floodlight-Request beobachtet)
-  { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'] } } },
+  // dclid als gcldc in den Floodlight-Parametern (beobachtet an ad.doubleclick.net/activity und fls.doubleclick.net/activityi)
+  { name: 'Floodlight', klickId: { dclid: { speicher: ['_gcl_dc'], request: ['gcldc'] } } },
   {
     name: 'LinkedIn',
     klickId: { li_fat_id: { speicher: ['li_fat_id'], request: ['li_fat_id'] } },

@@ -1,6 +1,6 @@
 /** Kleine Helfer der Stage und Baseline-Vergleich (lib/stage.ts, lib/baseline.ts). */
 import { test, expect } from '../../lib/playwright';
-import { mitParameter, vorschauParameter, trefferTeile, bekannteTreffer } from '../../lib/stage';
+import { mitParameter, vorschauParameter, trefferTeile, bekannteTreffer, STANDARD_DIENSTE } from '../../lib/stage';
 import { vergleiche, bodyParameter, ohneTestzeit, type Baseline } from '../../lib/baseline';
 
 test('trefferTeile: getunnelter Request wird dekodiert, Host bleibt', () => {
@@ -111,4 +111,15 @@ test('bekannteTreffer: als abgebrochen gemeldete, aber durchgelassene Requests z
     { url: 'https://andere.de/', quelle: 'browser', modus: 'durchlassen' },
   ];
   expect(bekannteTreffer(treffer, url)).toEqual([treffer[0], treffer[1], treffer[4]]);
+});
+
+test('trefferTeile: Floodlight-Parameter mit ";" im Pfad werden zerlegt', () => {
+  const regel = STANDARD_DIENSTE.find((r) => r.name === 'Floodlight')!;
+  const url = 'https://ad.doubleclick.net/activity;src=1234567;type=typ001;cat=kat0;ord=123;gcldc=TEST-1;~oref=https%3A%2F%2Fx.ch%2Fa%3Fb%3D1?';
+  expect(trefferTeile(url, regel)).toEqual({
+    host: 'ad.doubleclick.net', pfad: '/activity',
+    parameter: { src: '1234567', type: 'typ001', cat: 'kat0', ord: '123', gcldc: 'TEST-1', '~oref': 'https://x.ch/a?b=1' },
+  });
+  const ccm = 'https://www.google.com/ccm/collect?tid=DC-1&en=page_view';
+  expect(trefferTeile(ccm, regel)).toEqual(trefferTeile(ccm));
 });

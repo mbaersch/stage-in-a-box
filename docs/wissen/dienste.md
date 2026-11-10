@@ -93,7 +93,7 @@ Gespeichert und gesendet gilt die Klick-ID, wenn der Wert in Cookie bzw. einem e
 | `gclid` | Google Ads (Conversion Linker) | Cookie `_gcl_aw` | `gclaw` |
 | `gbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_ag` (`2.1.k<gbraid>$i<Zeit>`) | `gclgb` |
 | `wbraid` | Google Ads (Conversion Linker) | Cookie `_gcl_gb` (`GCL.<Zeit>.<wbraid>`) | `gclgb` (an Conversions zusätzlich `gacgb`) |
-| `dclid` | Floodlight / DoubleClick | Cookie `_gcl_dc` | nicht belegt (gesehen: `dclid` an `ccm/collect` auf der Landungsseite) |
+| `dclid` | Floodlight / DoubleClick | Cookie `_gcl_dc` | `gcldc` in den Floodlight-Parametern (`ad.doubleclick.net/activity;…`, `fls.doubleclick.net/activityi;…`); außerdem `dclid` an `ccm/collect` auf der Landungsseite |
 | `fbclid` | Meta | Cookie `_fbc` (`fb.1.<Zeit>.<fbclid>`) | `fbc` |
 | `msclkid` | Microsoft Ads | Cookie `_uetmsclkid` | `msclkid` (kommt als `N` auch ohne Klick-ID – nur Suche nach dem Wert) |
 | `ttclid` | TikTok | Cookie `ttclid` (`<ttclid>.<Zeit>`, 1 Tag) | `context.ad.callback` (JSON-Body) |

@@ -84,6 +84,14 @@ export interface Regel {
   dekodieren?: (url: string) => string | undefined;
 }
 
+/** /activity;src=1;cat=x?y=2 → /activity?src=1&cat=x&y=2; ohne ";" im Pfad undefined (Rohform bleibt). */
+function floodlightParameter(url: string): string | undefined {
+  const u = new URL(url);
+  const [pfad, ...teile] = u.pathname.split(';');
+  if (!teile.length) return undefined;
+  return `${pfad}?${[...teile.filter(Boolean), u.search.slice(1)].filter(Boolean).join('&')}`;
+}
+
 /** Host, Pfad und Parameter eines Treffers; bei Regeln mit dekodieren() Pfad und Parameter des Originals. */
 export function trefferTeile(url: string, regel?: Pick<Regel, 'dekodieren'>) {
   const teile = zerlege(url);
@@ -364,7 +372,8 @@ export const STANDARD_DIENSTE: Regel[] = [
   { name: 'GA4 Begleit', muster: /\/ads\/ga-audiences|\/g\/s\/collect/, nichtProtokollieren: true },
   { name: 'GA4 Measurement Protocol', muster: /google-analytics\.com\/mp\/collect/ },
   // Vor Google Ads: ccm/collect mit tid=DC- ist der Measurement-Ping eines Google-Tags mit Floodlight-ID
-  { name: 'Floodlight', muster: /fls\.doubleclick\.net\/activity|ad\.doubleclick\.net\/activity|\/ccm\/collect\?(?:[^#]*&)?tid=DC-/ },
+  // Floodlight schreibt Parameter mit ";" in den Pfad; zerlegt, damit Baseline und Klick-ID-Suche sie als Parameter sehen
+  { name: 'Floodlight', muster: /fls\.doubleclick\.net\/activity|ad\.doubleclick\.net\/activity|\/ccm\/collect\?(?:[^#]*&)?tid=DC-/, dekodieren: floodlightParameter },
   // measurement/conversion: Conversion aus GA4 für Google Ads; ohne Regel ginge sie auch im Modus "abfangen" raus
   // Ohne Host: Google Tag Gateway auf der eigenen Domain (<pfad>/as/p/c/<id>/, <pfad>/as/d/ccm/conversion/, <pfad>/d/ccm/form-data)
   { name: 'Google Ads', muster: /googleadservices\.com\/(pagead|ccm)\/conversion|\/ccm\/conversion\/|\/as\/p\/c\/\d{6,}\/|\/(pagead|ccm)\/form-data|googleads\.g\.doubleclick\.net\/pagead\/(viewthroughconversion|conversion)|google\.[a-z.]+\/pagead\/(1p-)?(conversion|user-list)|google\.[a-z.]+\/rmkt\/collect|\/ccm\/(s\/)?collect|analytics\.google\.com\/measurement\/(1p-)?conversion/ },

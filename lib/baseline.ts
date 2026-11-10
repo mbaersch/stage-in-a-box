@@ -198,7 +198,8 @@ export function bodyParameter(body?: string): Record<string, string> {
 /** Name des Ereignisses in einem Request, unabhängig vom Dienst. */
 function ereignisname(p: Record<string, string>, pfad: string): string {
   // e_a: Event-Aktion bei Matomo/Piwik PRO
-  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.e_a ?? p.label ?? pfad;
+  // cat: Aktivität bei Floodlight
+  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.e_a ?? p.label ?? p.cat ?? pfad;
 }
 
 const BEGLEIT = '(Begleit) ';
@@ -212,7 +213,8 @@ const nurHinweis = (k: string) => k.startsWith(BEGLEIT) || k.startsWith(TIMING);
  * Wechsel des Empfängers als fehlender bzw. neuer Request auffällt und nicht nur als geänderter Parameter.
  */
 function konto(p: Record<string, string>, pfad: string): string {
-  return p.tid ?? p.ti ?? p.idsite ?? p.pid ?? p.id ?? pfad.match(/\/(\d{6,})(\/|$)/)?.[1] ?? '';
+  // src: Floodlight-Konfiguration
+  return p.tid ?? p.ti ?? p.idsite ?? p.pid ?? p.id ?? p.src ?? pfad.match(/\/(\d{6,})(\/|$)/)?.[1] ?? '';
 }
 
 /** Vergleichsschlüssel: Dienst, Ereignis, Pfad (IDs als #) und Konto. Wird beim Vergleich neu
