@@ -35,6 +35,7 @@ import { expect } from './playwright';
 import type { Modus, Stage, Treffer } from './stage';
 import type { Tempo } from './tempo';
 import { projektOrdner } from './auftrag';
+import { DIENST_PROFILE, type DeduplizierungsProfil } from './dienstprofile';
 
 export interface BaselineOptionen {
   /** Zusätzliche dataLayer-Keys, deren Werte sich bei jedem Lauf ändern (Name auf beliebiger Ebene). */
@@ -230,18 +231,47 @@ function konto(p: Record<string, string>, pfad: string): string {
 function schluessel(a: Pick<BaselineAnfrage, 'dienst' | 'parameter' | 'host' | 'pfad' | 'umleitung'>): string {
   const pfad = a.pfad.replace(/\d{3,}|[a-f0-9]{16,}/gi, '#');
   const art = istTimingAbhaengig(a.parameter) ? TIMING
-    : a.umleitung || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad)) ? BEGLEIT : '';
+    : a.umleitung || istIntern(a.dienst, a.parameter) || BEGLEIT_PFADE.some((m) => m.test(a.host + a.pfad)) ? BEGLEIT : '';
   const empfaenger = konto(a.parameter, a.pfad);
   return `${art}${a.dienst} · ${ereignisname(a.parameter, a.pfad)} · ${pfad}${empfaenger ? ` · ${empfaenger}` : ''}`;
 }
 
-function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
+/** Dienste, die mehrere Events als JSON-Liste in einem Request bündeln (Profil: deduplizierung.liste) */
+const LISTEN_DIENSTE = new Map(DIENST_PROFILE.filter((p) => p.deduplizierung?.liste).map((p) => [p.name, p.deduplizierung!]));
+
+/** Event-Namen aus dem JSON-Body; undefined, wenn der Body keine solche Liste ist. */
+function listenEvents(body: string, profil: DeduplizierungsProfil): string[] | undefined {
+  try {
+    const liste = JSON.parse(body)?.[profil.liste!];
+    if (!Array.isArray(liste)) return undefined;
+    const felder = ([] as string[]).concat(profil.ereignis ?? []);
+    return liste.map((e) => String(felder.map((f) => e?.[f]).find((v) => v !== undefined) ?? ''));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Technische Events des Dienstes selbst (z. B. Diagnose des SDK): Anzahl schwankt, nur Hinweis. */
+const istIntern = (dienst: string, p: Record<string, string>) =>
+  p.event !== undefined && !!LISTEN_DIENSTE.get(dienst)?.ignorieren?.test(p.event);
+
+export function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
   const out: BaselineAnfrage[] = [];
   for (const t of treffer) {
     const gemeinsam = {
       dienst: t.dienst, methode: t.methode, host: t.host, pfad: t.pfad,
       status: t.status, fehler: t.fehler, umleitung: !!t.umleitungVon,
     };
+    // Wie die gebündelten Events auf Requests verteilt werden, hängt vom Timing ab: je Event ein Eintrag
+    const profil = LISTEN_DIENSTE.get(t.dienst);
+    const events = profil && t.body ? listenEvents(t.body, profil) : undefined;
+    if (events) {
+      for (const event of events) {
+        const parameter = { ...t.parameter, event };
+        out.push({ ...gemeinsam, parameter, schluessel: schluessel({ ...gemeinsam, parameter }) });
+      }
+      continue;
+    }
     // GA4 bündelt mehrere Ereignisse in einem Request: jede Body-Zeile ist ein Ereignis.
     const zeilen = t.dienst === 'GA4' && t.body ? t.body.split(/\r?\n/).filter(Boolean) : [null];
     for (const zeile of zeilen) {

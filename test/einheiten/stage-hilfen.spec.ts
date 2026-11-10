@@ -1,7 +1,7 @@
 /** Kleine Helfer der Stage und Baseline-Vergleich (lib/stage.ts, lib/baseline.ts). */
 import { test, expect } from '../../lib/playwright';
 import { mitParameter, vorschauParameter, trefferTeile, bekannteTreffer, STANDARD_DIENSTE } from '../../lib/stage';
-import { vergleiche, bodyParameter, ohneTestzeit, type Baseline } from '../../lib/baseline';
+import { vergleiche, bodyParameter, ohneTestzeit, anfragenAus, type Baseline } from '../../lib/baseline';
 
 test('trefferTeile: getunnelter Request wird dekodiert, Host bleibt', () => {
   const kodiert = Buffer.from('/g/collect?v=2&tid=G-1&en=page_view').toString('base64');
@@ -61,6 +61,18 @@ test.describe('Baseline-Vergleich', () => {
     lauf.anfragen[0].parameter.cid = '2.2';
     (lauf.events[0].daten.ecommerce as any).transaction_id = 'T-2';
     expect(rot(basis(), lauf)).toEqual([]);
+  });
+
+  test('Gebündelte JSON-Events (OpenAI): je Event verglichen, andere Bündelung ist keine Abweichung', () => {
+    const req = (ec: string, typen: string[]) => ({
+      nr: 0, zeit: 0, dienst: 'OpenAI Ads', modus: 'durchlassen', methode: 'POST', url: '', host: 'bzr.openai.com',
+      pfad: '/v1/sdk/events', parameter: { pid: 'P1', ec }, body: JSON.stringify({ events: typen.map((type) => ({ type, id: 'x' })) }),
+    } as any);
+    const mit = (anfragen: ReturnType<typeof anfragenAus>): Baseline => ({ ...basis(), anfragen });
+    const b = mit(anfragenAus([req('3', ['openai::sdk_init', 'oai::diagnostic', 'page_viewed']), req('2', ['oai::diagnostic', 'items_added'])]));
+    const l = mit(anfragenAus([req('3', ['openai::sdk_init', 'oai::diagnostic', 'page_viewed']), req('1', ['oai::diagnostic']), req('1', ['oai::diagnostic']), req('1', ['items_added'])]));
+    expect(rot(b, l)).toEqual([]);
+    expect(rot(b, mit(anfragenAus([req('2', ['openai::sdk_init', 'page_viewed'])])))).toEqual(['Request fehlt: OpenAI Ads · items_added · /v1/sdk/events · P1']);
   });
 
   test('Consent-Parameter geändert: rot', () => {
