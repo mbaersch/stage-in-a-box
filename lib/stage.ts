@@ -1612,6 +1612,11 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       const datei = testInfo.outputPath('abnahme.log');
       fs.writeFileSync(datei, abnahme.zeilen.join('\n'));
       await testInfo.attach('abnahme.log', { path: datei, contentType: 'text/plain' });
+      // npm run abnahme: offen lassen, bis der Mensch den Browser schließt (STAGE_ABNAHME=offen)
+      if (process.env.STAGE_ABNAHME === 'offen') {
+        testInfo.setTimeout(0);
+        await abnahme.zeigenUndOffenHalten();
+      }
     }
     const entwischt = stage.tracking.treffer.filter((t) => t.entwischt);
     if (entwischt.length) {

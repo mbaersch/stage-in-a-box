@@ -29,7 +29,7 @@ export function trefferZeile(t: Treffer): string {
     .filter(Boolean).join(' · ');
 }
 
-interface Meldung { art: 'dl' | 'tr'; zeit: number; kopf: string; text: string; daten: unknown }
+interface Meldung { art: 'dl' | 'tr'; uhrzeit: string; kopf: string; text: string; daten: unknown }
 
 const uhrzeit = (ms: number) => {
   const d = new Date(ms);
@@ -57,6 +57,36 @@ export class AbnahmeProtokoll {
     await this.weitergeben();
   }
 
+  /**
+   * Spielt das ganze Protokoll in die Konsole der offenen Seiten: Der Baseline-Vergleich verlässt vorher die
+   * letzte Seite (about:blank), dabei leert Chrome die Konsole. Danach offen lassen, bis der Mensch schließt.
+   */
+  async zeigenUndOffenHalten() {
+    await this.inKonsole(this.alle, `Abnahme: vollständiges Protokoll (${this.alle.length} Einträge)`);
+    const kontext = this.context;
+    await new Promise<void>((fertig) => {
+      const pruefe = () => { if (kontext.pages().every((p) => p.isClosed())) fertig(); };
+      kontext.pages().forEach((p) => p.on('close', pruefe));
+      kontext.on('page', (p) => p.on('close', pruefe));
+      kontext.on('close', () => fertig());
+      kontext.browser()?.on('disconnected', () => fertig());
+      pruefe();
+    });
+  }
+
+  private readonly alle: Meldung[] = [];
+
+  private async inKonsole(liste: Meldung[], gruppe?: string) {
+    await Promise.all(this.context.pages().map((seite) => seite.evaluate(({ liste, gruppe }) => {
+      if (gruppe) console.group(gruppe);
+      for (const m of liste) {
+        const farbe = m.art === 'dl' ? '#2563eb' : '#15803d';
+        console.log(`%c${m.uhrzeit}%c ${m.art === 'dl' ? '▶' : '◀'} ${m.kopf} %c${m.text}`, 'color:#888', `color:#fff;background:${farbe};padding:1px 5px;border-radius:3px`, 'font-weight:bold', m.daten);
+      }
+      if (gruppe) console.groupEnd();
+    }, { liste, gruppe }).catch(() => { /* Seite geschlossen oder mitten im Laden */ })));
+  }
+
   private async weitergeben() {
     if (this.laeuft) return;
     this.laeuft = true;
@@ -64,26 +94,21 @@ export class AbnahmeProtokoll {
       const meldungen: Meldung[] = [];
       for (const e of this.quelle.dataLayer.eintraege.slice(this.dl)) {
         const z = dataLayerZeile(e);
-        if (z) meldungen.push({ art: 'dl', zeit: e.zeit, kopf: 'dataLayer', text: z.titel, daten: z.daten });
+        if (z) meldungen.push({ art: 'dl', uhrzeit: uhrzeit(e.zeit), kopf: 'dataLayer', text: z.titel, daten: z.daten });
       }
       this.dl = this.quelle.dataLayer.eintraege.length;
       for (const t of this.quelle.tracking.treffer.slice(this.tr)) {
-        meldungen.push({ art: 'tr', zeit: t.zeit, kopf: t.dienst, text: trefferZeile(t), daten: t.parameter });
+        meldungen.push({ art: 'tr', uhrzeit: uhrzeit(t.zeit), kopf: t.dienst, text: trefferZeile(t), daten: t.parameter });
       }
       this.tr = this.quelle.tracking.treffer.length;
       if (!meldungen.length) return;
+      this.alle.push(...meldungen);
       for (const m of meldungen) {
         const zeile = `${m.art === 'dl' ? '▶' : '◀'} ${m.kopf.padEnd(12)} ${m.text}`;
-        this.zeilen.push(`${uhrzeit(m.zeit)} ${zeile}`);
+        this.zeilen.push(`${m.uhrzeit} ${zeile}`);
         console.log(zeile);
       }
-      // Die Konsole einer Seite leert sich beim Seitenwechsel, solange „Preserve log“ aus ist; abnahme.log hat alles.
-      await Promise.all(this.context.pages().map((seite) => seite.evaluate((liste: Meldung[]) => {
-        for (const m of liste) {
-          const farbe = m.art === 'dl' ? '#2563eb' : '#15803d';
-          console.log(`%c${m.art === 'dl' ? '▶' : '◀'} ${m.kopf}%c ${m.text}`, `color:#fff;background:${farbe};padding:1px 5px;border-radius:3px`, 'font-weight:bold', m.daten);
-        }
-      }, meldungen).catch(() => { /* Seite geschlossen oder mitten im Laden */ })));
+      await this.inKonsole(meldungen);
     } finally {
       this.laeuft = false;
     }
