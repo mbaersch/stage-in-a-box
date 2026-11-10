@@ -202,7 +202,7 @@ Die Anweisungen für den Agent beginnen in [`AGENTS.md`](AGENTS.md). Claude Code
 
 Sobald der vollständige Lauf grün ist, speichert der Agent den Ist-Zustand als Baseline: alle Requests, Consent-Parameter und dataLayer-Events der Journey. Direkt danach gleicht er sie mit einem zweiten Lauf ab. Der zeigt, was sich ohne jede Änderung am Setup unterscheidet: Zufalls- und Zeitwerte, Begleit-Requests, deren Anzahl schwankt (z. B. Cookie-Abgleich bei Google Ads), und Rauschen wie Sitzungsaufzeichnungen. Der Agent ordnet jede Abweichung ein und wiederholt den Abgleich, bis kein Rot mehr bleibt und nur noch erklärbare Hinweise. Erst dann ist die Baseline fertig. Ab dann meldet jeder Lauf Abweichungen, etwa nach einer Änderung im GTM. Baseline-Läufe senden echte Requests, auch Conversions (siehe [Baseline](#baseline)).
 
-**Abnahme:** Zum Schluss kannst Du den Baseline-Lauf einmal selbst ansehen: `npm run abnahme -- projects/mein-shop/tests/<auftrag>` spielt ihn im sichtbaren Browser mit offenen DevTools ab. In der Konsole stehen dabei lesbar alle dataLayer-Events (▶) und Requests an die Dienste (◀) mit aufklappbaren Parametern, dasselbe im Terminal und als `abnahme.log` im Report. Der Vergleich mit der Baseline läuft mit, Requests gehen echt raus. Bei einem Seitenwechsel leert Chrome die Konsole, außer „Preserve log“ ist an; deshalb steht am Ende das ganze Protokoll noch einmal in der Konsole. Der Browser bleibt offen, bis Du ihn schließt.
+**Abnahme:** Zum Schluss kannst Du den Baseline-Lauf einmal selbst ansehen: `npm run abnahme -- projects/mein-shop/tests/<auftrag>` spielt ihn im sichtbaren Browser mit offenen DevTools ab. In der Konsole stehen dabei lesbar alle dataLayer-Events (▶) und Requests an die Dienste (◀) mit aufklappbaren Parametern, dasselbe im Terminal und als `abnahme.log` im Report. Der Vergleich mit der Baseline läuft mit, Requests gehen echt raus. Die Konsole ist schon vorne, auf `stage` gefiltert und mit „Keep log“ (früher „Keep log“), damit nichts im Rauschen der Website untergeht und Seitenwechsel nichts löschen. Der Browser bleibt offen, bis Du ihn schließt.
 
 ## 7. Tests ausführen
 
@@ -291,7 +291,7 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 
 ## Ohne GTM
 
-Am einfachsten ist die Aufnahme-Sitzung (`npm run aufnahme`, siehe oben). Für den eigenen Browser gibt es [`dist/recorder.js`](dist/recorder.js), dieselbe Aufzeichnung als eigenständiges Script. Es kann per DevTools *Local Overrides*, als Snippet oder über eine Browser-Extension eingebunden werden, die Scripts in Seiten einspielt. Es schreibt jeden Eintrag zusätzlich in die Konsole. Mit aktiviertem *Preserve log* bleibt die Aufzeichnung über Seitenwechsel erhalten und lässt sich als Datei speichern. Das Analyse-Script liest auch diesen Mitschnitt; Events, Tags und Requests fehlen dann aber.
+Am einfachsten ist die Aufnahme-Sitzung (`npm run aufnahme`, siehe oben). Für den eigenen Browser gibt es [`dist/recorder.js`](dist/recorder.js), dieselbe Aufzeichnung als eigenständiges Script. Es kann per DevTools *Local Overrides*, als Snippet oder über eine Browser-Extension eingebunden werden, die Scripts in Seiten einspielt. Es schreibt jeden Eintrag zusätzlich in die Konsole. Mit aktiviertem *Keep log* bleibt die Aufzeichnung über Seitenwechsel erhalten und lässt sich als Datei speichern. Das Analyse-Script liest auch diesen Mitschnitt; Events, Tags und Requests fehlen dann aber.
 
 ## Grenzen
 

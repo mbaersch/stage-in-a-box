@@ -33,7 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { projektOrdner } from './auftrag';
-import { AbnahmeProtokoll } from './abnahme';
+import { AbnahmeProtokoll, DEVTOOLS_EINSTELLUNGEN } from './abnahme';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
@@ -1559,6 +1559,20 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     httpCredentials, proxy, ignoreHTTPSErrors, serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile,
     hasTouch, storageState,
   }, use) => {
+    // Abnahme: eigenes Profil, damit die DevTools mit Konsole, Filter und Keep log starten (lib/abnahme.ts)
+    if (process.env.STAGE_ABNAHME === 'offen' && !stageOptionen.bfcache) {
+      const profil = fs.mkdtempSync(path.join(os.tmpdir(), 'stage-abnahme-'));
+      fs.mkdirSync(path.join(profil, 'Default'));
+      fs.writeFileSync(path.join(profil, 'Default', 'Preferences'), JSON.stringify({ devtools: { preferences: DEVTOOLS_EINSTELLUNGEN } }));
+      const kontext = await playwright.chromium.launchPersistentContext(profil, {
+        ...launchOptions, headless, ...contextOptions, baseURL, locale, timezoneId, httpCredentials, proxy, ignoreHTTPSErrors,
+        serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch,
+      });
+      await use(kontext);
+      await kontext.close().catch(() => { /* Fenster schon geschlossen */ });
+      try { fs.rmSync(profil, { recursive: true, force: true }); } catch { /* Windows hält Dateien kurz fest */ }
+      return;
+    }
     if (!stageOptionen.bfcache) {
       await use(context);
       return;
@@ -1615,7 +1629,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
       // npm run abnahme: offen lassen, bis der Mensch den Browser schließt (STAGE_ABNAHME=offen)
       if (process.env.STAGE_ABNAHME === 'offen') {
         testInfo.setTimeout(0);
-        await abnahme.zeigenUndOffenHalten();
+        await abnahme.offenHalten();
       }
     }
     const entwischt = stage.tracking.treffer.filter((t) => t.entwischt);

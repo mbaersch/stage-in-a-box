@@ -29,6 +29,16 @@ export function trefferZeile(t: Treffer): string {
     .filter(Boolean).join(' · ');
 }
 
+/**
+ * DevTools-Einstellungen für das Profil der Abnahme (Preferences → devtools.preferences, Werte als JSON-Strings):
+ * Konsole vorne, nur Zeilen mit "stage", Log bleibt bei Seitenwechseln stehen. Namen aus einem Versuch mit Chromium.
+ */
+export const DEVTOOLS_EINSTELLUNGEN = {
+  'panel-selected-tab': '"console"',
+  'console.text-filter': '"stage"',
+  'preserve-console-log': 'true',
+};
+
 interface Meldung { art: 'dl' | 'tr'; uhrzeit: string; kopf: string; text: string; daten: unknown }
 
 const uhrzeit = (ms: number) => {
@@ -57,12 +67,9 @@ export class AbnahmeProtokoll {
     await this.weitergeben();
   }
 
-  /**
-   * Spielt das ganze Protokoll in die Konsole der offenen Seiten: Der Baseline-Vergleich verlässt vorher die
-   * letzte Seite (about:blank), dabei leert Chrome die Konsole. Danach offen lassen, bis der Mensch schließt.
-   */
-  async zeigenUndOffenHalten() {
-    await this.inKonsole(this.alle, `Abnahme: vollständiges Protokoll (${this.alle.length} Einträge)`);
+  /** Offen lassen, bis der Mensch den Browser schließt (Keep log hält das Protokoll über Seitenwechsel). */
+  async offenHalten() {
+    await this.inKonsole([], `[stage] Abnahme beendet: ${this.alle.length} Einträge. Browser schließen, um zu beenden.`);
     const kontext = this.context;
     await new Promise<void>((fertig) => {
       const pruefe = () => { if (kontext.pages().every((p) => p.isClosed())) fertig(); };
@@ -78,12 +85,11 @@ export class AbnahmeProtokoll {
 
   private async inKonsole(liste: Meldung[], gruppe?: string) {
     await Promise.all(this.context.pages().map((seite) => seite.evaluate(({ liste, gruppe }) => {
-      if (gruppe) console.group(gruppe);
+      if (gruppe) console.log(`%c${gruppe}`, 'font-weight:bold');
       for (const m of liste) {
         const farbe = m.art === 'dl' ? '#2563eb' : '#15803d';
-        console.log(`%c${m.uhrzeit}%c ${m.art === 'dl' ? '▶' : '◀'} ${m.kopf} %c${m.text}`, 'color:#888', `color:#fff;background:${farbe};padding:1px 5px;border-radius:3px`, 'font-weight:bold', m.daten);
+        console.log(`%c[stage] ${m.uhrzeit}%c ${m.art === 'dl' ? '▶' : '◀'} ${m.kopf} %c${m.text}`, 'color:#888', `color:#fff;background:${farbe};padding:1px 5px;border-radius:3px`, 'font-weight:bold', m.daten);
       }
-      if (gruppe) console.groupEnd();
     }, { liste, gruppe }).catch(() => { /* Seite geschlossen oder mitten im Laden */ })));
   }
 
