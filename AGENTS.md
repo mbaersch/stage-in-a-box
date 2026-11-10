@@ -9,7 +9,8 @@ Diese Datei enthält nur, was immer gilt, und den Wegweiser. Die Anleitungen zu 
 | Aufgabe | Lies |
 |---|---|
 | Website mit Anpassungen selbst bedienen lassen („in der Sitzung soll …“) | [`docs/anleitung/staging.md`](docs/anleitung/staging.md) |
-| Aufzeichnung analysieren, Auftrag vorausfüllen (Phase 1) | [`docs/anleitung/aufzeichnung.md`](docs/anleitung/aufzeichnung.md) |
+| Aufzeichnung (Tag-Assistant-Export oder Aufnahme-Sitzung) analysieren, Auftrag vorausfüllen (Phase 1) | [`docs/anleitung/aufzeichnung.md`](docs/anleitung/aufzeichnung.md) |
+| Tests ohne Aufzeichnung aus wenigen Angaben im Chat (Kurzauftrag mit Erkundungslauf, Baseline, A/A-Lauf) | [`docs/anleitung/kurzauftrag.md`](docs/anleitung/kurzauftrag.md) |
 | Tests bauen und stabilisieren (Phase 2) | [`docs/anleitung/tests-bauen.md`](docs/anleitung/tests-bauen.md) |
 | Baseline ziehen und abgleichen (Phase 3) | [`docs/anleitung/baseline.md`](docs/anleitung/baseline.md) |
 | Varianten, Bedingungen, Prüfungen: Durchgängigkeit dataLayer → Dienste, Event-ID zur Deduplizierung, GA4-Erfassungsgrenzen, Cookies, Dienste blockieren oder verzögern, Adblocker mit Filterlisten, CSP, Website anpassen, dataLayer ändern, Consent-Varianten, Proxy, Landung über Anzeige, wiederkehrender Besucher, Uhr, Netz, Gerät, Kennung, Zurück-Navigation | [`docs/anleitung/varianten.md`](docs/anleitung/varianten.md) |
@@ -30,11 +31,11 @@ Wissen, bei Bedarf:
 ## Zwei Arten von Arbeit
 
 - **Staging im Browser:** Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etwas vorzubauen, das die Website noch nicht kann. Keine Aufzeichnung, kein Auftrag, keine Phasen.
-- **Tracking-Tests:** Du baust aus einer Aufzeichnung (oder für einen Container-Umbau) eine Playwright-Testsuite in drei Phasen. Zwischen Phase 1 und 2 bestätigt der Mensch den Auftrag.
+- **Tracking-Tests:** Du baust eine Playwright-Testsuite in drei Phasen. Grundlage ist eine Aufzeichnung (Tag-Assistant-Export oder Aufnahme-Sitzung mit `npm run aufnahme`), ein Kurzauftrag aus wenigen Angaben im Chat oder ein Container-Umbau. Zwischen Phase 1 und 2 bestätigt der Mensch den Auftrag.
 
 | Phase | Ergebnis | Endet mit |
 |---|---|---|
-| 1. Analyse | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
+| 1. Analyse (Aufzeichnung, Erkundungslauf oder Katalog) | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
 | 2. Bau | Tests, stabil bis vor die Conversion, dann ein vollständiger Lauf | Abschlussbericht mit Angebot, die Baseline zu ziehen |
 | 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage |
 

@@ -110,6 +110,10 @@ Im Tag Assistant erscheint der Key wie ein echter Teil des Pushes. Variablen, Tr
  7. Tests laufen lassen                  (jederzeit, mit Varianten, nach jeder Änderung)
 ```
 
+**Ohne GTM, im Browser der Stage:** `npm run aufnahme -- projects/<name>` öffnet einen sichtbaren Browser mit frischem Profil. Du gehst einmal durch den Prozess und schließt ihn; Klicks, Eingaben, dataLayer und alle Tracking-Requests landen in `aufzeichnungen/aufnahme-<Zeit>.json`. Ab Schritt 3 geht es gleich weiter. Was gegenüber dem Tag Assistant fehlt, sind die Tags (welcher Tag bei welchem Trigger gefeuert hat); dafür sind auch Requests anderer Dienste und Klicks in iframes dabei.
+
+**Ganz ohne Aufzeichnung (Kurzauftrag):** Im Chat genügen Consent (Selektoren oder Name der CMP), Einstieg und Weg (z. B. „Startseite, dann zur Danke-Seite“) und ggf. der Text des Conversion-Buttons. Der Agent misst in einem Erkundungslauf, was feuert, füllt daraus den Auftrag, zieht nach Deiner Freigabe die Baseline und prüft sie mit einem zweiten Lauf gegen das unveränderte Setup (A/A). Die Tests sind damit sofort da und lassen sich später ausbauen ([`docs/anleitung/kurzauftrag.md`](docs/anleitung/kurzauftrag.md)).
+
 Für einen **Container-Umbau** ist keine Aufzeichnung nötig: Im Auftrag stehen dann Art „Container-Umbau“, die Seiten, die Auslöser (oder der Agent leitet sie aus dem Container-Export ab) und die Consent-Szenarien. Schritt 6 läuft vor dem Umbau gegen den Live-Container, der Vergleich danach gegen die Vorschau des Workspaces, bevor er veröffentlicht wird.
 
 Dein Beitrag ist die Aufzeichnung, ein prüfender Blick auf den Auftrag und das Eintragen der Testdaten. Den Rest erledigt der Agent. Ab Schritt 6 meldet der Baseline-Vergleich jede Änderung am Setup, auch solche, an die beim Schreiben der festen Erwartungen niemand gedacht hat.
@@ -224,7 +228,7 @@ Pfade immer mit `/` schreiben, auch unter Windows: Playwright liest sie als regu
 
 Der Report enthält zu jedem Test den kompletten dataLayer, alle Tracking-Requests, die angefragten Hosts, Requests ohne Regel und ggf. CSP-Verstöße als Anhang. Dieselben Dateien liegen auch in `projects/<name>/test-results/<test>/`. So lässt sich auch ohne erneutes Durchklicken nachvollziehen, was passiert ist. Bei Tests über den Tag Assistant fehlen dort dessen eigener dataLayer und seine GA4-Requests: Die Anhänge zeigen nur die Website.
 
-Sitzungen (`npm run sitzung`, siehe [Schnellstart](#schnellstart-staging-im-browser)) laufen bei `npm test` nie mit.
+Sitzungen (`npm run sitzung`, siehe [Schnellstart](#schnellstart-staging-im-browser)) und Aufnahmen (`npm run aufnahme`) laufen bei `npm test` nie mit.
 
 **Requests ohne Regel** werden nur protokolliert, nie abgefangen. Kennt keine Regel einen Tracking-Endpunkt, geht er also auch im Modus „abfangen“ echt raus. `UNBEKANNTE=abfangen` behandelt deshalb auf Wunsch alle Fetch-, XHR- und Beacon-Requests an fremde Domains wie Tracking; das kann aber Funktionen der Website stören.
 
@@ -288,11 +292,11 @@ Für eine erste echte Aufzeichnung eignet sich [atomkraftwerke24.de](https://ato
 
 ## Ohne GTM
 
-[`dist/recorder.js`](dist/recorder.js) ist dieselbe Aufzeichnung als eigenständiges Script. Es kann per DevTools *Local Overrides*, als Snippet oder über eine Browser-Extension eingebunden werden, die Scripts in Seiten einspielt. Es schreibt jeden Eintrag zusätzlich in die Konsole. Mit aktiviertem *Preserve log* bleibt die Aufzeichnung über Seitenwechsel erhalten und lässt sich als Datei speichern. Das Analyse-Script liest auch diesen Mitschnitt; Events, Tags und Requests fehlen dann aber.
+Am einfachsten ist die Aufnahme-Sitzung (`npm run aufnahme`, siehe oben). Für den eigenen Browser gibt es [`dist/recorder.js`](dist/recorder.js), dieselbe Aufzeichnung als eigenständiges Script. Es kann per DevTools *Local Overrides*, als Snippet oder über eine Browser-Extension eingebunden werden, die Scripts in Seiten einspielt. Es schreibt jeden Eintrag zusätzlich in die Konsole. Mit aktiviertem *Preserve log* bleibt die Aufzeichnung über Seitenwechsel erhalten und lässt sich als Datei speichern. Das Analyse-Script liest auch diesen Mitschnitt; Events, Tags und Requests fehlen dann aber.
 
 ## Grenzen
 
-- **Inhalte in fremden iframes** (Zahlungsfelder, manche Consent-Banner) kann der Recorder nicht sehen. Der Agent muss diese Schritte anders lösen oder fragt nach.
+- **Inhalte in fremden iframes** (Zahlungsfelder, manche Consent-Banner) kann der Recorder als GTM-Tag nicht sehen; die Aufnahme-Sitzung zeichnet sie auf. Sonst muss der Agent diese Schritte anders lösen oder fragt nach.
 - **Requests anderer Dienste als Google** stehen nicht im Tag-Assistant-Export, nur dass ihr Tag gefeuert hat. In den Tests werden sie trotzdem vollständig erfasst.
 - **Ohne Proxy:** Beacons beim Verlassen einer Seite (z. B. `user_engagement`) laufen in Chromium am Abfangen vorbei. Im Modus „abfangen“ werden sie deshalb echt gesendet. Die Tests erkennen das und markieren sie als „entwischt“. Mit Proxy passiert das nicht.
 - **Eigene Pfade und Formate:** Tracking über Pfade der eigenen Domain, Custom Loader oder getunnelte Requests erkennen die Standardregeln nicht. Solche Requests erscheinen als „Requests ohne Regel“. Der Agent prüft sie vor dem Bauen und legt passende Regeln an.

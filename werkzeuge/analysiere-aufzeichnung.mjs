@@ -3,12 +3,14 @@
  * Wertet eine Aufzeichnung aus und erzeugt zwei Dateien neben der Eingabe:
  *
  *   <name>.zeitleiste.md   – lesbare Zeitleiste pro Seite: Aktionen, Events, Consent,
- *                            gefeuerte Tags, Google-Requests; dazu ein Vorschlag für den
+ *                            gefeuerte Tags, Requests; dazu ein Vorschlag für den
  *                            Auftrag und vorgeschlagene Playwright-Schritte
  *   <name>.analyse.json    – dieselben Daten strukturiert, für Agents und Scripts
  *
  * Eingaben:
  *   - Tag-Assistant-Export (JSON) mit Recorder-Messages (__rec)
+ *   - Aufnahme-Sitzung der Stage (npm run aufnahme, JSON mit format "stage-aufnahme"): Aktionen,
+ *     dataLayer und alle Tracking-Requests, aber keine Tags
  *   - Konsolen-Mitschnitt des eigenständigen Recorders (Zeilen „[rec] {…}“)
  *
  * Aufruf: npm run analyse -- projects/<name>/aufzeichnungen/kauf.json [--testdaten]
@@ -43,6 +45,7 @@ function lies(datei) {
   try {
     const json = JSON.parse(roh);
     if (json?.data?.containers) return ausTagAssistant(json);
+    if (json?.format === 'stage-aufnahme') return ausStageAufnahme(json);
   } catch { /* kein JSON – Konsolen-Mitschnitt? */ }
   return ausKonsole(roh);
 }
@@ -173,6 +176,91 @@ function ausTagAssistant(json) {
   };
 }
 
+/**
+ * Aufnahme-Sitzung der Stage: dataLayer (mit den Recorder-Einträgen der Seite), Recorder-Einträge aus
+ * iframes und Tracking-Requests mit Zeitstempel. Eine neue Seite beginnt mit dem init-Eintrag des
+ * Recorders; Requests gehören zum letzten Push davor. Consent ergibt sich aus den gtag-Befehlen.
+ */
+function ausStageAufnahme(json) {
+  const zeitleiste = [
+    ...(json.dataLayer ?? []).map((e, i) => ({ zeit: e.zeit, reihe: 0, i, dl: e })),
+    ...(json.rahmen ?? []).map((e, i) => ({ zeit: e.zeit, reihe: 1, i, rec: e.rec })),
+    ...(json.treffer ?? []).map((t, i) => ({ zeit: t.zeit, reihe: 2, i, treffer: t })),
+  ].sort((a, b) => a.zeit - b.zeit || a.reihe - b.reihe || a.i - b.i);
+
+  const seiten = [];
+  const eintraege = [];
+  const stand = new Map();
+  const consentListe = () => [...stand].map(([k, v]) => `${k}=${v}`);
+  let seite = 0;
+  let letztes = null;
+  const neueSeite = (url, titel) => {
+    seiten.push({ nr: seiten.length + 1, url: ohneDebugParameter(url ?? ''), titel: titel ?? '' });
+    seite = seiten.length;
+    letztes = null;
+  };
+  const aktion = (rec) => {
+    if (rec.type === 'init' && !rec.frame) neueSeite(rec.url, rec.title);
+    if (!seite) neueSeite(rec.url, rec.title);
+    if (rec.title && !seiten[seite - 1].titel) seiten[seite - 1].titel = rec.title;
+    eintraege.push({ art: 'aktion', seite, rec });
+  };
+  // GA4 bündelt Events zeilenweise im Body: je Zeile ein Request mit den gemeinsamen URL-Parametern
+  const requests = (t) => {
+    const basis = { dienst: t.dienst, titel: t.dienst, url: `${t.host}${t.pfad}`, status: t.status, fehler: t.fehler };
+    const zeilen = t.body && /(^|\n)en=/.test(t.body) ? t.body.split(/\r?\n/).filter(Boolean) : [];
+    if (!zeilen.length) return [{ ...basis, parameter: t.parameter ?? {} }];
+    return zeilen.map((z) => ({ ...basis, parameter: { ...t.parameter, ...Object.fromEntries(new URLSearchParams(z)) } }));
+  };
+
+  for (const x of zeitleiste) {
+    if (x.rec) { aktion(x.rec); continue; }
+    if (x.treffer) {
+      if (!seite) neueSeite(json.startUrl, '');
+      if (!letztes) {
+        letztes = { art: 'event', seite, name: '(vor dem ersten Push)', titel: '', daten: null, consent: consentListe(), tags: [], requests: [] };
+        eintraege.push(letztes);
+      }
+      letztes.requests.push(...requests(x.treffer));
+      continue;
+    }
+    const d = x.dl.daten;
+    if (d && typeof d === 'object' && !Array.isArray(d) && d.__rec) { aktion(d.__rec); continue; }
+    if (!seite) neueSeite(x.dl.seitenUrl, '');
+    if (Array.isArray(d) && d[0] === 'consent') {
+      for (const [k, v] of Object.entries(d[2] ?? {})) if (typeof v === 'string') stand.set(k, v);
+      letztes = { art: 'consent', seite, befehl: d[1], stand: Object.entries(d[2] ?? {}).map(([k, v]) => `${k}=${v}`), tags: [], requests: [] };
+      eintraege.push(letztes);
+      continue;
+    }
+    let name;
+    let daten = d;
+    if (Array.isArray(d)) {
+      name = d[0] === 'event' ? d[1] : `gtag.${d[0]}`;
+      daten = d[0] === 'event' ? { event: d[1], ...(d[2] ?? {}) } : { befehl: d };
+    } else {
+      name = d && typeof d === 'object' && typeof d.event === 'string' ? d.event : '(Message)';
+    }
+    letztes = { art: 'event', seite, name, titel: '', daten: daten && typeof daten === 'object' ? daten : null, consent: consentListe(), tags: [], requests: [] };
+    eintraege.push(letztes);
+  }
+  if (!eintraege.some((e) => e.art === 'aktion')) throw new Error('Aufnahme ohne Recorder-Einträge: lief der Recorder (stageOptionen.aufnahme)?');
+  // Titel aus den geladenen Seiten (der Recorder startet, bevor es einen Titel gibt)
+  for (const s of seiten) {
+    if (!s.titel) s.titel = (json.seiten ?? []).find((x) => ohneDebugParameter(x.url) === s.url && x.titel)?.titel ?? '';
+  }
+  return {
+    quelle: 'Stage-Aufnahme',
+    aufgezeichnet: json.erstellt,
+    startUrl: ohneDebugParameter(json.startUrl ?? seiten[0]?.url ?? ''),
+    container: [],
+    tagTypen: {},
+    pausierteTags: [],
+    seiten,
+    eintraege,
+  };
+}
+
 function ausKonsole(roh) {
   const eintraege = [];
   const seiten = [];
@@ -296,6 +384,7 @@ function schritte(eintraege) {
         if (el?.opensNewTab) hinweis.push('öffnet neuen Tab: page.context().waitForEvent(\'page\')');
       }
       if (el?.shadowHosts?.length) hinweis.push('im Shadow DOM');
+      if (rec.frame) hinweis.push(`im iframe ${rec.url}: page.frameLocator(…) statt page`);
       neu({ seite, beschreibung: `Klick: ${el?.role || el?.tag} „${el?.name ?? ''}“`, code, hinweis }, rec.ts);
       continue;
     }
@@ -411,7 +500,7 @@ function auswerten(a) {
     }
   }
 
-  // Google-Requests zählen
+  // Requests zählen (Tag Assistant: nur Google; Aufnahme der Stage: alle Dienste)
   const requests = new Map();
   for (const e of a.eintraege) {
     for (const r of e.requests ?? []) {
@@ -513,7 +602,7 @@ function markdown(a, z, dateiname) {
   p(`- **Seiten:** ${a.seiten.map((s) => `${s.nr}. ${s.titel || s.url}`).join(' → ')}`);
   p(`- **Conversion (vermutet):** ${z.conversion ?? '– nicht erkannt –'}`);
   if (z.events.length) p(`- **Events:** ${z.events.map((e) => `${e.name}${e.anzahl > 1 ? ` (${e.anzahl}×)` : ''}`).join(', ')}`);
-  if (z.requests.length) p(`- **Google-Requests:** ${z.requests.map((r) => `${r.request}${r.anzahl > 1 ? ` (${r.anzahl}×)` : ''}`).join('; ')}`);
+  if (z.requests.length) p(`- **${a.quelle === 'Tag Assistant' ? 'Google-Requests' : 'Tracking-Requests'}:** ${z.requests.map((r) => `${r.request}${r.anzahl > 1 ? ` (${r.anzahl}×)` : ''}`).join('; ')}`);
   if (z.fluechtig.length) p(`- **Werte, die sich bei jedem Lauf ändern (Kandidaten):** ${z.fluechtig.join(', ')}`);
   if (z.felder.length) {
     p(`- **Testdaten für \`.env\`:**${modus === 'full' ? ' (Klartext aufgezeichnet: mit `--testdaten` nach `testdaten.aufzeichnung.env` übernehmbar)' : ''}`);

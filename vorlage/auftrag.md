@@ -12,7 +12,7 @@
 > Aufzeichnung im Modus `full` kann das Analyse-Script auf Wunsch in `testdaten.aufzeichnung.env`
 > übernehmen; `.env` hat Vorrang.
 
-**Art:** <!-- Journey (aus einer Aufzeichnung) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / beides. Für reines Staging im Browser ist dieser Auftrag nicht nötig: siehe tests/sitzung.spec.ts -->
+**Art:** <!-- Journey (aus einer Aufzeichnung) / Kurzauftrag (aus wenigen Angaben und einem Erkundungslauf; Angaben dann mit *(gemessen)*) / Container-Umbau (vorher – nachher, Abschnitt unten ausfüllen) / Kombinationen. Für reines Staging im Browser ist dieser Auftrag nicht nötig: siehe tests/sitzung.spec.ts -->
 
 ## Website
 
@@ -24,7 +24,7 @@
 
 ## Journey
 
-- **Aufzeichnung:** <!-- Dateiname in aufzeichnungen/, z. B. kauf-mit-consent.json -->
+- **Aufzeichnung:** <!-- Dateiname in aufzeichnungen/: Tag-Assistant-Export (z. B. kauf-mit-consent.json) oder Aufnahme-Sitzung (npm run aufnahme, aufnahme-<Zeit>.json) -->
 - **Ablauf in Worten:** <!-- z. B. Startseite → Consent akzeptieren → Kategorie → Produkt → In den Warenkorb → Kasse → Kauf -->
 - **Conversion-Aktion:** <!-- Welcher Klick bzw. welches Event ist das Ziel? z. B. purchase nach Klick auf „Zahlungspflichtig bestellen“ -->
 - **Wo soll der Test enden?** <!-- z. B. auf der Danke-Seite / vor dem Absenden der Bestellung -->

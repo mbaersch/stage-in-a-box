@@ -2,16 +2,26 @@
 
 Ergebnis: vorausgefüllte `auftrag.md`, ergänzte `.env.example`, Rückfrage an den Menschen. **In Phase 1 keine Tests schreiben.**
 
+## Arten von Aufzeichnungen
+
+| Quelle | Entsteht durch | Enthält | Fehlt |
+|---|---|---|---|
+| Tag-Assistant-Export (`*.json`) | Recorder-Tag im GTM, Journey in der Vorschau, Export | Aktionen, dataLayer, Consent, gefeuerte Tags, Google-Requests | Requests anderer Dienste (nur „Tag gefeuert“), fremde iframes |
+| Aufnahme-Sitzung (`aufnahme-<Zeit>.json`) | `npm run aufnahme -- projects/<name>`: sichtbarer Browser, Mensch geht den Weg, schließt den Browser | Aktionen (auch in iframes), dataLayer ab Seitenstart, Consent, alle Tracking-Requests | Tags (welcher Tag, Trigger, pausierte Tags) |
+| Konsolen-Mitschnitt (`*.log`/`*.txt`) | `dist/recorder.js` per Override, Konsole speichern | Aktionen | Events, Tags, Requests |
+
+Die Aufnahme-Sitzung braucht weder GTM-Zugang noch Recorder-Tag. Sie läuft im Browser der Stage mit frischem Profil (Startseite: `BASE_URL`), Requests gehen echt raus wie bei einem Besuch. Projekte, die vor ihr angelegt wurden, haben `tests/aufnahme.spec.ts` noch nicht: aus `vorlage/tests/` kopieren. Texteingaben sind maskiert; Klartext mit `aufnahme: { werte: 'full' }` in der Datei. Schritte aus einem iframe tragen in der Zeitleiste den Hinweis „im iframe“; im Test braucht es dort `page.frameLocator(…)`.
+
 ## Aufzeichnung auswerten
 
 ```sh
 npm run analyse -- projects/<name>/aufzeichnungen/<datei>
 ```
 
-Das Script erzeugt neben dem Export:
+Das Script erzeugt neben der Aufzeichnung:
 
-- `<datei>.zeitleiste.md` – **Deine Hauptquelle.** Vorschlag für den Auftrag (Startadresse, Seiten, vermutete Conversion, Events, Google-Requests, flüchtige Werte, Testdaten-Felder mit Variablennamen, Auffälligkeiten), Tags pro Event, vorgeschlagene Playwright-Schritte mit aufgezeichneten Pausen und die Zeitleiste pro Seite.
-- `<datei>.analyse.json` – dieselben Daten strukturiert, falls Du Details brauchst (z. B. alle Parameter eines Google-Requests).
+- `<datei>.zeitleiste.md` – **Deine Hauptquelle.** Vorschlag für den Auftrag (Startadresse, Seiten, vermutete Conversion, Events, Requests, flüchtige Werte, Testdaten-Felder mit Variablennamen, Auffälligkeiten), Tags pro Event (nur Tag-Assistant-Export), vorgeschlagene Playwright-Schritte mit aufgezeichneten Pausen und die Zeitleiste pro Seite.
+- `<datei>.analyse.json` – dieselben Daten strukturiert, falls Du Details brauchst (z. B. alle Parameter eines Requests).
 
 Den Roh-Export (oft über 100 MB) nicht in den Kontext laden. Nur wenn das Script scheitert: Struktur mit einem kurzen Script untersuchen (`data.containers[].messages`, `tagsFired`, `pageSummaries`, `hitInfo`) und den Fehler im Bericht nennen.
 

@@ -12,6 +12,7 @@
     "pruefen": "node werkzeuge/pruefen.mjs",
     "test:recorder": "node test/recorder-smoke.mjs",
     "sitzung": "playwright test --headed --workers=1 -g @sitzung",
+    "aufnahme": "playwright test --headed --workers=1 -g @aufnahme",
     "erweiterung": "node werkzeuge/erweiterung-holen.mjs"
   },
   "devDependencies": {

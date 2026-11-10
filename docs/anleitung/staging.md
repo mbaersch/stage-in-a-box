@@ -6,7 +6,7 @@ Der Mensch will die Website mit Anpassungen selbst bedienen, z. B. um im GTM etw
 
 Jedes neue Projekt hat `tests/sitzung.spec.ts`. `npm run sitzung -- projects/<name>` öffnet damit die Website (`BASE_URL`) im sichtbaren Browser, mit den `stageOptionen` dieser Datei und allen Extensions aus `erweiterungen/`; mit `SITZUNG_VORSCHAU_LINK` in `.env` verbindet sich vorher der Tag Assistant (siehe [`gtm-vorschau.md`](gtm-vorschau.md)). Die Sitzung endet, wenn der Mensch den Browser schließt.
 
-- Die Sitzung startest Du für den Menschen im Hintergrund (`npm run sitzung -- projects/<name>`); der Browser erscheint auf seinem Bildschirm.
+- Die Sitzung startest Du für den Menschen im Hintergrund (`npm run sitzung -- projects/<name>`); der Browser erscheint auf seinem Bildschirm. Ebenso die Aufnahme-Sitzung (`npm run aufnahme`, siehe [`aufzeichnung.md`](aufzeichnung.md)); sie schreibt beim Schließen eine Aufzeichnung.
 - `trackingModus` ist in Sitzungen `durchlassen` (wie ein echter Besuch). `abfangen` nur auf Wunsch.
 - Mehrere Sitzungen in einem Projekt: weitere `sitzung(…)`-Tests mit `@sitzung` im Titel, dann mit `-g` auswählen.
 

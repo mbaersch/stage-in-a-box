@@ -50,6 +50,9 @@ import {
 
 export type { Tempo } from './tempo';
 
+/** Hauptordner des Repos */
+const WURZEL = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 /* ------------------------------------------------------------------ */
 /* Typen                                                              */
 /* ------------------------------------------------------------------ */
@@ -185,6 +188,40 @@ export interface StageOptionen {
    * Ergänzen bzw. überschreiben die zentralen in lib/dienstprofile.ts; gleicher Name = zusammenführen.
    */
   dienstProfile?: DienstProfil[];
+  /**
+   * Aufnahme-Sitzung (npm run aufnahme): Der Recorder (src/recorder-core.js) läuft in jeder Seite und jedem
+   * Frame, Aktionen landen zusammen mit dataLayer und Tracking-Requests beim Schließen des Browsers in
+   * aufzeichnungen/aufnahme-<Zeit>.json. werte: Texteingaben maskiert (Vorgabe) oder im Klartext.
+   */
+  aufnahme?: boolean | { werte?: 'masked' | 'full' };
+}
+
+/**
+ * Schreibt eine Aufnahme-Sitzung nach aufzeichnungen/aufnahme-<Zeit>.json im Projekt: dataLayer mit den
+ * Recorder-Einträgen der Seite, Recorder-Einträge aus iframes und die Tracking-Requests auf einer Zeitachse.
+ * Auswertung wie jede Aufzeichnung: npm run analyse -- <datei>.
+ */
+async function aufnahmeSpeichern(stage: Stage, testInfo: TestInfo, option: NonNullable<StageOptionen['aufnahme']>) {
+  const zeit = new Date();
+  const stempel = `${zeit.getFullYear()}-${String(zeit.getMonth() + 1).padStart(2, '0')}-${String(zeit.getDate()).padStart(2, '0')}`
+    + `-${String(zeit.getHours()).padStart(2, '0')}${String(zeit.getMinutes()).padStart(2, '0')}`;
+  const ordner = path.join(projektOrdner(testInfo), 'aufzeichnungen');
+  fs.mkdirSync(ordner, { recursive: true });
+  const datei = path.join(ordner, `aufnahme-${stempel}.json`);
+  const startUrl = stage.dataLayer.eintraege.find((e) => e.seitenUrl && e.seitenUrl !== 'about:blank')?.seitenUrl;
+  fs.writeFileSync(datei, JSON.stringify({
+    format: 'stage-aufnahme',
+    version: 1,
+    erstellt: zeit.toISOString(),
+    startUrl,
+    werte: typeof option === 'object' && option.werte === 'full' ? 'full' : 'masked',
+    dataLayer: stage.dataLayer.eintraege,
+    rahmen: stage.aufnahmeRahmen ?? [],
+    seiten: stage.aufnahmeSeiten ?? [],
+    treffer: stage.tracking.treffer.map(({ nr, zeit: z, dienst, methode, url, host, pfad, parameter, body, status, fehler, quelle }) => (
+      { nr, zeit: z, dienst, methode, url, host, pfad, parameter, body, status, fehler, quelle })),
+  }, null, 1));
+  console.log(`Aufnahme gespeichert: ${path.relative(process.cwd(), datei)} – auswerten mit: npm run analyse -- ${path.relative(process.cwd(), datei).split(path.sep).join('/')}`);
 }
 
 /** Ordner des Projekts (bzw. des Beispiels), in dem der Test liegt. */
@@ -483,6 +520,10 @@ export class Stage {
   cookieEintraege?: CookieEintrag[];
   /** Kennzeichnung echter Requests als Test-Traffic (stageOptionen.trafficType, debugMode), nur mit Proxy. */
   kennzeichnung?: { parameter: Record<string, string>; dienste: string[] };
+  /** Recorder-Einträge aus iframes (stageOptionen.aufnahme); die aus der Seite selbst stehen im dataLayer. */
+  aufnahmeRahmen?: { zeit: number; rec: any }[];
+  /** Geladene Seiten mit Titel (stageOptionen.aufnahme); der Recorder startet, bevor es einen Titel gibt. */
+  aufnahmeSeiten?: { zeit: number; url: string; titel: string }[];
   /** Adblocker dieses Tests (stageOptionen.adblocker): Profil, Listen mit Stand, blockierte Requests. */
   adblocker?: {
     name: string; listen: AdblockerListe[]; blockiert: AdblockerTreffer[];
@@ -1116,6 +1157,27 @@ export async function richteStageEin(
   if (optionen.automationVerbergen !== false) {
     await context.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
   }
+  // Aufnahme: Recorder nach der dataLayer-Instrumentierung, damit seine Einträge im Protokoll landen.
+  // In iframes gibt es dieses Protokoll nicht; dort schreibt er in die Konsole.
+  if (optionen.aufnahme) {
+    const werte = typeof optionen.aufnahme === 'object' && optionen.aufnahme.werte === 'full' ? 'full' : 'masked';
+    const recorder = fs.readFileSync(path.join(WURZEL, 'src', 'recorder-core.js'), 'utf8');
+    await context.addInitScript({
+      content: `window.__recConfig = { enabled: true, values: '${werte}', console: window !== window.top };\n${recorder}`,
+    });
+    stage.aufnahmeRahmen = [];
+    stage.aufnahmeSeiten = [];
+    const titelMerken = (seite: Page) => seite.on('load', () => {
+      seite.title().then((titel) => stage.aufnahmeSeiten!.push({ zeit: Date.now(), url: seite.url(), titel }), () => { /* geschlossen */ });
+    });
+    context.pages().forEach(titelMerken);
+    context.on('page', titelMerken);
+    context.on('console', (meldung) => {
+      const text = meldung.text();
+      if (!text.startsWith('[rec] ')) return;
+      try { stage.aufnahmeRahmen!.push({ zeit: Date.now(), rec: JSON.parse(text.slice(6)) }); } catch { /* unvollständig */ }
+    });
+  }
 
   // Vorschau zuerst registrieren: Playwright fragt später registrierte Routen zuerst, die übrigen
   // Routen reichen Container-Requests per fallback() bis hierher durch.
@@ -1542,6 +1604,7 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     };
     await ablegen('dataLayer.json', stage.dataLayer.eintraege);
     await ablegen('tracking-treffer.json', stage.tracking.treffer);
+    if (stageOptionen.aufnahme) await aufnahmeSpeichern(stage, testInfo, stageOptionen.aufnahme);
     await ablegen('hosts.json', [...stage.tracking.hosts].sort().map((h) => ({ host: h, ausgeloestVon: stage.tracking.ausloeser.get(h) })));
     if (stage.tracking.weitere.length) await ablegen('weitere-requests.json', stage.tracking.weitere);
     if (stage.cspVerstoesse.length) await ablegen('csp-verstoesse.json', stage.cspVerstoesse);
