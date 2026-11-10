@@ -1,7 +1,33 @@
 /** Kleine Helfer der Stage und Baseline-Vergleich (lib/stage.ts, lib/baseline.ts). */
 import { test, expect } from '../../lib/playwright';
-import { mitParameter, vorschauParameter } from '../../lib/stage';
-import { vergleiche, type Baseline } from '../../lib/baseline';
+import { mitParameter, vorschauParameter, trefferTeile } from '../../lib/stage';
+import { vergleiche, bodyParameter, ohneTestzeit, type Baseline } from '../../lib/baseline';
+
+test('trefferTeile: getunnelter Request wird dekodiert, Host bleibt', () => {
+  const kodiert = Buffer.from('/g/collect?v=2&tid=G-1&en=page_view').toString('base64');
+  const regel = { dekodieren: (url: string) => Buffer.from(new URL(url).searchParams.get('x')!, 'base64').toString('utf8') };
+  const url = `https://sgtm.a.de/tunnel?x=${encodeURIComponent(kodiert)}`;
+  expect(trefferTeile(url, regel)).toEqual({ host: 'sgtm.a.de', pfad: '/g/collect', parameter: { v: '2', tid: 'G-1', en: 'page_view' } });
+  expect(trefferTeile(url, { dekodieren: () => undefined }).pfad).toBe('/tunnel');
+  expect(trefferTeile(url, { dekodieren: () => { throw new Error('kaputt'); } }).pfad).toBe('/tunnel');
+  expect(trefferTeile(url).parameter).toEqual({ x: kodiert });
+});
+
+test('bodyParameter: Formular, multipart, Base64 und JSON', () => {
+  expect(bodyParameter('en=page_view&tid=G-1')).toEqual({ en: 'page_view', tid: 'G-1' });
+  const multipart = '------B1\r\nContent-Disposition: form-data; name="id"\r\n\r\n123\r\n'
+    + '------B1\r\nContent-Disposition: form-data; name="ev"\r\n\r\nLead\r\n------B1--\r\n';
+  expect(bodyParameter(multipart)).toEqual({ id: '123', ev: 'Lead' });
+  expect(bodyParameter('H4sIAAAAAAAACkWQza7TMBSEXyU6a5s4zo9b765EuYooCNGqG4TQiX3cWHHcELsgdLlvxo4XQ1FsByNzjdz5gk==')).toEqual({});
+  expect(bodyParameter('{"a":1}')).toEqual({});
+});
+
+test('ohneTestzeit: nur die Zeit im Testwert der Landung', () => {
+  expect(ohneTestzeit('https://a.de/?gclid=TEST-sib-gclid-1794312089881&x=1'))
+    .toBe('https://a.de/?gclid=TEST-sib-gclid-‹zeit›&x=1');
+  expect(ohneTestzeit('TEST-sib-msclkid-1794312089881-1')).toBe('TEST-sib-msclkid-‹zeit›-1');
+  expect(ohneTestzeit(42)).toBe(42);
+});
 
 test('mitParameter: setzt, ersetzt, behält Kodierung und Hash', () => {
   expect(mitParameter('https://a.de/g/collect', 'tt', 'intern')).toBe('https://a.de/g/collect?tt=intern');
@@ -47,6 +73,24 @@ test.describe('Baseline-Vergleich', () => {
     const lauf = basis();
     (lauf.events[0].daten.ecommerce as any).value = 12;
     expect(rot(basis(), lauf)[0]).toContain('ecommerce.value');
+  });
+
+  test('CSP-Verstoß wie in der Baseline: Hinweis, neuer Verstoß: rot', () => {
+    const b = basis();
+    b.cspVerstoesse = ['style-src-attr: inline'];
+    const lauf = basis();
+    lauf.cspVerstoesse = ['style-src-attr: inline'];
+    expect(rot(b, lauf)).toEqual([]);
+    lauf.cspVerstoesse.push('script-src: https://neu.de/x.js');
+    expect(rot(b, lauf)).toEqual(['CSP-Verstoß: script-src: https://neu.de/x.js']);
+  });
+
+  test('Testwerte der Landung mit anderer Zeit: kein Hinweis', () => {
+    const b = basis();
+    b.anfragen[0].parameter.dl = 'https://a.de/?gclid=TEST-sib-gclid-1794312089881';
+    const lauf = basis();
+    lauf.anfragen[0].parameter.dl = 'https://a.de/?gclid=TEST-sib-gclid-1794312118381';
+    expect(vergleiche(b, lauf)).toEqual([]);
   });
 
   test('Request fehlt: rot', () => {

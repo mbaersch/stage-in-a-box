@@ -73,6 +73,21 @@ export interface Regel {
   verzoegerungMs?: number;
   /** Nur steuern, aber nicht als Tracking-Request protokollieren (z. B. Script-Downloads). */
   nichtProtokollieren?: boolean;
+  /**
+   * Getunnelte Requests (z. B. Stape: Base64 von /g/collect?… in einem Parameter): liefert die
+   * Original-URL bzw. Pfad + Query. Pfad und Parameter des Treffers kommen dann daraus, der Host bleibt.
+   */
+  dekodieren?: (url: string) => string | undefined;
+}
+
+/** Host, Pfad und Parameter eines Treffers; bei Regeln mit dekodieren() Pfad und Parameter des Originals. */
+export function trefferTeile(url: string, regel?: Pick<Regel, 'dekodieren'>) {
+  const teile = zerlege(url);
+  let original: string | undefined;
+  try { original = regel?.dekodieren?.(url); } catch { /* nicht dekodierbar: Rohform behalten */ }
+  if (!original) return teile;
+  const { pfad, parameter } = zerlege(new URL(original, url).href);
+  return { host: teile.host, pfad, parameter };
 }
 
 export interface StageOptionen {
@@ -529,7 +544,7 @@ export class Stage {
         modus: 'durchlassen',
         methode: r.methode ?? 'GET',
         url: r.url,
-        ...zerlege(r.url),
+        ...trefferTeile(r.url, regel),
         ressourcentyp: 'beacon',
         status: r.status,
         fehler: r.fehler,
@@ -1220,7 +1235,7 @@ export async function richteStageEin(
       modus: regel.modus ?? modus,
       methode: request.method(),
       url,
-      ...teile,
+      ...trefferTeile(url, regel),
       ressourcentyp: request.resourceType(),
       body: request.postData() ?? undefined,
       umleitungVon: request.redirectedFrom()?.url(),
@@ -1385,7 +1400,7 @@ function verbindeProxy(
         modus: r.aktion,
         methode: r.methode,
         url: r.url,
-        ...teile,
+        ...trefferTeile(r.url, regel),
         ressourcentyp: r.ziel || 'unbekannt',
         body: r.body,
         umleitungVon: vorher?.url,

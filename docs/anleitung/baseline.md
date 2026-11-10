@@ -24,7 +24,7 @@ test.describe('Baseline', () => {
 
 ## Bewertung
 
-- **Rot** (Test schlägt fehl): neuer Dienst, der in der Baseline nicht vorkam; Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; CSP-Verstoß; mit `pruefungen.cookies` ein neues Cookie vor der Consent-Entscheidung.
+- **Rot** (Test schlägt fehl): neuer Dienst, der in der Baseline nicht vorkam; Request fehlt, ist mehrfach da, blockiert oder gescheitert; Consent-Parameter (`gcs`, `gcd`, `npa`, `dma`) geändert; dataLayer-Event fehlt oder ist mehrfach da; Key fehlt, der vorher da war; jede Abweichung in `ecommerce`; Consent-Befehle geändert; neuer CSP-Verstoß (einer, der schon in der Baseline steht, etwa durch die CSP der Website selbst, ist nur ein Hinweis); mit `pruefungen.cookies` ein neues Cookie vor der Consent-Entscheidung.
 - **Prüfungen mitlaufen lassen:** Steht im Auftrag unter „Prüfungen“ etwas, gehört `pruefungen` auch in die `stageOptionen` des Baseline-Tests (siehe [`varianten.md`](varianten.md)).
 - **Info** (nur Bericht): neue Requests bekannter Dienste, neue Parameter; geänderte Parameterwerte; neue Events oder Keys außerhalb von `ecommerce`; geänderte Reihenfolge.
 - **Neu im Netzwerk** (eigener Abschnitt): neue Domains und Requests ohne Regel. Immer prüfen, ob dahinter Tracking steckt; wenn ja, Regel anlegen (bei bekannten Diensten in `STANDARD_DIENSTE`), damit es abgefangen und als Dienst verglichen wird.

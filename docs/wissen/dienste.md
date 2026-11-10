@@ -10,6 +10,7 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 - **CSP:** Je nach Setup sendet GA4 an `region1.google-analytics.com` oder `region1.analytics.google.com` (dazu `/measurement/conversion` per fetch und Bild); eine Policy braucht beide Domains. `*.google.com` deckt `analytics.google.com` mit ab. Der Begleit-Request `stats.g.doubleclick.net/g/collect` hängt an `*.doubleclick.net`. Blockiert die CSP die Endpunkte, weicht gtag nicht auf einen anderen Weg aus (an einer Website geprüft).
 - Mit Google Signals sendet GA4 zusätzlich an `www.google.<tld>/ads/ga-audiences` und `<region>.analytics.google.com/g/s/collect`. Die Regel „GA4 Begleit“ steuert beide, protokolliert sie aber nicht (beobachtet in Audits, nicht an einem Stage-Projekt).
 - `user_engagement` geht beim Verlassen einer Seite raus (Beacon bei `pagehide`), seine Anzahl hängt an der Verweildauer und am Tempo: im Baseline-Vergleich „(Timing)“. Ohne Proxy sieht Playwright diese Beacons nicht.
+- Über einen sGTM tragen GA4-Requests zusätzlich `sst.rnd` (Zufall) und `sst.tft` (Zeitstempel), dazu `evnid` und `_is_sw`; alle je Lauf neu, in der Baseline flüchtig.
 
 ## Google Ads
 
@@ -19,6 +20,11 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 ## Meta
 
 - **CSP-Sonderfall:** Große Events (z. B. Purchase mit vielen Produkten) sendet das Pixel nicht per Beacon, sondern als Formular-POST in ein iframe. Eine CSP ohne passende `form-action`/`frame-src` blockiert genau diese Events. Bei CSP-Tests mit Meta deshalb die Purchase-Events prüfen, nicht nur PageView.
+- Das Stape-Tag (`stape-gtm-…` im Parameter `a`) sendet als `multipart/form-data`; die Baseline zerlegt das in einzelne Parameter. Je Lauf neu: `fbp`, `fbc`, `fbcs` (enthalten Zeitstempel), `plt`, die Experiment-Zuteilungen `expv2[n]` und `ss` (ausgelesener Seitentext, z. B. wechselnde Brotkrumen; als Name zu allgemein für die zentrale Liste, im Projekt als `fluechtigeParameter`).
+
+## LinkedIn
+
+- `/wa/` sendet einen Base64-Body (gzip), keine Formular-Parameter; `time` und `pageLoadId` in `/collect` sind je Lauf neu.
 
 ## Microsoft Ads
 

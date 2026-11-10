@@ -62,7 +62,9 @@ export const FLUECHTIGE_PARAMETER = [
   // GA4
   'cid', 'sid', 'sct', 'seg', '_p', '_s', '_et', '_fv', '_ss', '_nsi', '_c', '_ee', '_z', '_gaz', 'tfd', 'gtm',
   'ep.transaction_id', 'ep.event_id', 'uaa', 'uab', 'uafvl', 'uamb', 'uam', 'uap', 'uapv', 'uaw', 'frm', 'pscdl',
-  'rcb', 'tag_exp', 'ecid', 'epn.config_timing', 'epn.event_timing',
+  'rcb', 'tag_exp', 'ecid', 'epn.config_timing', 'epn.event_timing', 'evnid', '_is_sw',
+  // GA4 über sGTM (Zufallswert, Zeitstempel)
+  'sst.rnd', 'sst.tft',
   // Google Ads / Floodlight
   'rnd', 'random', 'ord', 'auid', 'gclid', 'gclaw', 'num', 'u_tz', 'u_his', 'u_h', 'u_w', 'u_ah', 'u_aw', 'u_cd',
   'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2', 'eoid', 'eitems', '_gsid',
@@ -72,11 +74,14 @@ export const FLUECHTIGE_PARAMETER = [
   // Piwik PRO (Zeit-, Zufalls- und Besucherwerte; Timings t_* über FLUECHTIGE_MUSTER)
   'r', 'h', 'm', 's', '_id', '_idts', '_viewts', 'gt_ms', 'pv_id', 'cdt',
   // Meta und andere
-  'ts', 'eid', 'it', 'coo', 'rqm', 'ec', 'o', 'timestamp',
+  'ts', 'eid', 'it', 'coo', 'rqm', 'ec', 'o', 'timestamp', 'fbp', 'fbc', 'fbcs', 'plt',
+  // LinkedIn Insight
+  'time', 'pageLoadId',
 ];
 
 /** Wie FLUECHTIGE_PARAMETER, für Familien von Parametern. */
-export const FLUECHTIGE_MUSTER = [/^t_[a-z]{2}$/];
+// expv2[n]: Experiment-Zuteilungen des Meta-Pixels, wechseln zwischen Läufen
+export const FLUECHTIGE_MUSTER = [/^t_[a-z]{2}$/, /^expv2\[\d+\]$/];
 
 /** Request-Parameter, deren Änderung als rot gilt: Consent-Signale. */
 export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
@@ -162,11 +167,28 @@ function sortiert(obj: unknown): unknown {
   return obj;
 }
 
-function bodyParameter(body?: string): Record<string, string> {
+/** Testwerte der Landung (TEST-sib-<id>-<Zeit>) unterscheiden sich je Lauf nur in der Zeit. */
+export const ohneTestzeit = <T>(v: T): T =>
+  (typeof v === 'string' ? v.replace(/(TEST-sib-[a-z_]+)-\d{10,}/gi, '$1-‹zeit›') as T : v);
+
+export function bodyParameter(body?: string): Record<string, string> {
+  if (!body) return {};
+  // multipart/form-data (z. B. Meta über das Stape-Tag): Teile mit name="…"; die Boundary ist je Lauf neu
+  const grenze = body.match(/^--([^\r\n]+)\r?\n/)?.[1];
+  if (grenze) {
+    const p: Record<string, string> = {};
+    for (const teil of body.split(`--${grenze}`)) {
+      const m = teil.match(/name="([^"]+)"[^\r\n]*\r?\n(?:[^\r\n]+\r?\n)*\r?\n([\s\S]*?)\r?\n?$/);
+      if (m) p[m[1]] = m[2];
+    }
+    return p;
+  }
   // JSON und Binär-Bodies (z. B. komprimiert bei Clarity) sind keine Formular-Parameter
-  if (!body || /^\s*[[{]/.test(body) || !body.includes('=') || /[\x00-\x08\x0e-\x1f�]/.test(body)) return {};
+  if (/^\s*[[{]/.test(body) || !body.includes('=') || /[\x00-\x08\x0e-\x1f�]/.test(body)) return {};
   try {
-    return Object.fromEntries(new URLSearchParams(body));
+    const p = Object.fromEntries(new URLSearchParams(body));
+    // Base64 o. Ä. mit "=" am Ende (LinkedIn /wa/) ist kein Formular: Schlüssel wären der ganze Body
+    return Object.keys(p).every((k) => /^[\w.\-[\]%]{1,64}$/.test(k)) ? p : {};
   } catch {
     return {};
   }
@@ -322,7 +344,7 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
         const ecommerce = pfad.startsWith('ecommerce.');
         if (!(pfad in b)) {
           befunde.push({ stufe: 'rot', bereich: 'dataLayer', text: `${name}${nr}: Key fehlt: ${pfad}` });
-        } else if (JSON.stringify(a[pfad]) !== JSON.stringify(b[pfad])) {
+        } else if (JSON.stringify(ohneTestzeit(a[pfad])) !== JSON.stringify(ohneTestzeit(b[pfad]))) {
           befunde.push({
             stufe: ecommerce ? 'rot' : 'info', bereich: 'dataLayer',
             text: `${name}${nr}: ${pfad} geändert: ${zeige(a[pfad])} → ${zeige(b[pfad])}`,
@@ -376,7 +398,7 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
       for (const p of Object.keys(b.parameter)) {
         if (!(p in a.parameter)) {
           if (!fluechtig(p)) befunde.push({ stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests', text: `${k}${nr}: Parameter fehlt: ${p}` });
-        } else if (!fluechtig(p) && a.parameter[p] !== b.parameter[p]) {
+        } else if (!fluechtig(p) && ohneTestzeit(a.parameter[p]) !== ohneTestzeit(b.parameter[p])) {
           befunde.push({
             stufe: rotParameter.has(p) ? 'rot' : 'info', bereich: 'Requests',
             text: `${k}${nr}: ${p} geändert: ${zeige(b.parameter[p])} → ${zeige(a.parameter[p])}`,
@@ -434,8 +456,13 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
     }
   }
 
-  // CSP
-  for (const v of lauf.cspVerstoesse) befunde.push({ stufe: 'rot', bereich: 'CSP', text: `CSP-Verstoß: ${v}` });
+  // CSP: Verstöße, die schon die Baseline hatte (z. B. durch die CSP der Website selbst), sind kein neuer Fehler
+  const cspVorher = new Set(basis.cspVerstoesse ?? []);
+  for (const v of lauf.cspVerstoesse) {
+    befunde.push(cspVorher.has(v)
+      ? { stufe: 'info', bereich: 'CSP', text: `CSP-Verstoß wie in der Baseline: ${v}` }
+      : { stufe: 'rot', bereich: 'CSP', text: `CSP-Verstoß: ${v}` });
+  }
 
   return befunde;
 }
