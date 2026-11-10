@@ -12,16 +12,19 @@ export function projektOrdner(testInfo: TestInfo): string {
   return testInfo.project.metadata?.projektOrdner ?? path.dirname(testInfo.project.testDir);
 }
 
-/** Zeile im Auftrag → Umgebungsvariable, die lib/ schon liest (Kommandozeile geht vor). */
-const SCHALTER: Record<string, string> = {
-  'tempo': 'TEMPO',
-  'proxy': 'PROXY',
-  'tracking-modus': 'TRACKING_MODUS',
-  'conversion': 'CONVERSION',
-  'adblocker': 'ADBLOCKER',
-  'unbekannte requests': 'UNBEKANNTE',
-  'traffic-type': 'TRAFFIC_TYPE',
-  'debug-mode': 'DEBUG_MODE',
+const EIN_AUS = /^(ein|an|ja|1|true|on|yes|aus|nein|0|false|off|no)$/i;
+
+/** Zeile im Auftrag → Umgebungsvariable, die lib/ schon liest (Kommandozeile geht vor), und erlaubte Werte. */
+const SCHALTER: Record<string, { variable: string; erlaubt?: RegExp; hinweis?: string }> = {
+  'tempo': { variable: 'TEMPO', erlaubt: /^(schnell|mittel|langsam|aufzeichnung)$/i, hinweis: 'schnell, mittel, langsam, aufzeichnung' },
+  'proxy': { variable: 'PROXY', erlaubt: EIN_AUS, hinweis: 'ein, aus' },
+  'tracking-modus': { variable: 'TRACKING_MODUS', erlaubt: /^(abfangen|blockieren|durchlassen)$/i, hinweis: 'abfangen, blockieren, durchlassen' },
+  // Schalter, nicht das Conversion-Event: das gehört unter Journey → Conversion-Aktion
+  'conversion': { variable: 'CONVERSION', erlaubt: EIN_AUS, hinweis: 'ein, aus (das Conversion-Event gehört unter Journey → Conversion-Aktion)' },
+  'adblocker': { variable: 'ADBLOCKER', erlaubt: /^(aus|ublock|streng)$/i, hinweis: 'aus, ublock, streng' },
+  'unbekannte requests': { variable: 'UNBEKANNTE', erlaubt: /^(abfangen|protokollieren|ein|an|ja|aus|nein)$/i, hinweis: 'protokollieren, abfangen' },
+  'traffic-type': { variable: 'TRAFFIC_TYPE' },
+  'debug-mode': { variable: 'DEBUG_MODE', erlaubt: EIN_AUS, hinweis: 'ein, aus' },
 };
 
 export interface Einstellungen {
@@ -39,7 +42,8 @@ export interface Auftrag {
 }
 
 function bereinige(wert: string) {
-  let w = wert.trim();
+  // Markierungen wie *(aus Aufzeichnung)* hinter dem Wert gehören nicht dazu
+  let w = wert.replace(/(\s*\*\([^)]*\)\*)+\s*$/, '').trim();
   w = w.match(/^\[[^\]]*\]\((.*)\)$/)?.[1] ?? w;
   w = w.match(/^<(.*)>$/)?.[1] ?? w;
   w = w.match(/^(["'`])(.*)\1$/)?.[2] ?? w;
@@ -57,12 +61,16 @@ export function leseEinstellungen(text: string, datei = 'Auftrag'): Einstellunge
     const wert = bereinige(m[2]);
     if (name === 'startadresse') { if (wert) ergebnis.startadresse = wert; continue; }
     if (name === 'gtm-vorschau-link') { if (wert) ergebnis.vorschauLink = wert; continue; }
-    const variable = SCHALTER[name];
-    if (!variable) {
+    const schalter = SCHALTER[name];
+    if (!schalter) {
       throw new Error(`${datei}: Einstellung „${m[1].trim()}“ unbekannt. Möglich: Startadresse, GTM-Vorschau-Link, `
         + Object.keys(SCHALTER).map((s) => s[0].toUpperCase() + s.slice(1)).join(', '));
     }
-    if (wert) ergebnis.umgebung[variable] = wert;
+    if (!wert) continue;
+    if (schalter.erlaubt && !schalter.erlaubt.test(wert)) {
+      throw new Error(`${datei}: „${m[1].trim()}: ${wert}“ ist kein gültiger Wert. Möglich: ${schalter.hinweis}`);
+    }
+    ergebnis.umgebung[schalter.variable] = wert;
   }
   return ergebnis;
 }

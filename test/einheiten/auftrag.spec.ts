@@ -40,6 +40,14 @@ test('leseEinstellungen: unbekannte Zeile ist ein Fehler, ohne Abschnitt gibt es
   expect(leseEinstellungen('# Auftrag\n- **Startadresse:** https://a.de/')).toEqual({ umgebung: {} });
 });
 
+test('leseEinstellungen: ungültiger Schalterwert ist ein Fehler, freie Werte bleiben frei', () => {
+  expect(() => leseEinstellungen('## Einstellungen\n- **Conversion:** add_to_cart')).toThrow(/Conversion-Aktion/);
+  expect(() => leseEinstellungen('## Einstellungen\n- **Tempo:** gemütlich')).toThrow(/schnell, mittel/);
+  expect(leseEinstellungen('## Einstellungen\n- **Debug-Mode:** ein\n- **Traffic-Type:** stage-test').umgebung)
+    .toEqual({ DEBUG_MODE: 'ein', TRAFFIC_TYPE: 'stage-test' });
+  expect(leseEinstellungen('## Einstellungen\n- **Proxy:** ein *(Vorschlag: sieht auch Beacons)*').umgebung).toEqual({ PROXY: 'ein' });
+});
+
 test('auftragsName: auftrag.md ohne Namen, auftrag-<name>.md mit', () => {
   expect(auftragsName('auftrag.md')).toBe('');
   expect(auftragsName('auftrag-b2b.md')).toBe('b2b');

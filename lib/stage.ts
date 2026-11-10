@@ -743,10 +743,10 @@ export class Stage {
   }
 
   /**
-   * Öffnet die Startseite (oder pfad) wie nach einem Klick auf eine Anzeige: mit den Klick-IDs und
-   * UTM-Parametern aus stageOptionen.landung. Die Testwerte stehen danach in stage.landungsWerte.
+   * Öffnet die Startadresse (oder pfad, relativ zu ihr) wie nach einem Klick auf eine Anzeige: mit den Klick-IDs
+   * und UTM-Parametern aus stageOptionen.landung. Die Testwerte stehen danach in stage.landungsWerte.
    */
-  async landen(seite: Page, pfad = '/', landung: Landung | undefined = this.landung) {
+  async landen(seite: Page, pfad = '', landung: Landung | undefined = this.landung) {
     if (!landung) throw new Error('stageOptionen.landung fehlt (Klick-IDs bzw. UTM-Parameter)');
     const werte = landungsParameter(landung);
     const url = new URL(pfad, String(this.testInfo.project.use.baseURL ?? 'http://localhost'));
