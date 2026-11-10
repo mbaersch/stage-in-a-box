@@ -628,6 +628,7 @@ export class Stage {
    */
   async denkpause(aufgezeichnetMs?: number) {
     const ms = pausenDauer(this.tempo, aufgezeichnetMs);
+    if (ms > 0) laufendeAbnahme?.pause(ms);
     if (ms > 0) await pause(ms);
   }
 
@@ -1514,6 +1515,8 @@ function verbindeProxy(
 /* Fixture                                                            */
 /* ------------------------------------------------------------------ */
 
+let laufendeAbnahme: AbnahmeProtokoll | undefined;
+
 export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: StageProxy | undefined; stage: Stage }>({
   stageOptionen: [{}, { option: true }],
 
@@ -1622,8 +1625,10 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
   stage: async ({ context, stageOptionen, stageProxy, userAgent }, use, testInfo) => {
     const stage = await richteStageEin(context, testInfo, stageOptionen, stageProxy, userAgent);
     const abnahme = process.env.STAGE_ABNAHME ? new AbnahmeProtokoll(context, stage) : undefined;
-    abnahme?.start();
+    await abnahme?.start();
+    laufendeAbnahme = abnahme;
     await use(stage);
+    laufendeAbnahme = undefined;
     stage.netzwerkAbgleich();
     if (abnahme) {
       await abnahme.stop();
@@ -1760,6 +1765,17 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
     expect(rotePruefungen, 'Prüfungen: UTM, Deduplizierung, GA4-Grenzen, Durchgängigkeit (Details in der genannten Datei)').toEqual([]);
   },
 });
+
+// Abnahme: Step-Namen für das Banner, ohne dass die Tests etwas dafür tun. test.extend() erbt das nicht.
+if (process.env.STAGE_ABNAHME) {
+  const original = test.step;
+  const step = (titel: string, body: (...a: unknown[]) => unknown, optionen?: unknown) =>
+    (original as (...a: unknown[]) => Promise<unknown>).call(test, titel, async (...a: unknown[]) => {
+      laufendeAbnahme?.schrittBeginnt(titel);
+      try { return await body(...a); } finally { laufendeAbnahme?.schrittEndet(); }
+    }, optionen);
+  test.step = Object.assign(step, original) as unknown as typeof test.step;
+}
 
 const ERWEITERUNGEN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'erweiterungen');
 
