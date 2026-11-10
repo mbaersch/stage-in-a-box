@@ -37,7 +37,7 @@ Wissen, bei Bedarf:
 |---|---|---|
 | 1. Analyse (Aufzeichnung, Erkundungslauf oder Katalog) | vorausgefüllte `auftrag.md`, ergänzte `.env.example` | Rückfrage an den Menschen |
 | 2. Bau | Tests, stabil bis vor die Conversion, dann ein vollständiger Lauf | Abschlussbericht mit Angebot, die Baseline zu ziehen |
-| 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage |
+| 3. Baseline | gespeicherter Ist-Zustand (zwei Läufe) | Bericht: flüchtige Werte, Ablage, Angebot einer Abnahme im sichtbaren Browser (`npm run abnahme`) |
 
 Steht in `auftrag.md` **Status: bestätigt**, beginne direkt mit Phase 2. Sonst mit Phase 1.
 

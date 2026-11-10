@@ -143,7 +143,9 @@ export default defineConfig({
     // AutomationControlled aus: CMPs sollen den Testbrowser nicht als Bot erkennen (siehe lib/stage.ts)
     launchOptions: {
       slowMo: SLOW_MO[tempoAusUmgebung()],
-      args: [...netlogArgumente(), ...proxyArgumente(), '--disable-blink-features=AutomationControlled'],
+      args: [...netlogArgumente(), ...proxyArgumente(), '--disable-blink-features=AutomationControlled',
+        // Abnahme (npm run abnahme): DevTools offen, die Stage schreibt dataLayer und Requests in die Konsole
+        ...(process.env.STAGE_ABNAHME ? ['--auto-open-devtools-for-tabs'] : [])],
     },
     screenshot: 'only-on-failure',
   },

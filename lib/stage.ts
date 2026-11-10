@@ -33,6 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { vergleicheMitBaseline, type BaselineOptionen } from './baseline';
 import { projektOrdner } from './auftrag';
+import { AbnahmeProtokoll } from './abnahme';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog } from './netlog';
 import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
@@ -1602,8 +1603,16 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
 
   stage: async ({ context, stageOptionen, stageProxy, userAgent }, use, testInfo) => {
     const stage = await richteStageEin(context, testInfo, stageOptionen, stageProxy, userAgent);
+    const abnahme = process.env.STAGE_ABNAHME ? new AbnahmeProtokoll(context, stage) : undefined;
+    abnahme?.start();
     await use(stage);
     stage.netzwerkAbgleich();
+    if (abnahme) {
+      await abnahme.stop();
+      const datei = testInfo.outputPath('abnahme.log');
+      fs.writeFileSync(datei, abnahme.zeilen.join('\n'));
+      await testInfo.attach('abnahme.log', { path: datei, contentType: 'text/plain' });
+    }
     const entwischt = stage.tracking.treffer.filter((t) => t.entwischt);
     if (entwischt.length) {
       testInfo.annotations.push({

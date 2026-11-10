@@ -202,6 +202,8 @@ Die Anweisungen für den Agent beginnen in [`AGENTS.md`](AGENTS.md). Claude Code
 
 Sobald der vollständige Lauf grün ist, speichert der Agent den Ist-Zustand als Baseline: alle Requests, Consent-Parameter und dataLayer-Events der Journey. Direkt danach gleicht er sie mit einem zweiten Lauf ab. Der zeigt, was sich ohne jede Änderung am Setup unterscheidet: Zufalls- und Zeitwerte, Begleit-Requests, deren Anzahl schwankt (z. B. Cookie-Abgleich bei Google Ads), und Rauschen wie Sitzungsaufzeichnungen. Der Agent ordnet jede Abweichung ein und wiederholt den Abgleich, bis kein Rot mehr bleibt und nur noch erklärbare Hinweise. Erst dann ist die Baseline fertig. Ab dann meldet jeder Lauf Abweichungen, etwa nach einer Änderung im GTM. Baseline-Läufe senden echte Requests, auch Conversions (siehe [Baseline](#baseline)).
 
+**Abnahme:** Zum Schluss kannst Du den Baseline-Lauf einmal selbst ansehen: `npm run abnahme -- projects/mein-shop/tests/<auftrag>` spielt ihn im sichtbaren Browser mit offenen DevTools ab. In der Konsole stehen dabei lesbar alle dataLayer-Events (▶) und Requests an die Dienste (◀) mit aufklappbaren Parametern, dasselbe im Terminal und als `abnahme.log` im Report. Der Vergleich mit der Baseline läuft mit, Requests gehen echt raus. Bei einem Seitenwechsel leert Chrome die Konsole, außer „Preserve log“ ist an; im Terminal und in `abnahme.log` steht alles.
+
 ## 7. Tests ausführen
 
 Alle Befehle im Hauptordner; das Projekt ergibt sich aus dem Pfad:

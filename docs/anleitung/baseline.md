@@ -48,4 +48,7 @@ Neue dienstübergreifende Erkenntnisse (flüchtige Parameter, Begleit- oder Timi
 
 Erst wenn der Abgleich sauber ist, gilt die Baseline als fertig. Im Bericht nennen, was als flüchtig, Begleit-Request oder Rauschen eingestuft wurde.
 
+## Abnahme (optional)
+Am Ende des Berichts die Abnahme anbieten: `npm run abnahme -- projects/<name>/tests/<auftrag>` spielt die Baseline-Tests im sichtbaren Browser mit offenen DevTools ab (ohne `-g`: alle Tests mit „Baseline“ im Namen). Die Stage schreibt dataLayer-Events und Tracking-Requests lesbar in die Konsole der Seite, ins Terminal und als `abnahme.log` an den Test (`lib/abnahme.ts`, aktiv mit `STAGE_ABNAHME`). Der Vergleich läuft wie immer mit, Requests gehen echt raus. Auf Wunsch startest Du sie im Hintergrund; der Browser erscheint beim Menschen und schließt sich am Testende selbst.
+
 **Baseline nie neu erzeugen, um einen roten Test grün zu machen.** `npm run baseline:neu -- projects/<name>` nur auf ausdrücklichen Wunsch des Menschen.
