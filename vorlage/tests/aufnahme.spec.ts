@@ -12,6 +12,8 @@ sitzung.use({ stageOptionen: {
   trackingModus: 'durchlassen',
   // Texteingaben maskiert; { werte: 'full' } nimmt Klartext auf (für testdaten.aufzeichnung.env).
   aufnahme: true,
+  // Über den Proxy: sieht jeden Request mit Body, auch Beacons beim Verlassen und Service Worker.
+  proxy: true,
 } });
 
 sitzung('Aufnahme @aufnahme', async ({ page, stage, baseURL }) => {
