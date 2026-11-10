@@ -17,9 +17,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-/** Pfad des NetLogs für den aktuellen Worker-Prozess. */
+/** Pfad des NetLogs für den aktuellen Worker-Prozess; STAGE_NETLOG für einen zweiten Browser im selben Prozess. */
 export function netlogPfad(): string {
-  return path.join(os.tmpdir(), `stage-in-a-box-netlog-${process.pid}.json`);
+  return process.env.STAGE_NETLOG ?? path.join(os.tmpdir(), `stage-in-a-box-netlog-${process.pid}.json`);
 }
 
 /** Startargumente für Chromium. */

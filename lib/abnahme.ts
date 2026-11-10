@@ -67,9 +67,12 @@ export class AbnahmeProtokoll {
     await this.weitergeben();
   }
 
-  /** Offen lassen, bis der Mensch den Browser schließt (Keep log hält das Protokoll über Seitenwechsel). */
+  /**
+   * Spielt das ganze Protokoll in die letzte Seite (nach dem Vergleich about:blank) und lässt den Browser offen, bis
+   * der Mensch ihn schließt. Objekte aus vergangenen Seiten lassen sich in der Konsole nicht mehr aufklappen.
+   */
   async offenHalten() {
-    await this.inKonsole([], `[stage] Abnahme beendet: ${this.alle.length} Einträge. Browser schließen, um zu beenden.`);
+    await this.inKonsole(this.alle, `[stage] Abnahme beendet: vollständiges Protokoll (${this.alle.length} Einträge), aufklappbar. Browser schließen, um zu beenden.`);
     const kontext = this.context;
     await new Promise<void>((fertig) => {
       const pruefe = () => { if (kontext.pages().every((p) => p.isClosed())) fertig(); };
@@ -85,11 +88,12 @@ export class AbnahmeProtokoll {
 
   private async inKonsole(liste: Meldung[], gruppe?: string) {
     await Promise.all(this.context.pages().map((seite) => seite.evaluate(({ liste, gruppe }) => {
-      if (gruppe) console.log(`%c${gruppe}`, 'font-weight:bold');
+      if (gruppe) console.group(`%c${gruppe}`, 'font-weight:bold');
       for (const m of liste) {
         const farbe = m.art === 'dl' ? '#2563eb' : '#15803d';
         console.log(`%c[stage] ${m.uhrzeit}%c ${m.art === 'dl' ? '▶' : '◀'} ${m.kopf} %c${m.text}`, 'color:#888', `color:#fff;background:${farbe};padding:1px 5px;border-radius:3px`, 'font-weight:bold', m.daten);
       }
+      if (gruppe) console.groupEnd();
     }, { liste, gruppe }).catch(() => { /* Seite geschlossen oder mitten im Laden */ })));
   }
 
