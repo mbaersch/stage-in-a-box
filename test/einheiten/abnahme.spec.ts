@@ -22,6 +22,9 @@ test('trefferZeile: Ereignis, Konto, Consent und Modus; gebündelte GA4-Events a
   expect(trefferZeile(treffer({ parameter: { tid: 'G-1' }, body: 'en=scroll&ep.x=1\nen=view_item' }))).toBe('scroll + view_item · G-1');
   expect(trefferZeile(treffer({ dienst: 'Floodlight', modus: 'abfangen', pfad: '/activity', parameter: { cat: 'kat0', src: '123' } })))
     .toBe('kat0 · 123 · abgefangen');
+  const beacon = treffer({ parameter: { en: 'scroll' }, fehler: 'net::ERR_ABORTED' });
+  expect(trefferZeile(beacon, true)).toBe('scroll');
+  expect(trefferZeile(beacon)).toBe('scroll · net::ERR_ABORTED');
 });
 
 test('bannerInhalt: Step als Phase, Unterschritte und Countdown, Zähler, Ende', () => {

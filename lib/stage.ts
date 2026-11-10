@@ -1574,6 +1574,9 @@ export const test = base.extend<{ stageOptionen: StageOptionen; stageProxy: Stag
         ...launchOptions, args, headless, ...contextOptions, baseURL, locale, timezoneId, httpCredentials, proxy, ignoreHTTPSErrors,
         serviceWorkers, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch,
       });
+      // Chromium öffnet mit Profil einen leeren Tab, der Test einen eigenen: den leeren schließen, sonst schaut man auf den falschen
+      const leer = kontext.pages();
+      kontext.once('page', () => leer.forEach((s) => void s.close().catch(() => { /* schon zu */ })));
       await use(kontext);
       await kontext.close().catch(() => { /* Fenster schon geschlossen */ });
       delete process.env.STAGE_NETLOG;

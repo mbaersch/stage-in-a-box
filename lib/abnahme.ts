@@ -20,12 +20,13 @@ export function dataLayerZeile(e: Pick<DataLayerEintrag, 'daten'>): { titel: str
 
 const MODUS: Record<string, string> = { abfangen: 'abgefangen', blockieren: 'blockiert' };
 
-export function trefferZeile(t: Treffer): string {
+/** live: Playwright meldet Beacons beim Seitenwechsel oft als abgebrochen; ob sie ankamen, klärt erst der NetLog-Abgleich am Ende. */
+export function trefferZeile(t: Treffer, live = false): string {
   const p = t.parameter ?? {};
   const ausBody = (t.body ?? '').split(/\r?\n/).map((z) => new URLSearchParams(z).get('en')).filter(Boolean);
   const ereignis = p.en ?? (ausBody.length ? ausBody.join(' + ') : undefined) ?? p.ev ?? p.event ?? p.event_name ?? p.label ?? p.cat ?? t.pfad;
   const konto = p.tid ?? p.id ?? p.pid ?? p.ti ?? p.src;
-  return [ereignis, konto, p.gcs && `gcs=${p.gcs}`, MODUS[t.modus], t.fehler, t.adblocker && `Adblocker: ${t.adblocker}`]
+  return [ereignis, konto, p.gcs && `gcs=${p.gcs}`, MODUS[t.modus], !(live && t.fehler === 'net::ERR_ABORTED') && t.fehler, t.adblocker && `Adblocker: ${t.adblocker}`]
     .filter(Boolean).join(' · ');
 }
 
@@ -93,7 +94,7 @@ function klickAnzeige() {
   }, true);
 }
 
-interface Meldung { art: 'dl' | 'tr'; uhrzeit: string; kopf: string; text: string; daten: unknown }
+interface Meldung { art: 'dl' | 'tr'; uhrzeit: string; kopf: string; text: string; daten: unknown; treffer?: Treffer }
 
 const uhrzeit = (ms: number) => {
   const d = new Date(ms);
@@ -101,7 +102,6 @@ const uhrzeit = (ms: number) => {
 };
 
 export class AbnahmeProtokoll {
-  readonly zeilen: string[] = [];
   private dl = 0;
   private tr = 0;
   private timer?: ReturnType<typeof setInterval>;
@@ -145,7 +145,7 @@ export class AbnahmeProtokoll {
   async offenHalten() {
     this.ende = true;
     await this.banner();
-    await this.inKonsole(this.alle, `[stage] Abnahme beendet: vollständiges Protokoll (${this.alle.length} Einträge), aufklappbar. Browser schließen, um zu beenden.`);
+    await this.inKonsole(this.endstand, `[stage] Abnahme beendet: vollständiges Protokoll (${this.alle.length} Einträge), aufklappbar. Browser schließen, um zu beenden.`);
     const kontext = this.context;
     await new Promise<void>((fertig) => {
       const pruefe = () => { if (kontext.pages().every((p) => p.isClosed())) fertig(); };
@@ -158,6 +158,15 @@ export class AbnahmeProtokoll {
   }
 
   private readonly alle: Meldung[] = [];
+
+  /** Stand nach dem NetLog-Abgleich (nach stop()). */
+  private get endstand(): Meldung[] {
+    return this.alle.map((m) => (m.treffer ? { ...m, text: trefferZeile(m.treffer), daten: m.treffer.parameter } : m));
+  }
+
+  get zeilen(): string[] {
+    return this.endstand.map((m) => `${m.uhrzeit} ${m.art === 'dl' ? '▶' : '◀'} ${m.kopf.padEnd(12)} ${m.text}`);
+  }
 
   private async inKonsole(liste: Meldung[], gruppe?: string) {
     await Promise.all(this.context.pages().map((seite) => seite.evaluate(({ liste, gruppe }) => {
@@ -181,17 +190,13 @@ export class AbnahmeProtokoll {
       }
       this.dl = this.quelle.dataLayer.eintraege.length;
       for (const t of this.quelle.tracking.treffer.slice(this.tr)) {
-        meldungen.push({ art: 'tr', uhrzeit: uhrzeit(t.zeit), kopf: t.dienst, text: trefferZeile(t), daten: t.parameter });
+        meldungen.push({ art: 'tr', uhrzeit: uhrzeit(t.zeit), kopf: t.dienst, text: trefferZeile(t, true), daten: t.parameter, treffer: t });
       }
       this.tr = this.quelle.tracking.treffer.length;
       this.alle.push(...meldungen);
       await this.banner();
       if (!meldungen.length) return;
-      for (const m of meldungen) {
-        const zeile = `${m.art === 'dl' ? '▶' : '◀'} ${m.kopf.padEnd(12)} ${m.text}`;
-        this.zeilen.push(`${m.uhrzeit} ${zeile}`);
-        console.log(zeile);
-      }
+      for (const m of meldungen) console.log(`${m.art === 'dl' ? '▶' : '◀'} ${m.kopf.padEnd(12)} ${m.text}`);
       await this.inKonsole(meldungen);
     } finally {
       this.laeuft = false;
