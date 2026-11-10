@@ -70,6 +70,7 @@ export const FLUECHTIGE_PARAMETER = [
   'rnd', 'random', 'ord', 'auid', 'gclid', 'gclaw', 'num', 'u_tz', 'u_his', 'u_h', 'u_w', 'u_ah', 'u_aw', 'u_cd',
   'bttype', 'fst', 'oid', 'transaction_id', 'gacid', 'cerd', 'crd', 'fsk', 'pscrd', 'tft', 'ecsid2', 'eoid', 'eitems', '_gsid',
   'rmt_tld', // folgt dem Host (Länderdomain ja/nein)
+  'dc_random', 'auiddc', 'dc_pre', '_dc_ptd', '_dc_unique_id', '_dc_time',
   // Microsoft Ads (UET)
   'mid', 'vid', 'rn', 'lt',
   // Piwik PRO (Zeit-, Zufalls- und Besucherwerte; Timings t_* über FLUECHTIGE_MUSTER)
@@ -77,7 +78,9 @@ export const FLUECHTIGE_PARAMETER = [
   // Meta und andere
   'ts', 'eid', 'it', 'coo', 'rqm', 'ec', 'o', 'timestamp', 'fbp', 'fbc', 'fbcs', 'plt',
   // LinkedIn Insight
-  'time', 'pageLoadId',
+  'time', 'pageLoadId', 'cb', 'eventId',
+  // Reddit
+  'uuid',
 ];
 
 /** Wie FLUECHTIGE_PARAMETER, für Familien von Parametern. */
