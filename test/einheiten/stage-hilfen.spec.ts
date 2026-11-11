@@ -84,6 +84,18 @@ test.describe('Baseline-Vergleich', () => {
     expect(vergleiche(b, l).filter((x) => /abcdefgh/.test(x.text))).toEqual([]);
   });
 
+  test('Microsoft UET: Ereignis aus ea/evt im Schlüssel, Consent-Pings schwanken nur als Hinweis', () => {
+    const uet = (pfad: string, p: Record<string, string>) => ({
+      schluessel: '', dienst: 'Microsoft Ads', methode: 'GET', host: 'bat.bing.com', pfad, umleitung: false, parameter: { ti: '1', ...p } as Record<string, string>,
+    });
+    const ping = uet('/actionp/0', { evt: 'consent', asc: 'G' });
+    const b = { ...basis(), anfragen: [uet('/action/0', { evt: 'pageLoad' }), uet('/action/0', { evt: 'custom', ea: 'add_to_cart' }), ping, ping] };
+    const l = { ...basis(), anfragen: [uet('/action/0', { evt: 'pageLoad' }), uet('/action/0', { evt: 'custom', ea: 'add_to_cart' }), ping, ping, ping, ping, ping] };
+    expect(rot(b, l)).toEqual([]);
+    const ohneAtc = { ...l, anfragen: l.anfragen.filter((a) => a.parameter.ea !== 'add_to_cart') };
+    expect(rot(b, ohneAtc)).toEqual(['Request fehlt: Microsoft Ads · add_to_cart · /action/0 · 1']);
+  });
+
   test('Consent-Parameter geändert: rot', () => {
     const lauf = basis();
     lauf.anfragen[0].parameter.gcs = 'G100';

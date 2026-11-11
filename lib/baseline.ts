@@ -98,10 +98,11 @@ export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
 
 /**
  * Begleit-Requests, geprüft gegen host + pfad: Cookie-Abgleich, Kopien über ccm und Weiterleitungs-Hops
- * bei Google, Uploads von Sitzungsaufzeichnungen (Clarity), deren Anzahl von der Verweildauer abhängt.
+ * bei Google, Uploads von Sitzungsaufzeichnungen (Clarity), deren Anzahl von der Verweildauer abhängt,
+ * Consent- und pageHide-Pings von Microsoft UET (/actionp/), je nach Zahl der Consent-Meldungen von CMP und GTM.
  * Abweichende Anzahl nur als Hinweis; Consent-Parameter bleiben rot.
  */
-export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/, /clarity\.ms\/collect/];
+export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/measurement\/1p-conversion/, /clarity\.ms\/collect/, /bat\.bing\.(com|net)\/actionp\//];
 
 /**
  * Timing-abhängige Requests: Heartbeats von Matomo/Piwik PRO (ping, Piwik PRO z. B. ping=5) und GA4
@@ -207,8 +208,8 @@ export function bodyParameter(body?: string): Record<string, string> {
 /** Name des Ereignisses in einem Request, unabhängig vom Dienst. */
 function ereignisname(p: Record<string, string>, pfad: string): string {
   // e_a: Event-Aktion bei Matomo/Piwik PRO
-  // cat: Aktivität bei Floodlight
-  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.e_a ?? p.label ?? p.cat ?? pfad;
+  // cat: Aktivität bei Floodlight; ea/evt: Microsoft UET (evt=custom mit Aktion ea, sonst pageLoad, consent …)
+  return p.en ?? p.ev ?? p.event ?? p.event_name ?? p.e_a ?? p.ea ?? p.label ?? p.cat ?? p.evt ?? pfad;
 }
 
 const BEGLEIT = '(Begleit) ';

@@ -29,6 +29,8 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 ## Microsoft Ads
 
 - Sendet bei `pagehide`; ohne Proxy wie GA4 `user_engagement` nur über das NetLog sichtbar.
+- Ereignis steht in `evt`: `pageLoad` und `custom` (Aktion in `ea`) an `/action/0`, `consent`, `gtmConsent` und `pageHide` an `/actionp/0`. Die Baseline liest `ea`, sonst `evt`.
+- Consent-Pings an `/actionp/0` kommen je Consent-Meldung von CMP und GTM einzeln, ihre Zahl schwankt von Lauf zu Lauf (beobachtet: 3 bis 11 in den ersten Sekunden), `asc` springt dabei mehrmals zwischen `G` und `D`. In der Baseline deshalb Begleit-Requests (`BEGLEIT_PFADE`), belegt 11/2026.
 
 ## Matomo / Piwik PRO
 
