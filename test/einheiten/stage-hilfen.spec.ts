@@ -75,6 +75,15 @@ test.describe('Baseline-Vergleich', () => {
     expect(rot(b, mit(anfragenAus([req('2', ['openai::sdk_init', 'page_viewed'])])))).toEqual(['Request fehlt: OpenAI Ads · items_added · /v1/sdk/events · P1']);
   });
 
+  test('Abfragen an Erweiterungen (Extension-IDs) in älteren Baselines: kein Befund', () => {
+    const b = basis();
+    b.hosts = [...b.hosts, 'abcdefghijklmnopabcdefghijklmnop'];
+    b.weitere = ['GET abcdefghijklmnopabcdefghijklmnop/icon-16.png', 'POST api.example.com/x'];
+    const l = basis();
+    l.weitere = ['POST api.example.com/x'];
+    expect(vergleiche(b, l).filter((x) => /abcdefgh/.test(x.text))).toEqual([]);
+  });
+
   test('Consent-Parameter geändert: rot', () => {
     const lauf = basis();
     lauf.anfragen[0].parameter.gcs = 'G100';

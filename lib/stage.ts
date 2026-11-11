@@ -1309,6 +1309,8 @@ export async function richteStageEin(
       stage.werkzeugUrls.add(url);
       return;
     }
+    // Abfragen an Erweiterungen (Bot-Schutz sucht so nach installierten Extensions): kein Netzwerk, kein Tracking
+    if (url.startsWith('chrome-extension:')) return;
     const teile = zerlege(url);
     if (teile.host) stage.tracking.hosts.add(teile.host);
     const regel = regelMitTyp(url, request.resourceType());
@@ -1466,7 +1468,7 @@ function verbindeProxy(
       return { aktion, verzoegerungMs: regel.verzoegerungMs, zielUrl };
     },
     melde(r: ProxyRequest) {
-      if (istWerkzeug(r.herkunft) || istWerkzeug(r.url)) return;
+      if (istWerkzeug(r.herkunft) || istWerkzeug(r.url) || r.url.startsWith('chrome-extension:')) return;
       const teile = zerlege(r.url);
       if (teile.host) stage.tracking.hosts.add(teile.host);
       const regel = regelFuer(r.url, r.ziel, r.herkunft);

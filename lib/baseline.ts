@@ -367,6 +367,9 @@ function anzahlBefunde(
   return befunde;
 }
 
+/** Ältere Baselines enthalten Abfragen an Erweiterungen (Host = Extension-ID aus 32 Zeichen a–p). */
+const ohneErweiterungen = (liste: string[]) => liste.filter((e) => !/^(\w+ )?[a-p]{32}(\/|$)/.test(e));
+
 export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOptionen = {}): Befund[] {
   const befunde: Befund[] = [];
   const fluechtigeKeys = new Set([...FLUECHTIGE_KEYS, ...(optionen.fluechtigeKeys ?? [])]);
@@ -464,19 +467,19 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   }
 
   // Hosts; Wechsel innerhalb derselben Domain (Lastverteilung, z. B. a.clarity.ms → p.clarity.ms) ist kein Befund
-  const domainsVorher = new Set(basis.hosts.map(basisDomain));
-  const domainsJetzt = new Set(lauf.hosts.map(basisDomain));
-  for (const h of lauf.hosts) {
+  const domainsVorher = new Set(ohneErweiterungen(basis.hosts).map(basisDomain));
+  const domainsJetzt = new Set(ohneErweiterungen(lauf.hosts).map(basisDomain));
+  for (const h of ohneErweiterungen(lauf.hosts)) {
     const von = lauf.ausloeser?.[h];
     if (!domainsVorher.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neue Domain: ${h}${von ? ` (ausgelöst von: ${von})` : ''}` });
   }
-  for (const h of basis.hosts) {
+  for (const h of ohneErweiterungen(basis.hosts)) {
     if (!domainsJetzt.has(basisDomain(h))) befunde.push({ stufe: 'info', bereich: 'Hosts', text: `Domain nicht mehr angefragt: ${h}` });
   }
 
   // Requests ohne Regel: nur Hinweise, aber ein Grund, über eine neue Regel nachzudenken
-  const weitereVorher = gruppiere(basis.weitere ?? [], (w) => w);
-  const weitereJetzt = gruppiere(lauf.weitere ?? [], (w) => w);
+  const weitereVorher = gruppiere(ohneErweiterungen(basis.weitere ?? []), (w) => w);
+  const weitereJetzt = gruppiere(ohneErweiterungen(lauf.weitere ?? []), (w) => w);
   for (const [k, liste] of weitereJetzt) {
     if (!weitereVorher.has(k)) befunde.push({ stufe: 'info', bereich: 'Neu im Netzwerk', text: `Neuer Request ohne Regel: ${k} (${liste.length}×)` });
   }
