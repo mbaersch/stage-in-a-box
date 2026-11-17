@@ -1,6 +1,6 @@
 # Phase 3: Baseline ziehen und abgleichen
 
-Die Baseline ist der nächste Schritt, sobald die festen Erwartungen bis vor die Conversion stabil sind und ein vollständiger Lauf grün ist. Den Baseline-Test baust Du in Phase 2 gleich mit. Gezogen wird sie nach Rückfrage, weil sie echte Requests und Conversions sendet; einen Test einzeln startest Du mit `-g "Baseline"`.
+Die Baseline ist der nächste Schritt, sobald die festen Erwartungen bis vor die Conversion stabil sind und ein vollständiger Lauf grün ist. Den Baseline-Test baust Du in Phase 2 gleich mit. Gezogen wird sie nach Rückfrage, weil sie echte Requests und Conversions sendet; einen Test einzeln startest Du mit `npx playwright test … -g "Baseline"` (nicht über `npm run`, siehe unten). Danach prüfen, ob nur die gemeinten Tests liefen.
 
 ```ts
 test.describe('Baseline', () => {
@@ -45,7 +45,7 @@ Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.m
 
 Neue dienstübergreifende Erkenntnisse (flüchtige Parameter, Begleit- oder Timing-Requests eines Dienstes) gehören in `lib/baseline.ts` und als Fakt nach [`../wissen/dienste.md`](../wissen/dienste.md).
 
-Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npm run baseline:neu -- projects/<name> -g "Baseline"`) und erneut abgleichen. Die Logik lässt sich auch ohne neuen Lauf prüfen: Jeder Vergleichslauf legt seine Momentaufnahme als `momentaufnahme.json` in `test-results/<test>/` ab, `vergleiche()` aus `lib/baseline.ts` nimmt sie zusammen mit der Baseline-Datei.
+Ändert sich dabei die Vergleichslogik oder was protokolliert wird, die Baseline neu ziehen (`npx playwright test projects/<name> --update-snapshots=all -g "Baseline"`) und erneut abgleichen. Nicht über `npm run baseline:neu -- … -g …`: Im PowerShell-Tool nimmt npm `-g` als eigenen Schalter, dann laufen alle Tests, auch die mit Conversion. Die Logik lässt sich auch ohne neuen Lauf prüfen: Jeder Vergleichslauf legt seine Momentaufnahme als `momentaufnahme.json` in `test-results/<test>/` ab, `vergleiche()` aus `lib/baseline.ts` nimmt sie zusammen mit der Baseline-Datei.
 
 Erst wenn der Abgleich sauber ist, gilt die Baseline als fertig. Im Bericht nennen, was als flüchtig, Begleit-Request oder Rauschen eingestuft wurde.
 
