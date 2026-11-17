@@ -82,7 +82,7 @@ test.describe('Baseline-Vergleich', () => {
       nr: 0, zeit: 0, dienst: 'JENTIS', modus: 'durchlassen', methode: 'POST', url: '', host: 'abc123.example.com',
       pfad: '/', parameter: {}, body: JSON.stringify({ client: { clientTimestamp: 1 }, cmd: {}, data }),
     } as any);
-    const lauf = (consentGa: boolean, ohneBuchung = false) => anfragenAus([
+    const lauf = (consentGa: boolean, ohneLead = false) => anfragenAus([
       { ...req([]), methode: 'OPTIONS', body: undefined },
       req([doc('u1', 'user'), doc('s1', 'session'), doc('e1', 'event', {
         pluginid: 'jts_push_submit', system: { consent: { ga: false } },
@@ -93,13 +93,13 @@ test.describe('Baseline-Vergleich', () => {
       req([doc('u1', 'user'), doc('e1', 'event', {
         pluginid: 'jts_push_submit', system: { consent: { ga: consentGa } }, property: { jtspushedcommands: ['pageview', 'submit'], document_title: 'Start' },
       })]),
-      ...(ohneBuchung ? [] : [req([doc('e2', 'event', { pluginid: 'jts_push_submit', property: { jtspushedcommands: ['event'], event_name: 'bookingSuccess', event_value: 'TESTING' } })])]),
+      ...(ohneLead ? [] : [req([doc('e2', 'event', { pluginid: 'jts_push_submit', property: { jtspushedcommands: ['event'], event_name: 'lead_submit', event_value: 'X1' } })])]),
     ]);
     const mit = (anfragen: ReturnType<typeof anfragenAus>): Baseline => ({ ...basis(), anfragen });
     const b = mit(lauf(true));
     expect(b.anfragen.map((a) => a.schluessel)).toEqual([
       'JENTIS · user · / · beispiel.live', 'JENTIS · session · / · beispiel.live', 'JENTIS · pageview · / · beispiel.live',
-      'JENTIS · consent · / · beispiel.live', 'JENTIS · bookingSuccess · / · beispiel.live',
+      'JENTIS · consent · / · beispiel.live', 'JENTIS · lead_submit · / · beispiel.live',
     ]);
     expect(b.anfragen[2].parameter).toMatchObject({ 'consent.ga': 'true', document_title: 'Start', pluginid: 'jts_push_submit' });
     expect(b.anfragen[2].parameter).not.toHaveProperty('date_now');
@@ -108,7 +108,7 @@ test.describe('Baseline-Vergleich', () => {
       'JENTIS · pageview · / · beispiel.live: consent.ga geändert: "true" → "false"',
       'JENTIS · consent · / · beispiel.live: consent.ga geändert: "true" → "false"',
     ]);
-    expect(rot(b, mit(lauf(true, true)))).toEqual(['Request fehlt: JENTIS · bookingSuccess · / · beispiel.live']);
+    expect(rot(b, mit(lauf(true, true)))).toEqual(['Request fehlt: JENTIS · lead_submit · / · beispiel.live']);
   });
 
   test('Eigene Regel mit JSON-Body: flach verglichen; Standardregel nicht', () => {
