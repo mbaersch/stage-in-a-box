@@ -327,7 +327,13 @@ export interface Treffer {
   entwischt?: boolean;
   /** Filterregel, mit der der Adblocker (stageOptionen.adblocker) den Request blockiert hat. */
   adblocker?: string;
+  /** Regel aus dem Projekt (stageOptionen.regeln): Die Baseline zerlegt JSON-Bodies dann flach. */
+  eigeneRegel?: true;
 }
+
+/** Regeln aus stageOptionen.regeln, zum Unterscheiden von STANDARD_DIENSTE */
+const EIGENE_REGELN = new WeakSet<Regel>();
+const eigen = (regel: Regel) => (EIGENE_REGELN.has(regel) ? true as const : undefined);
 
 /**
  * Ein einzelnes GA4-Ereignis mit allen Parametern (en, gcs, ep.*, epn.*, …) und dem
@@ -1065,6 +1071,7 @@ export async function richteStageEin(
     ?? (process.env.TRACKING_MODUS as Modus | undefined)
     ?? 'abfangen';
   const regeln = [...(optionen.regeln ?? []), ...STANDARD_DIENSTE];
+  for (const r of optionen.regeln ?? []) EIGENE_REGELN.add(r);
   const regelFuer = (url: string) => regeln.find((r) => r.muster.test(url));
   const stage = new Stage(modus, optionen.tempo ?? tempoAusUmgebung(), testInfo, context, regelFuer, !!proxy);
   stage.dataLayerName = optionen.dataLayerName ?? 'dataLayer';
@@ -1331,6 +1338,7 @@ export async function richteStageEin(
       umleitungVon: request.redirectedFrom()?.url(),
       abgeschlossen: false,
       quelle: 'browser',
+      eigeneRegel: eigen(regel),
     };
     stage.tracking.treffer.push(treffer);
     offen.set(request, treffer);
@@ -1497,6 +1505,7 @@ function verbindeProxy(
         abgeschlossen: false,
         quelle: 'proxy',
         adblocker: vomAdblocker.get(r.url),
+        eigeneRegel: eigen(regel),
       };
       // Status, Fehler und Abschluss live aus dem Proxy-Eintrag lesen
       Object.defineProperties(treffer, {

@@ -79,11 +79,24 @@ export interface DeduplizierungsProfil {
   pfad?: RegExp;
 }
 
+/** Ein Dokument bzw. Ereignis aus einem Request-Body, für die Baseline je Eintrag verglichen */
+export interface BodyDokument {
+  /** Kennung des Dokuments: Kommt sie in einem späteren Request wieder, ist es dasselbe Dokument (Felder werden ergänzt). */
+  id?: string;
+  /** Felder; event = Name des Ereignisses, account = Konto. Schlüssel consent.<vendor> sind Consent-Werte. */
+  parameter: Record<string, string>;
+}
+
 export interface DienstProfil {
   name: string;
   klickId?: KlickIdProfil;
   conversion?: ConversionProfil;
   deduplizierung?: DeduplizierungsProfil;
+  /**
+   * Eigenes Body-Format: zerlegt den Body in Dokumente; undefined, wenn der Body nicht dieses Format hat.
+   * Für Dienste ohne feste URL (z. B. JENTIS): Die Regel kommt aus dem Projekt, das Format von hier.
+   */
+  body?: (body: string) => BodyDokument[] | undefined;
 }
 
 /** Meta-Standard-Events zu GA4-Namen */
@@ -179,7 +192,36 @@ export const DIENST_PROFILE: DienstProfil[] = [
     // EnrichAM: Nachreichen von Advanced Matching, kein eigenes Event
     deduplizierung: { id: 'event_id', ereignis: 'event', konto: ['context.pixel.code', 'context.pixel.codes'], ignorieren: /^EnrichAM$/i },
   },
+  // Subdomain und Pfad je Website zufällig: Regel im Projekt, Name "JENTIS"
+  { name: 'JENTIS', body: jentisDokumente },
 ];
+
+/** Je Lauf neu: IDs, Zeiten, Zufallswerte (belegt an drei Websites, 11/2026) */
+const JENTIS_FLUECHTIG = /(^|[._])(doc_id|event_id|consentid|lastupdate|date_now|load_time|active_time_on_page|high_resolution_timestamp)$|random/;
+
+/**
+ * JENTIS: { client, cmd, data: [ { _id, action, account, documentType, pluginid, property, system } ] }.
+ * documentType user, session, event oder consent. Events werden nach dem Consent mit derselben _id erneut
+ * gesendet (mehr Felder). Name eines Events: event_name, sonst die gepushten Befehle (pageview), sonst pluginid.
+ */
+export function jentisDokumente(body: string): BodyDokument[] | undefined {
+  let json: any;
+  try { json = JSON.parse(body); } catch { return undefined; }
+  if (!json || !Array.isArray(json.data) || !('client' in json)) return undefined;
+  return json.data.filter((d: any) => d && typeof d.documentType === 'string').map((d: any) => {
+    const p = d.property && typeof d.property === 'object' ? d.property : {};
+    const befehle = Array.isArray(p.jtspushedcommands) ? p.jtspushedcommands.filter((b: string) => b !== 'submit') : [];
+    const name = d.documentType === 'event' ? (p.event_name || befehle.join('+') || d.pluginid || 'event') : d.documentType;
+    const { vendors, ...rest } = p;
+    const felder: Record<string, string> = {};
+    for (const [k, v] of Object.entries({
+      ...flach(rest),
+      ...flach(d.system?.consent ?? vendors ?? {}, 'consent'),
+      ...(d.pluginid ? { pluginid: d.pluginid } : {}),
+    })) if (!JENTIS_FLUECHTIG.test(k)) felder[k] = v;
+    return { id: d._id ? `${d.documentType}:${d._id}` : undefined, parameter: { ...felder, event: name, account: String(d.account ?? '') } };
+  });
+}
 
 /**
  * Zentrale Profile, ergänzt bzw. überschrieben durch die des Projekts. Gleicher Name: Felder
@@ -201,6 +243,7 @@ export function profileZusammenfuehren(eigene: DienstProfil[] = []): DienstProfi
       klickId,
       conversion: v.conversion || e.conversion ? { ...v.conversion, ...e.conversion } : undefined,
       deduplizierung: e.deduplizierung ?? v.deduplizierung,
+      body: e.body ?? v.body,
     });
   }
   return [...alle.values()];
@@ -210,7 +253,7 @@ export function profileZusammenfuehren(eigene: DienstProfil[] = []): DienstProfi
 /* Felder lesen                                                       */
 /* ------------------------------------------------------------------ */
 
-function flach(obj: unknown, praefix = '', out: Record<string, string> = {}) {
+export function flach(obj: unknown, praefix = '', out: Record<string, string> = {}) {
   if (obj && typeof obj === 'object') {
     for (const [k, v] of Object.entries(obj)) flach(v, praefix ? `${praefix}.${k}` : k, out);
   } else if (obj !== undefined && obj !== null) {

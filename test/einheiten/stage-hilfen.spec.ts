@@ -75,6 +75,54 @@ test.describe('Baseline-Vergleich', () => {
     expect(rot(b, mit(anfragenAus([req('2', ['openai::sdk_init', 'page_viewed'])])))).toEqual(['Request fehlt: OpenAI Ads · items_added · /v1/sdk/events · P1']);
   });
 
+  test('JENTIS: je Dokument verglichen, erneut gesendete Events zusammengeführt, Consent je Vendor rot', () => {
+    const doc = (id: string, typ: string, extra: Record<string, unknown> = {}) =>
+      ({ _id: id, action: 'new', account: 'beispiel.live', documentType: typ, ...extra });
+    const req = (data: unknown[]) => ({
+      nr: 0, zeit: 0, dienst: 'JENTIS', modus: 'durchlassen', methode: 'POST', url: '', host: 'abc123.example.com',
+      pfad: '/', parameter: {}, body: JSON.stringify({ client: { clientTimestamp: 1 }, cmd: {}, data }),
+    } as any);
+    const lauf = (consentGa: boolean, ohneBuchung = false) => anfragenAus([
+      { ...req([]), methode: 'OPTIONS', body: undefined },
+      req([doc('u1', 'user'), doc('s1', 'session'), doc('e1', 'event', {
+        pluginid: 'jts_push_submit', system: { consent: { ga: false } },
+        property: { jtspushedcommands: ['pageview', 'submit'], date_now: Math.random(), random_6_char_hexadecimal: 'x' },
+      })]),
+      req([doc('c1', 'consent', { property: { track: 'consent', consentid: String(Math.random()), vendors: { ga: consentGa } } })]),
+      // erneut gesendet nach dem Consent: dieselbe _id, mehr Felder
+      req([doc('u1', 'user'), doc('e1', 'event', {
+        pluginid: 'jts_push_submit', system: { consent: { ga: consentGa } }, property: { jtspushedcommands: ['pageview', 'submit'], document_title: 'Start' },
+      })]),
+      ...(ohneBuchung ? [] : [req([doc('e2', 'event', { pluginid: 'jts_push_submit', property: { jtspushedcommands: ['event'], event_name: 'bookingSuccess', event_value: 'TESTING' } })])]),
+    ]);
+    const mit = (anfragen: ReturnType<typeof anfragenAus>): Baseline => ({ ...basis(), anfragen });
+    const b = mit(lauf(true));
+    expect(b.anfragen.map((a) => a.schluessel)).toEqual([
+      'JENTIS · user · / · beispiel.live', 'JENTIS · session · / · beispiel.live', 'JENTIS · pageview · / · beispiel.live',
+      'JENTIS · consent · / · beispiel.live', 'JENTIS · bookingSuccess · / · beispiel.live',
+    ]);
+    expect(b.anfragen[2].parameter).toMatchObject({ 'consent.ga': 'true', document_title: 'Start', pluginid: 'jts_push_submit' });
+    expect(b.anfragen[2].parameter).not.toHaveProperty('date_now');
+    expect(vergleiche(b, mit(lauf(true)))).toEqual([]);
+    expect(rot(b, mit(lauf(false)))).toEqual([
+      'JENTIS · pageview · / · beispiel.live: consent.ga geändert: "true" → "false"',
+      'JENTIS · consent · / · beispiel.live: consent.ga geändert: "true" → "false"',
+    ]);
+    expect(rot(b, mit(lauf(true, true)))).toEqual(['Request fehlt: JENTIS · bookingSuccess · / · beispiel.live']);
+  });
+
+  test('Eigene Regel mit JSON-Body: flach verglichen; Standardregel nicht', () => {
+    const req = (eigeneRegel: boolean, wert: string) => ({
+      nr: 0, zeit: 0, dienst: 'Eigenes Format', modus: 'durchlassen', methode: 'POST', url: '', host: 'x.example.com',
+      pfad: '/c', parameter: {}, body: JSON.stringify({ event: 'lead', daten: { wert } }), eigeneRegel: eigeneRegel || undefined,
+    } as any);
+    expect(anfragenAus([req(true, '5')])[0].parameter).toEqual({ event: 'lead', 'daten.wert': '5' });
+    expect(anfragenAus([req(false, '5')])[0].parameter).toEqual({});
+    const mit = (anfragen: ReturnType<typeof anfragenAus>): Baseline => ({ ...basis(), anfragen });
+    expect(vergleiche(mit(anfragenAus([req(true, '5')])), mit(anfragenAus([req(true, '6')]))).map((x) => x.text))
+      .toEqual(['Eigenes Format · lead · /c: daten.wert geändert: "5" → "6"']);
+  });
+
   test('Abfragen an Erweiterungen (Extension-IDs) in älteren Baselines: kein Befund', () => {
     const b = basis();
     b.hosts = [...b.hosts, 'abcdefghijklmnopabcdefghijklmnop'];

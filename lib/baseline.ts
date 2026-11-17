@@ -35,7 +35,7 @@ import { expect } from './playwright';
 import type { Modus, Stage, Treffer } from './stage';
 import type { Tempo } from './tempo';
 import { projektOrdner } from './auftrag';
-import { DIENST_PROFILE, type DeduplizierungsProfil } from './dienstprofile';
+import { DIENST_PROFILE, flach as jsonFlach, type DeduplizierungsProfil } from './dienstprofile';
 
 export interface BaselineOptionen {
   /** Zusätzliche dataLayer-Keys, deren Werte sich bei jedem Lauf ändern (Name auf beliebiger Ebene). */
@@ -95,6 +95,8 @@ export const FLUECHTIGE_MUSTER = [/^t_[a-z]{2}$/, /^expv2\[\d+\]$/];
 
 /** Request-Parameter, deren Änderung als rot gilt: Consent-Signale. */
 export const ROT_PARAMETER = ['gcs', 'gcd', 'npa', 'dma', 'dma_cps'];
+/** Consent je Vendor aus Body-Formaten (z. B. JENTIS, siehe BodyDokument): immer rot, auch mit eigenem rotParameter. */
+export const ROT_MUSTER = [/^consent\./];
 
 /**
  * Begleit-Requests, geprüft gegen host + pfad: Cookie-Abgleich, Kopien über ccm und Weiterleitungs-Hops
@@ -223,8 +225,8 @@ const nurHinweis = (k: string) => k.startsWith(BEGLEIT) || k.startsWith(TIMING);
  * Wechsel des Empfängers als fehlender bzw. neuer Request auffällt und nicht nur als geänderter Parameter.
  */
 function konto(p: Record<string, string>, pfad: string): string {
-  // src: Floodlight-Konfiguration
-  return p.tid ?? p.ti ?? p.idsite ?? p.pid ?? p.id ?? p.src ?? pfad.match(/\/(\d{6,})(\/|$)/)?.[1] ?? '';
+  // src: Floodlight-Konfiguration; account: Body-Formate (BodyDokument)
+  return p.account ?? p.tid ?? p.ti ?? p.idsite ?? p.pid ?? p.id ?? p.src ?? pfad.match(/\/(\d{6,})(\/|$)/)?.[1] ?? '';
 }
 
 /** Vergleichsschlüssel: Dienst, Ereignis, Pfad (IDs als #) und Konto. Wird beim Vergleich neu
@@ -256,13 +258,43 @@ function listenEvents(body: string, profil: DeduplizierungsProfil): string[] | u
 const istIntern = (dienst: string, p: Record<string, string>) =>
   p.event !== undefined && !!LISTEN_DIENSTE.get(dienst)?.ignorieren?.test(p.event);
 
+/** Dienste mit eigenem Body-Format (Profil: body) */
+const BODY_FORMATE = new Map(DIENST_PROFILE.filter((p) => p.body).map((p) => [p.name, p.body!]));
+
+/** JSON-Body flach (a.b.c); undefined, wenn kein JSON-Objekt bzw. -Array. */
+function jsonParameter(body?: string): Record<string, string> | undefined {
+  if (!body || !/^\s*[[{]/.test(body)) return undefined;
+  try { return jsonFlach(JSON.parse(body)); } catch { return undefined; }
+}
+
 export function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
   const out: BaselineAnfrage[] = [];
+  // Dasselbe Dokument in mehreren Requests (z. B. erneut gesendet nach dem Consent): ein Eintrag, Felder ergänzt
+  const dokumente = new Map<string, BaselineAnfrage>();
   for (const t of treffer) {
     const gemeinsam = {
       dienst: t.dienst, methode: t.methode, host: t.host, pfad: t.pfad,
       status: t.status, fehler: t.fehler, umleitung: !!t.umleitungVon,
     };
+    const format = BODY_FORMATE.get(t.dienst);
+    // CORS-Preflight ohne Daten; bei Formaten wie JSON an eine Subdomain vor jedem POST
+    if (format && t.methode === 'OPTIONS') continue;
+    const docs = format && t.body ? format(t.body) : undefined;
+    if (docs) {
+      for (const d of docs) {
+        const schon = d.id ? dokumente.get(`${t.dienst}|${d.id}`) : undefined;
+        if (schon) {
+          Object.assign(schon.parameter, d.parameter);
+          schon.schluessel = schluessel(schon);
+          continue;
+        }
+        const parameter = { ...t.parameter, ...d.parameter };
+        const anfrage = { ...gemeinsam, parameter, schluessel: schluessel({ ...gemeinsam, parameter }) };
+        out.push(anfrage);
+        if (d.id) dokumente.set(`${t.dienst}|${d.id}`, anfrage);
+      }
+      continue;
+    }
     // Wie die gebündelten Events auf Requests verteilt werden, hängt vom Timing ab: je Event ein Eintrag
     const profil = LISTEN_DIENSTE.get(t.dienst);
     const events = profil && t.body ? listenEvents(t.body, profil) : undefined;
@@ -276,7 +308,10 @@ export function anfragenAus(treffer: Treffer[]): BaselineAnfrage[] {
     // GA4 bündelt mehrere Ereignisse in einem Request: jede Body-Zeile ist ein Ereignis.
     const zeilen = t.dienst === 'GA4' && t.body ? t.body.split(/\r?\n/).filter(Boolean) : [null];
     for (const zeile of zeilen) {
-      const parameter = { ...t.parameter, ...(zeile === null ? bodyParameter(t.body) : bodyParameter(zeile)) };
+      // Eigene Regel (Pfad im Projekt benannt, Format unbekannt): JSON flach, damit der Body nicht unverglichen bleibt.
+      // Standardregeln nicht: Deren Schlüssel würden sich ändern und bestehende Baselines rot machen.
+      const body = zeile ?? t.body;
+      const parameter = { ...t.parameter, ...((t.eigeneRegel && jsonParameter(body ?? undefined)) || bodyParameter(body ?? undefined)) };
       out.push({ ...gemeinsam, parameter, schluessel: schluessel({ ...gemeinsam, parameter }) });
     }
   }
@@ -375,7 +410,8 @@ export function vergleiche(basis: Baseline, lauf: Baseline, optionen: BaselineOp
   const befunde: Befund[] = [];
   const fluechtigeKeys = new Set([...FLUECHTIGE_KEYS, ...(optionen.fluechtigeKeys ?? [])]);
   const fluechtigeParameter = new Set([...FLUECHTIGE_PARAMETER, ...(optionen.fluechtigeParameter ?? [])]);
-  const rotParameter = new Set(optionen.rotParameter ?? ROT_PARAMETER);
+  const rotSet = new Set(optionen.rotParameter ?? ROT_PARAMETER);
+  const rotParameter = { has: (p: string) => rotSet.has(p) || ROT_MUSTER.some((m) => m.test(p)) };
   const optional = new Set(optionen.optionaleEvents ?? []);
 
   // dataLayer-Events
