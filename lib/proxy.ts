@@ -102,6 +102,25 @@ function blattSchluesselPem(): string {
   return pem;
 }
 
+/**
+ * CORS-Header für eine abgefangene Antwort. Ohne Freigabe der angefragten Methode und Header scheitert der
+ * Preflight (z. B. JSON-POST an eine andere Subdomain), und der Browser schickt den eigentlichen Request nie.
+ */
+export function corsHeader(anfrage: Record<string, string | string[] | undefined>): Record<string, string> {
+  const wert = (name: string) => [anfrage[name]].flat()[0];
+  const herkunft = wert('origin');
+  const header: Record<string, string> = { 'access-control-allow-origin': herkunft ?? '*' };
+  // "*" mit Credentials verwirft der Browser; nur bei bekannter Herkunft erlauben
+  if (herkunft) header['access-control-allow-credentials'] = 'true';
+  const methode = wert('access-control-request-method');
+  if (methode) header['access-control-allow-methods'] = methode;
+  const angefragt = wert('access-control-request-headers');
+  if (angefragt) header['access-control-allow-headers'] = angefragt;
+  const privat = wert('access-control-request-private-network');
+  if (privat) header['access-control-allow-private-network'] = 'true';
+  return header;
+}
+
 /** Chromium-Startargumente, damit der Browser den Zertifikaten des Proxys vertraut. */
 export function proxyArgumente(): string[] {
   const spki = crypto.createPublicKey(blattSchluesselPem()).export({ type: 'spki', format: 'der' });
@@ -270,7 +289,7 @@ export class StageProxy {
     if (eintrag.aktion === 'abfangen') {
       eintrag.status = 204;
       eintrag.abgeschlossen = true;
-      res.writeHead(204, { 'access-control-allow-origin': String(req.headers.origin ?? '*'), 'access-control-allow-credentials': 'true' }).end();
+      res.writeHead(204, corsHeader(req.headers)).end();
       return;
     }
     if (eintrag.aktion === 'blockieren' && entscheidung?.ersatz) {
@@ -279,7 +298,7 @@ export class StageProxy {
       eintrag.abgeschlossen = true;
       res.writeHead(200, {
         'content-type': entscheidung.ersatz.contentType,
-        'access-control-allow-origin': String(req.headers.origin ?? '*'), 'access-control-allow-credentials': 'true',
+        ...corsHeader(req.headers),
       }).end(entscheidung.ersatz.body);
       return;
     }

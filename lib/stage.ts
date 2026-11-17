@@ -36,7 +36,7 @@ import { projektOrdner } from './auftrag';
 import { AbnahmeProtokoll, DEVTOOLS_EINSTELLUNGEN } from './abnahme';
 import { pausenDauer, tempoAusUmgebung, type Tempo } from './tempo';
 import { leseNetlog, netlogArgumente } from './netlog';
-import { StageProxy, proxyAusUmgebung, type ProxyRequest } from './proxy';
+import { StageProxy, proxyAusUmgebung, corsHeader, type ProxyRequest } from './proxy';
 import {
   clientHintsAnpassen, drossele, geraetAus, hatClientHints as hatClientHintsUa, klickIdBefunde, utmBefunde, landungsParameter, userAgentAus,
   type KlickIdBefund, type Landung, type Netz, type UtmBefund,
@@ -1392,7 +1392,7 @@ export async function richteStageEin(
     try {
       const m = regel.modus ?? modus;
       if (m === 'blockieren') await route.abort('blockedbyclient');
-      else if (m === 'abfangen') await route.fulfill({ status: 204, body: '' });
+      else if (m === 'abfangen') await route.fulfill({ status: 204, headers: corsHeader(request.headers()), body: '' });
       else await route.continue();
     } catch {
       // Seite wurde inzwischen geschlossen oder navigiert; Request ist ohnehin erledigt.
