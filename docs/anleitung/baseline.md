@@ -35,7 +35,7 @@ test.describe('Baseline', () => {
 Den Baseline-Test sofort ein zweites Mal laufen lassen und `baseline-vergleich.md` durchgehen. Ziel: kein Rot und nur Hinweise, die sich erklären lassen. Jede Abweichung einordnen:
 
 - **Flüchtiger Wert** (Zufall, Zeit, Sitzung, Client-ID): dienstübergreifend bekannte Parameter in `FLUECHTIGE_PARAMETER` bzw. `FLUECHTIGE_MUSTER` in `lib/baseline.ts`, nur hier vorkommende als `fluechtigeKeys`/`fluechtigeParameter` im Test.
-- **Timing-abhängig** (GA4 `user_engagement`, Heartbeats wie `ping` bei Matomo/Piwik PRO): Anzahl hängt an der Verweildauer und wird immer so eingestuft (`istTimingAbhaengig` in `lib/baseline.ts`, im Bericht „(Timing)“). Weitere solche Requests dort ergänzen.
+- **Timing-abhängig** (GA4 `user_engagement`, Heartbeats wie `ping` bei Matomo/Piwik PRO oder Events mit „heartbeat“ im Namen bzw. in der Gruppe): Anzahl hängt an der Verweildauer und wird immer so eingestuft (`istTimingAbhaengig` in `lib/baseline.ts`, im Bericht „(Timing)“). Weitere solche Requests dort ergänzen.
 - **Gebündelte JSON-Events** (Dienstprofil mit `liste`, z. B. OpenAI): Wie viele Events in einem Request landen, hängt vom Timing ab. Die Baseline vergleicht deshalb je Event (`event` im Schlüssel); Events des SDK selbst (`ignorieren` im Profil) zählen als „(Begleit)“. Baselines von vor dieser Änderung führen solche Dienste noch je Request und müssen neu gezogen werden.
 - **Begleit-Request** mit schwankender Anzahl (Cookie-Abgleich, Kopien, Weiterleitungs-Hops, Uploads von Sitzungsaufzeichnungen): Muster für host + pfad in `BEGLEIT_PFADE`, im Bericht „(Begleit)“.
 - Bei beiden ist eine abweichende Anzahl nur ein Hinweis; Consent-Parameter bleiben rot.

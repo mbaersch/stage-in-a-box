@@ -111,6 +111,20 @@ test.describe('Baseline-Vergleich', () => {
     expect(rot(b, mit(lauf(true, true)))).toEqual(['Request fehlt: JENTIS · lead_submit · / · beispiel.live']);
   });
 
+  test('JENTIS heartbeat_signal: Timing, Fehlen nur als Hinweis', () => {
+    const req = (data: unknown[]) => ({
+      nr: 0, zeit: 0, dienst: 'JENTIS', modus: 'durchlassen', methode: 'POST', url: '', host: 'abc123.example.com',
+      pfad: '/', parameter: {}, body: JSON.stringify({ client: {}, cmd: {}, data }),
+    } as any);
+    // Form wie gesehen: eigenes Event der Website per _jts.push, nicht vom Client selbst
+    const hb = { _id: 'h1', action: 'new', account: 'beispiel.live', documentType: 'event', pluginid: 'jts_push_submit',
+      property: { jtspushedcommands: ['event'], event_name: 'heartbeat_signal', event_group: 'heartbeat' } };
+    const mit = (anfragen: ReturnType<typeof anfragenAus>): Baseline => ({ ...basis(), anfragen });
+    const b = mit(anfragenAus([req([hb])]));
+    expect(b.anfragen[0].schluessel).toBe('(Timing) JENTIS · heartbeat_signal · / · beispiel.live');
+    expect(rot(b, mit([]))).toEqual([]);
+  });
+
   test('Eigene Regel mit JSON-Body: flach verglichen; Standardregel nicht', () => {
     const req = (eigeneRegel: boolean, wert: string) => ({
       nr: 0, zeit: 0, dienst: 'Eigenes Format', modus: 'durchlassen', methode: 'POST', url: '', host: 'x.example.com',

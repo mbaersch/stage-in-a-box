@@ -53,6 +53,7 @@ Belegt an drei Websites (11/2026).
 - **Events auslösen:** `_jts.push({ track: 'event', group, name, value })`; E-Commerce mit `track: 'product'` usw. und `track: 'submit'` am Ende (JENTIS-Doku „Set up JENTIS Data Layer“). Listener der Website (z. B. auf `postMessage` eines eingebetteten iframes) reagieren nicht auf einen eigenen dataLayer-Push.
 - **Felder hängen am Container:** `property` enthält nur die Variablen, die im JENTIS-Container der Website eingerichtet sind. Belegt 11/2026: Produkt-, Warenkorb- und Bestellaufrufe kamen ohne jeden gepushten Wert an (keine ID, kein Preis), weil der Container keine E-Commerce-Variablen hatte; nur `jtspushedcommands` (z. B. `["product","order","submit"]`). Unabhängig vom Container sind also nur die Befehle, `pluginid`, `account` und der Consent je Vendor. Bei `track: 'event'` kamen `event_group`, `event_name`, `event_value` an.
 - **Weitere pluginid:** `jts_framework_loaded` (nach dem Laden), `page_transition_event` auch bei `virtualpageview`.
+- **Timing:** Ein Heartbeat-Event der Website (`event_name: heartbeat_signal`, `event_group: heartbeat`) kam bei gleicher Journey mal, mal nicht; in der Baseline „(Timing)“. `scroll_tracking` (Schwelle 10 %) kam ohne eigenes Scrollen nur zufällig, etwa durch nachladende Inhalte; Tests, die es vergleichen, scrollen selbst.
 
 ## Dienstprofile
 

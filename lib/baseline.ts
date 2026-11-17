@@ -108,9 +108,13 @@ export const BEGLEIT_PFADE = [/\/ccm\//, /\/pagead\/1p-/, /\/rmkt\/collect/, /\/
 
 /**
  * Timing-abhängige Requests: Heartbeats von Matomo/Piwik PRO (ping, Piwik PRO z. B. ping=5) und GA4
- * user_engagement, das beim Verlassen nur nach genug Interaktionszeit kommt. Anzahl nur als Hinweis.
+ * user_engagement, das beim Verlassen nur nach genug Interaktionszeit kommt, und Events mit "heartbeat" im
+ * Namen oder in der Gruppe (belegt: JENTIS event_name heartbeat_signal, kam bei gleicher Journey mal, mal nicht).
+ * Anzahl nur als Hinweis.
  */
-const istTimingAbhaengig = (p: Record<string, string>) => p.ping !== undefined || p.en === 'user_engagement';
+const istTimingAbhaengig = (p: Record<string, string>) =>
+  p.ping !== undefined || p.en === 'user_engagement'
+  || [p.event, p.event_name, p.event_group, p.pluginid].some((v) => /heartbeat/i.test(v ?? ''));
 
 interface BaselineEvent { name: string; quelle: 'push' | 'gtag'; daten: Record<string, unknown> }
 
