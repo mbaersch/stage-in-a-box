@@ -4,7 +4,14 @@ Ein Request, der zu fehlen scheint, fehlt nicht unbedingt. Er kann über einen P
 
 ## Requests ohne Regel
 
-Requests ohne Regel werden nur protokolliert (`weitere-requests.json`), nie abgefangen – auch nicht im Modus `abfangen`. Ein Tracking-Endpunkt ohne Regel geht also echt raus. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören.
+Requests ohne Regel werden nur protokolliert (`weitere-requests.json`), nie abgefangen – auch nicht im Modus `abfangen`. Ein Tracking-Endpunkt ohne Regel geht also echt raus. Auch die Baseline sieht von ihnen nur Methode, Host und Pfad, keinen Body. `UNBEKANNTE=abfangen` fängt als Sicherheitsnetz alle Fetch-, XHR- und Beacon-Requests an fremde Domains ab (Dienst „Unbekannt“), kann aber Funktionen der Website stören.
+
+## Eigene Regel und Body
+Steht ein eigener Pfad im Auftrag (Server-Container, Custom Loader, Google Tag Gateway, JENTIS), bekommt er eine Regel im Projekt. Die Baseline wertet dann auch den Body aus:
+
+- **Bekanntes Format:** Heißt die Regel wie ein Dienstprofil mit `body` (z. B. `JENTIS`), zerlegt die Baseline den Body in Dokumente bzw. Ereignisse und vergleicht je Eintrag.
+- **Sonst JSON:** Ein JSON-Body wird flach verglichen (`daten.wert`); Ereignis ist ein Feld `event`, `en`, `event_name` o. Ä., sonst der Pfad. Flüchtige Felder als `fluechtigeParameter` im Baseline-Test.
+- Für die Standardregeln gilt das nicht: Deren Schlüssel würden sich ändern und bestehende Baselines rot machen.
 
 ## Stape Custom Loader
 

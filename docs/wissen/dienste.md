@@ -40,6 +40,18 @@ Regeln für die Erkennung stehen in `STANDARD_DIENSTE` (`lib/stage.ts`), flücht
 
 - Uploads mit schwankender Anzahl: im Baseline-Vergleich „(Begleit)“ oder als Rauschen mit `nichtProtokollieren: true`.
 
+## JENTIS
+
+Belegt an drei Websites (11/2026).
+
+- **Keine feste URL:** Loader `https://<id>.<domain>/<zufall>.js`, Daten per `POST https://<id>.<domain>/`. Manche Instanzen setzen das Cookie über einen eigenen Pfad der Hauptdomain (`POST https://<domain>/<id>`, Body nur `cmd: setcookie-itp-proxy`). Deshalb keine Standardregel: Das Projekt legt eine Regel mit dem Namen `JENTIS` an, nur auf die Endpunkte, nicht auf den Loader. Das Body-Format kennt das Profil in `lib/dienstprofile.ts` (`jentisDokumente`).
+- **Body:** JSON `{ client, cmd, data: [ … ], requestType }`, per XHR als `application/json`, beim Verlassen per Beacon als `text/plain`. Jeder Eintrag in `data` ist ein Dokument mit `_id`, `action` (`new`/`upd`), `account` (`<name>.<umgebung>`, z. B. `….live`, `….stage`), `documentType` (`user`, `session`, `event`, `consent`) und `property`. Events haben `pluginid` (`jts_push_submit`, `scroll_tracking`, `page_transition_event`, `new_jentis_user` …) und in `system.consent` den Status je Vendor (`true`, `false`, `"ncm"`).
+- **Antwort:** `{"requestIntervalSeconds":2,"commands":[]}`. JENTIS sammelt und sendet in diesem Abstand.
+- **Erneut gesendet:** Events vor der Consent-Entscheidung kommen danach noch einmal mit derselben `_id` und mehr Feldern. Die Baseline führt sie zu einem Eintrag zusammen.
+- **Baseline:** ein Eintrag je Dokument. Name des Events: `event_name`, sonst die gepushten Befehle (`pageview`), sonst `pluginid`. Konto: `account`. Der Vendor-Status steht als `consent.<vendor>` und ist bei Änderung rot. IDs, Zeiten und Zufallswerte sind flüchtig. OPTIONS-Preflights zählen nicht.
+- **Abfangen:** JSON an eine andere Subdomain löst einen CORS-Preflight aus; die Stage beantwortet ihn beim Abfangen mit passenden CORS-Headern (`corsHeader` in `lib/proxy.ts`).
+- **Events auslösen:** `_jts.push({ track: 'event', group, name, value })`; E-Commerce mit `track: 'product'` usw. und `track: 'submit'` am Ende (JENTIS-Doku „Set up JENTIS Data Layer“). Listener der Website (z. B. auf `postMessage` eines Buchungs-iframes) reagieren nicht auf einen eigenen dataLayer-Push.
+
 ## Dienstprofile
 
 Was die Stage über einen Dienst wissen muss, steht als Profil in `lib/dienstprofile.ts`: Klick-ID (URL-Parameter, Ablage, Parameter im Request) und Conversion (Erkennung des Events, Felder für Wert, Währung, Transaktion, Artikel). Die Tabellen hier geben den Stand der zentralen Profile wieder.
