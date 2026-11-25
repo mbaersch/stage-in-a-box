@@ -25,6 +25,7 @@ Wissen, bei Bedarf:
 | [`docs/wissen/eigene-formate.md`](docs/wissen/eigene-formate.md) | Tracking über eigene Pfade und Formate (sGTM, Stape-Tunnel), Requests ohne Regel |
 | [`docs/wissen/gtm.md`](docs/wissen/gtm.md) | GTM und Google-Tag: Debug Mode, Hüllen-Objekte, Tag feuert ohne Request, Google Tag Gateway |
 | [`docs/wissen/dienste.md`](docs/wissen/dienste.md) | Besonderheiten einzelner Dienste (GA4, Google Ads, Meta, JENTIS, Enhanced Conversions) |
+| [`docs/wissen/formulare.md`](docs/wissen/formulare.md) | Formular- und Konfigurator-Plugins: eigene dataLayer-Events, Erfolgserkennung, Fallen (Anfrageformular pro / `af2`) |
 | [`docs/wissen/tag-assistant-export.md`](docs/wissen/tag-assistant-export.md) | Was ein Tag-Assistant-Export enthält und was nicht |
 | [`docs/aufzeichnungsformat.md`](docs/aufzeichnungsformat.md) | Format der Recorder-Einträge (Referenz) |
 
